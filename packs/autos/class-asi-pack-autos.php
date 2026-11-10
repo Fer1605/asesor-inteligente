@@ -17,7 +17,11 @@
 
 defined( 'ABSPATH' ) || defined( 'ASI_CLI_TESTS' ) || exit;
 
-final class ASI_Pack_Autos implements ASI_Pack {
+require_once __DIR__ . '/trait-asi-autos-advisor.php';
+
+final class ASI_Pack_Autos implements ASI_Pack, ASI_Advisor {
+
+	use ASI_Autos_Advisor;
 
 	const VEHICLE_TYPES = array( 'vehiculo', 'vehiculos', 'vehicle', 'vehicles', 'auto', 'autos', 'car', 'cars', 'carro', 'carros', 'listing', 'listings' );
 

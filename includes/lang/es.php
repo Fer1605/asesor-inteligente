@@ -54,6 +54,8 @@ return array(
 	'price_words' => array( 'precio', 'precios', 'cuanto cuesta', 'cuanto cuestan', 'cuanto vale', 'cuanto valen', 'costo', 'costos', 'valor', 'tarifa' ),
 
 	// Montos del cliente (ASI_Money::extract_budget). Frases sin acentos, en minúsculas.
+	'profile_chips' => array( 'Somos 4 con niños', 'Es para trabajar', 'Para la ciudad', 'Para la finca' ),
+
 	'money_words' => array(
 		'max'          => array( 'menos de', 'menor a', 'menor de', 'hasta', 'maximo', 'max', 'no mas de', 'por debajo de', 'que no pase de', 'que no pase los', 'abajo de', 'tope de', 'que no supere', 'que no supere los', 'no mayor a' ),
 		'min'          => array( 'mas de', 'mayor a', 'mayor de', 'desde', 'minimo', 'arriba de', 'por encima de', 'no menos de' ),
@@ -313,6 +315,43 @@ return array(
 			'Estas son {n} que encajan con lo que buscas.',
 			'Te encontré {n} de {label}.',
 		),
+		'advice_open' => array(
+			'Para {summary} te recomiendo {options}.',
+			'Pensando en {summary}, lo que mejor te queda es {options}.',
+			'Para {summary} yo me iría por {options}.',
+		),
+		'advice_open_generic' => array(
+			'Te recomiendo {options}.',
+			'Lo que mejor te queda es {options}.',
+		),
+		'advice_in_budget' => array(
+			'Todas entran en tu presupuesto {budget}.',
+			'Te muestro solo las que caben en un presupuesto {budget}.',
+		),
+		'advice_over_budget' => array(
+			'Siendo sincero, con un presupuesto {budget} lo que te recomiendo queda un poco alto: arranca en {min}. Te muestro las más accesibles; si puedes estirar un poco el presupuesto, son la mejor opción para ti. ¿O prefieres que busque algo más sencillo dentro de tu presupuesto?',
+			'Con {budget} lo que más te conviene se pasa un poco: lo más accesible está en {min}. ¿Te muestro alternativas dentro de tu presupuesto o te sirven estas?',
+		),
+		'advice_closing' => array(
+			'¿Te interesa alguna? Te puedo dar más detalles, compararlas o calcularte las cuotas.',
+			'Si alguna te llama la atención, dime cuál y te cuento más o te calculo las cuotas.',
+		),
+		'ask_budget' => array(
+			'¿Cuánto tienes de presupuesto aproximado? Así te muestro lo que mejor te queda.',
+			'Para afinar: ¿más o menos cuánto quieres invertir?',
+		),
+		'ask_profile' => array(
+			'¡Con gusto te ayudo a elegir! Cuéntame un poco: ¿cuántos van a viajar normalmente y para qué lo vas a usar (ciudad, carretera, trabajo, finca)?',
+			'Claro. Para recomendarte bien, ¿cuántas personas van a usarlo y para qué: ciudad, viajes, trabajo o caminos de tierra?',
+		),
+		'advice_none' => array(
+			'Para {summary} no tengo en este momento algo que cumpla todo.',
+			'Ahora mismo no tengo opciones que le queden bien a {summary}.',
+		),
+		'advice_none_followup' => array(
+			'Nuestros asesores te pueden avisar cuando ingrese algo así. ¿Te dejo el contacto?',
+		),
+		'budget_chip' => array( 'Hasta {max}' ),
 		'results_budget' => array(
 			'Con un presupuesto {budget} tengo {n}. Te muestro primero las que más aprovechan tu presupuesto.',
 			'Para un presupuesto {budget} hay {n}. Empiezo por las más completas dentro de ese monto.',

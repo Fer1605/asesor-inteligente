@@ -17,7 +17,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ASI_VERSION', '0.1.0-dev.3' );
+define( 'ASI_VERSION', '0.1.0-dev.5' );
 define( 'ASI_FILE', __FILE__ );
 define( 'ASI_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ASI_URL', plugin_dir_url( __FILE__ ) );
@@ -46,6 +46,7 @@ require_once ASI_DIR . 'includes/engine/class-asi-extractor.php';
 require_once ASI_DIR . 'includes/dialogue/class-asi-tone.php';
 require_once ASI_DIR . 'includes/dialogue/class-asi-responder.php';
 require_once ASI_DIR . 'includes/dialogue/trait-asi-dialogue-products.php';
+require_once ASI_DIR . 'includes/dialogue/trait-asi-dialogue-advice.php';
 require_once ASI_DIR . 'includes/dialogue/class-asi-dialogue.php';
 require_once ASI_DIR . 'includes/class-asi-appearance.php';
 require_once ASI_DIR . 'includes/class-asi-chat-page.php';
@@ -55,6 +56,7 @@ require_once ASI_DIR . 'includes/class-asi-learning.php';
 require_once ASI_DIR . 'includes/api/class-asi-rest-controller.php';
 require_once ASI_DIR . 'includes/extend/interface-asi-connector.php';
 require_once ASI_DIR . 'includes/extend/interface-asi-pack.php';
+require_once ASI_DIR . 'includes/extend/interface-asi-advisor.php';
 require_once ASI_DIR . 'includes/extend/class-asi-extensions.php';
 
 /**

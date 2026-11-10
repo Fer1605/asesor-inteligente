@@ -21,6 +21,7 @@ if ( ! defined( 'ABSPATH' ) && ! defined( 'ASI_CLI_TESTS' ) ) {
 class ASI_Dialogue {
 
 	use ASI_Dialogue_Products;
+	use ASI_Dialogue_Advice;
 
 	const MAX_MESSAGE = 300;
 	const MAX_SHOWN   = 300;
@@ -153,6 +154,12 @@ class ASI_Dialogue {
 		$special = $special ? $special : $this->price_rank_flow( $message, $normalized, $state );
 		if ( $special ) {
 			return $special;
+		}
+
+		// Asesor: el cliente cuenta su situación ("somos 4 con un niño") o pide consejo.
+		$advice = $this->advice_flow( $message, $state );
+		if ( $advice ) {
+			return $advice;
 		}
 
 		// 2. Intención. "¿Qué es {nombre del sitio}?" va directo a quiénes somos.
@@ -1248,6 +1255,35 @@ class ASI_Dialogue {
 	/**
 	 * Estado enviado por el navegador, validado: nunca se confía en su forma.
 	 */
+	/**
+	 * Perfil del cliente que viene del navegador: plano, chico y solo con valores simples (lo define
+	 * el pack; el core no confía en su forma).
+	 *
+	 * @param mixed $profile Perfil.
+	 * @return array
+	 */
+	private static function clean_profile( $profile ) {
+		$clean = array();
+		if ( ! is_array( $profile ) ) {
+			return $clean;
+		}
+		foreach ( array_slice( $profile, 0, 20, true ) as $key => $value ) {
+			if ( ! is_string( $key ) || ! preg_match( '/^[a-z_]{1,20}$/', $key ) ) {
+				continue;
+			}
+			if ( is_int( $value ) || is_float( $value ) ) {
+				$clean[ $key ] = $value;
+			} elseif ( is_string( $value ) ) {
+				$clean[ $key ] = substr( $value, 0, 30 );
+			} elseif ( is_bool( $value ) ) {
+				$clean[ $key ] = $value;
+			} elseif ( is_array( $value ) ) {
+				$clean[ $key ] = array_slice( array_values( array_filter( $value, 'is_scalar' ) ), 0, 10 );
+			}
+		}
+		return $clean;
+	}
+
 	private function clean_state( array $state ) {
 		$ints = function ( $list, $max ) {
 			return array_slice( array_values( array_filter( array_map( 'intval', is_array( $list ) ? $list : array() ) ) ), -$max );
@@ -1260,10 +1296,12 @@ class ASI_Dialogue {
 			'recent'  => array_slice( array_values( array_filter( isset( $state['recent'] ) && is_array( $state['recent'] ) ? $state['recent'] : array(), 'is_string' ) ), -ASI_Responder::MEMORY ),
 			'turns'   => isset( $state['turns'] ) ? max( 0, (int) $state['turns'] ) : 0,
 			'lang'    => isset( $state['lang'] ) && is_string( $state['lang'] ) ? $state['lang'] : '',
+			'profile' => self::clean_profile( isset( $state['profile'] ) ? $state['profile'] : array() ),
+			'asked'   => array_slice( array_values( array_filter( isset( $state['asked'] ) && is_array( $state['asked'] ) ? $state['asked'] : array(), 'is_string' ) ), -10 ),
 		);
 		// Otra página de idioma o país: la conversación empieza de cero.
 		if ( '' !== $clean['lang'] && $clean['lang'] !== $this->context['lang'] ) {
-			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '' );
+			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array() );
 		}
 		return $clean;
 	}

@@ -30,6 +30,8 @@ return array(
 	'price_words' => array( 'price', 'prices', 'how much', 'cost', 'costs', 'pricing', 'rate' ),
 
 	// Customer amounts (ASI_Money::extract_budget). Lowercase, no accents.
+	'profile_chips' => array( 'We are 4 with kids', 'It is for work', 'For the city', 'For the farm' ),
+
 	'money_words' => array(
 		'max'          => array( 'under', 'less than', 'below', 'up to', 'max', 'maximum', 'no more than', 'at most', 'not over', 'cheaper than' ),
 		'min'          => array( 'over', 'more than', 'above', 'at least', 'minimum', 'starting at' ),
@@ -243,6 +245,35 @@ return array(
 			'These {n} match what you are looking for.',
 			'I found {n} related to {label}.',
 		),
+		'advice_open' => array(
+			'For {summary} I would recommend {options}.',
+			'Thinking about {summary}, your best fit is {options}.',
+		),
+		'advice_open_generic' => array(
+			'I would recommend {options}.',
+		),
+		'advice_in_budget' => array(
+			'They all fit your budget {budget}.',
+		),
+		'advice_over_budget' => array(
+			'To be honest, with a budget {budget} what I recommend is a bit high: it starts at {min}. Here are the most affordable ones; if you can stretch your budget a little, they are your best option. Or should I look for something simpler within your budget?',
+		),
+		'advice_closing' => array(
+			'Do you like any of them? I can give you more details, compare them or work out the monthly payments.',
+		),
+		'ask_budget' => array(
+			'Roughly what is your budget? That way I can show you what fits best.',
+		),
+		'ask_profile' => array(
+			'Happy to help you choose! Tell me a bit: how many people will usually ride and what will you use it for (city, highway, work, farm)?',
+		),
+		'advice_none' => array(
+			'For {summary} I do not have anything that fits everything right now.',
+		),
+		'advice_none_followup' => array(
+			'Our advisors can let you know when something like that comes in. Want the contact info?',
+		),
+		'budget_chip' => array( 'Up to {max}' ),
 		'results_budget' => array(
 			'With a budget {budget} I have {n}. The ones that make the most of your budget come first.',
 			'For a budget {budget} there are {n}; I start with the most complete within that amount.',
