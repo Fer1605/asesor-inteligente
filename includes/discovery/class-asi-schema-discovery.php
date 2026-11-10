@@ -279,7 +279,7 @@ class ASI_Schema_Discovery {
 				'label'  => $meta_key,
 				'type'   => '',
 				'source' => 'meta',
-				'role'   => ASI_Field_Classifier::classify_field( $meta_key, '', '', $samples ),
+				'role'   => ASI_Extensions::field_role( $meta_key, '', $samples, ASI_Field_Classifier::classify_field( $meta_key, '', '', $samples ) ),
 			);
 		}
 
@@ -328,7 +328,7 @@ class ASI_Schema_Discovery {
 			'label'  => $label,
 			'type'   => $type,
 			'source' => 'acf',
-			'role'   => ASI_Field_Classifier::classify_field( $name, $label, $type, $samples ),
+			'role'   => ASI_Extensions::field_role( $name, $label, $samples, ASI_Field_Classifier::classify_field( $name, $label, $type, $samples ) ),
 		);
 	}
 
@@ -396,7 +396,7 @@ class ASI_Schema_Discovery {
 				'type'   => '',
 				'source' => 'json',
 				// Solo la última parte de la ruta: "detalle.color" es un color, no una descripción.
-				'role'   => ASI_Field_Classifier::classify_field( substr( strrchr( '.' . $path, '.' ), 1 ), $label, '', $values ),
+				'role'   => ASI_Extensions::field_role( substr( strrchr( '.' . $path, '.' ), 1 ), $label, (array) $values, ASI_Field_Classifier::classify_field( substr( strrchr( '.' . $path, '.' ), 1 ), $label, '', $values ) ),
 			);
 		}
 		return $children;

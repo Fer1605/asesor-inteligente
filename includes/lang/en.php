@@ -247,6 +247,12 @@ return array(
 			'With a budget {budget} I have {n}. The ones that make the most of your budget come first.',
 			'For a budget {budget} there are {n}; I start with the most complete within that amount.',
 		),
+		'results_budget_attrs' => array(
+			'With a budget {budget} I have {n} {wanted}. The ones that make the most of your budget come first.',
+		),
+		'results_attrs' => array(
+			'I found {n} {wanted}. Newest models first.',
+		),
 		'budget_between' => array( 'between {min} and {max}' ),
 		'budget_max'     => array( 'of up to {max}' ),
 		'budget_min'     => array( 'from {min}' ),

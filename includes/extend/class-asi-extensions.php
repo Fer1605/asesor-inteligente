@@ -16,7 +16,7 @@ defined( 'ABSPATH' ) || defined( 'ASI_CLI_TESTS' ) || exit;
 
 final class ASI_Extensions {
 
-	/** @var array<string,array>|null */
+	/** @var array<string,ASI_Pack>|null */
 	private static $packs = null;
 
 	/** @var array<string,ASI_Connector>|null */
@@ -25,14 +25,14 @@ final class ASI_Extensions {
 	/**
 	 * Todos los packs instalados.
 	 *
-	 * @return array<string,array>
+	 * @return array<string,ASI_Pack>
 	 */
 	public static function packs() {
 		if ( null === self::$packs ) {
 			self::$packs = array();
-			foreach ( self::load_dir( 'packs', 'pack.php' ) as $id => $pack ) {
-				if ( is_array( $pack ) ) {
-					self::$packs[ $id ] = $pack + array( 'id' => $id );
+			foreach ( self::load_dir( 'packs', 'pack.php' ) as $pack ) {
+				if ( $pack instanceof ASI_Pack ) {
+					self::$packs[ $pack->id() ] = $pack;
 				}
 			}
 			if ( function_exists( 'apply_filters' ) ) {
@@ -45,15 +45,25 @@ final class ASI_Extensions {
 	/**
 	 * Packs que aplican a este sitio.
 	 *
-	 * @return array<string,array>
+	 * @return array<string,ASI_Pack>
 	 */
 	public static function active_packs() {
 		return array_filter(
 			self::packs(),
-			static function ( $pack ) {
-				return empty( $pack['detect'] ) || ! is_callable( $pack['detect'] ) || (bool) call_user_func( $pack['detect'] );
+			static function ( ASI_Pack $pack ) {
+				return $pack->detect();
 			}
 		);
+	}
+
+	/**
+	 * Rol de un campo después de que cada pack activo opine (al descubrir el sitio).
+	 */
+	public static function field_role( $name, $label, array $samples, $role ) {
+		foreach ( self::active_packs() as $pack ) {
+			$role = $pack->field_role( $name, $label, $samples, $role );
+		}
+		return $role;
 	}
 
 	/**

@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class ASI_Document_Builder {
 
 	/** Subir cuando cambie la forma de construir documentos: fuerza el reindexado. */
-	const DOC_VERSION = 6;
+	const DOC_VERSION = 7;
 
 	const MAX_BODY  = 20000;
 	const MAX_SPECS = 4;
@@ -128,7 +128,13 @@ class ASI_Document_Builder {
 		$this->collect_woocommerce( $post, $doc );
 
 		if ( '' === $doc['card']['summary'] ) {
-			$doc['card']['summary'] = $this->trim_words( implode( ' ', $doc['body'] ), 28 );
+			$readable = array_filter(
+				$doc['body'],
+				static function ( $text ) {
+					return ! preg_match( '/^\s*[\[{]/', (string) $text );
+				}
+			);
+			$doc['card']['summary'] = $this->trim_words( implode( ' ', $readable ), 28 );
 		}
 
 		$doc = apply_filters( 'asi_document', $doc, $post, $type );
@@ -142,6 +148,15 @@ class ASI_Document_Builder {
 		foreach ( $doc['facts'] as $fact ) {
 			if ( ! in_array( $fact[0], array( 'brand', 'category', 'code' ), true ) ) {
 				$doc['facets'][] = array( 'fact', $fact[0] );
+			}
+		}
+
+		// Atributos del giro (plazas, tracción, año…): los arma cada pack activo con la ficha completa.
+		foreach ( ASI_Extensions::active_packs() as $pack ) {
+			$attrs = $pack->attributes( $doc, $post->post_type );
+			if ( $attrs ) {
+				$doc['card']['attrs'] = array_merge( isset( $doc['card']['attrs'] ) ? $doc['card']['attrs'] : array(), $attrs );
+				$doc['card']          = $pack->card( $doc['card'], $doc['card']['attrs'] );
 			}
 		}
 
@@ -368,7 +383,8 @@ class ASI_Document_Builder {
 			case 'summary':
 				$text          = $this->to_text( $value );
 				$doc['body'][] = $text;
-				if ( '' === $doc['card']['summary'] ) {
+				// Un JSON guardado en un campo de texto no es un resumen para mostrar.
+				if ( '' === $doc['card']['summary'] && ! preg_match( '/^\s*[\[{]/', $text ) ) {
 					$doc['card']['summary'] = $this->trim_words( $text, 28 );
 				}
 				return;

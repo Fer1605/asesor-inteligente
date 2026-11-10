@@ -317,6 +317,13 @@ return array(
 			'Con un presupuesto {budget} tengo {n}. Te muestro primero las que más aprovechan tu presupuesto.',
 			'Para un presupuesto {budget} hay {n}. Empiezo por las más completas dentro de ese monto.',
 		),
+		'results_budget_attrs' => array(
+			'Con un presupuesto {budget} tengo {n} {wanted}. Primero las que más aprovechan tu presupuesto.',
+		),
+		'results_attrs' => array(
+			'Encontré {n} {wanted}. Empiezo por los modelos más nuevos.',
+			'Tengo {n} {wanted}; te muestro primero las más recientes.',
+		),
 		'budget_between' => array( 'entre {min} y {max}' ),
 		'budget_max'     => array( 'de hasta {max}' ),
 		'budget_min'     => array( 'desde {min}' ),

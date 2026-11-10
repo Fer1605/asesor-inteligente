@@ -17,6 +17,7 @@ require $root . '/includes/index/class-asi-elementor-text.php';
 require $root . '/includes/discovery/class-asi-json-paths.php';
 require $root . '/includes/engine/class-asi-lexicon.php';
 require $root . '/includes/engine/class-asi-query-analyzer.php';
+require $root . '/includes/engine/class-asi-attributes.php';
 require $root . '/includes/engine/class-asi-search.php';
 require $root . '/includes/engine/class-asi-vocabulary.php';
 require $root . '/includes/dialogue/class-asi-intent-classifier.php';
@@ -26,6 +27,7 @@ require $root . '/includes/dialogue/class-asi-responder.php';
 require $root . '/includes/dialogue/trait-asi-dialogue-products.php';
 require $root . '/includes/dialogue/class-asi-dialogue.php';
 require $root . '/includes/extend/interface-asi-connector.php';
+require $root . '/includes/extend/interface-asi-pack.php';
 require $root . '/includes/extend/class-asi-extensions.php';
 require __DIR__ . '/fixtures.php';
 

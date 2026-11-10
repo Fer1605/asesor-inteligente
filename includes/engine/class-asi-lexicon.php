@@ -102,6 +102,11 @@ class ASI_Lexicon {
 		return implode( ' ', array_map( array( 'ASI_Normalizer', 'singular' ), $tokens ) );
 	}
 
+	/** Idioma de 2 letras de este lexicón. */
+	public function language() {
+		return $this->code;
+	}
+
 	public function is_stopword( $token ) {
 		return isset( $this->stopwords[ $token ] );
 	}

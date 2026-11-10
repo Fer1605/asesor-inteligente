@@ -25,7 +25,8 @@ Un **pack** se activa solo si el sitio tiene el tipo de contenido que describe. 
 - [x] Núcleo de búsqueda y diálogo, panel, chat, aprendizaje
 - [x] Registro de packs y conectores
 - [x] Precio por moneda: presupuestos en cualquier moneda, conversión a la moneda base, tipo de cambio en el panel
-- [ ] Ficha de atributos por producto y semejanza ("parecido a…")
+- [x] Ficha de atributos por producto (pack autos: carrocería, plazas, tracción, combustible, transmisión, año, km)
+- [ ] Semejanza ("parecido a…")
 - [ ] Perfil del cliente → recomendación, con preguntas de vuelta
 - [ ] Acciones desde el chat: PDF en la conversación + envío por correo + registro del lead
 

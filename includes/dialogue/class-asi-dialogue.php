@@ -77,6 +77,7 @@ class ASI_Dialogue {
 				'tone'          => 'tu',
 				'emojis'        => false,
 				'money'         => array(), // base, map, rates (ASI_Money).
+				'packs'         => array(), // ASI_Pack activos (atributos del giro).
 			),
 			$context
 		);
@@ -96,7 +97,7 @@ class ASI_Dialogue {
 
 		$this->lexicon   = ASI_Lexicon::get( $this->context['language'], $this->context['synonyms'] );
 		$this->vocab     = $this->repository->vocabulary( $this->context['lang'] );
-		$this->analyzer  = new ASI_Query_Analyzer( $this->lexicon, $this->vocab, (array) $this->context['money'] );
+		$this->analyzer  = new ASI_Query_Analyzer( $this->lexicon, $this->vocab, (array) $this->context['money'], (array) $this->context['packs'] );
 		$this->search    = new ASI_Search( $this->repository, $this->vocab, (array) $this->context['money'] );
 		$this->responder = new ASI_Responder( $this->lexicon, $this->context, $state['recent'], $this->random );
 
@@ -177,7 +178,7 @@ class ASI_Dialogue {
 		}
 
 		// Solo un presupuesto ("algo de 60 a 70 mil dólares"): es una búsqueda, diga lo que diga el clasificador.
-		if ( empty( $query['groups'] ) && ASI_Search::has_price_filter( $query ) && ! in_array( $intent['intent'], array( 'contact', 'location', 'hours', 'jobs', 'about' ), true ) ) {
+		if ( empty( $query['groups'] ) && ASI_Search::has_hard_filter( $query ) && ! in_array( $intent['intent'], array( 'contact', 'location', 'hours', 'jobs', 'about' ), true ) ) {
 			return $this->search_flow( $stripped, $query, $state );
 		}
 
@@ -290,11 +291,12 @@ class ASI_Dialogue {
 		}
 
 		$total = $catalog['total'];
-		if ( ! empty( $catalog['budget'] ) && empty( $options['opening'] ) ) {
-			$options['opening'] = 'results_budget';
+		if ( ! empty( $catalog['browse'] ) && empty( $options['opening'] ) ) {
+			$options['opening'] = ! empty( $catalog['budget'] ) ? ( ! empty( $query['attr_labels'] ) ? 'results_budget_attrs' : 'results_budget' ) : 'results_attrs';
 		}
 		$vars  = array(
 			'budget' => ASI_Search::has_price_filter( $query ) ? $this->budget_text( $query ) : '',
+			'wanted' => $this->responder->join_list( isset( $query['attr_labels'] ) ? (array) $query['attr_labels'] : array(), 'and' ),
 			'n'      => $this->responder->count_options( $total ),
 			'label'  => $query['label'],
 			'query'  => $this->short( $text ),
@@ -414,6 +416,9 @@ class ASI_Dialogue {
 			'content'    => $normal,
 			'price_max'  => null,
 			'price_min'  => null,
+			'price_currency' => '',
+			'attrs'      => array(),
+			'attr_labels' => array(),
 			'asks_price' => false,
 		);
 		$result = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'catalog' ), 'exclude' => array_column( $items, 'post_id' ), 'limit' => 4 ) );
@@ -764,6 +769,9 @@ class ASI_Dialogue {
 				'content'    => '',
 				'price_max'  => null,
 				'price_min'  => null,
+				'price_currency' => '',
+				'attrs'      => array(),
+				'attr_labels' => array(),
 				'asks_price' => false,
 			);
 			$result = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'info' ), 'limit' => 30 ) );
@@ -1019,7 +1027,7 @@ class ASI_Dialogue {
 	 * ¿Queda algo que buscar después de quitar saludos y palabras de petición?
 	 */
 	private function is_searchable( array $query ) {
-		return ! empty( $query['groups'] ) || ASI_Search::has_price_filter( $query );
+		return ! empty( $query['groups'] ) || ASI_Search::has_hard_filter( $query );
 	}
 
 	/**
@@ -1027,7 +1035,7 @@ class ASI_Dialogue {
 	 */
 	private function budget_text( array $query ) {
 		$money = ASI_Money::config( (array) $this->context['money'] );
-		$iso   = '' !== $query['price_currency'] ? $query['price_currency'] : $money['base'];
+		$iso   = ! empty( $query['price_currency'] ) ? $query['price_currency'] : $money['base'];
 		$fmt   = function ( $amount ) use ( $iso ) {
 			return ASI_Money::format( $amount, $iso );
 		};

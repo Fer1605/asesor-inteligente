@@ -42,9 +42,13 @@ class ASI_Query_Analyzer {
 	/** @var array Configuración de moneda (ASI_Money::config). */
 	private $money;
 
-	public function __construct( ASI_Lexicon $lexicon, array $vocab, array $money = array() ) {
+	/** @var ASI_Pack[] Packs activos (atributos del giro). */
+	private $packs;
+
+	public function __construct( ASI_Lexicon $lexicon, array $vocab, array $money = array(), array $packs = array() ) {
 		$this->lexicon = $lexicon;
 		$this->money   = ASI_Money::config( $money );
+		$this->packs   = $packs;
 		$this->vocab   = array_merge( array( 'docs' => 0, 'tokens' => array(), 'phrases' => array() ), $vocab );
 
 		foreach ( $this->vocab['phrases'] as $normal => $info ) {
@@ -83,13 +87,15 @@ class ASI_Query_Analyzer {
 			'price_min'   => null,
 			'price_currency' => '', // Moneda que dijo el cliente ('' = la base del sitio).
 			'budget'      => false,  // Lo dijo como presupuesto ("tengo 200 mil").
+			'attrs'       => array(), // Restricciones del giro (ASI_Attributes): plazas, tracción, año…
+			'attr_labels' => array(), // Cómo nombrarlas ("de 7 pasajeros", "4x4").
 			'asks_price'  => '' !== ASI_Lexicon::find_phrase( $normalized, $this->lexicon->get_list( 'price_words' ) ),
 			'corrections' => array(),
 			'exclude'     => array(),
 			'exclude_label' => '',
 		);
 
-		$text = $this->extract_prices( $message, $normalized, $result );
+		$text = $this->extract_attributes( $message, $result, $this->extract_prices( $message, $normalized, $result ) );
 		$text = $this->extract_separated_codes( $message, $text, $result );
 		$text = $this->extract_negation( $text, $result, $display );
 
@@ -157,6 +163,19 @@ class ASI_Query_Analyzer {
 		$result['content'] = implode( ' ', $contents );
 		$result['label']   = $this->span_label( $text, $display, $result['groups'], implode( ' ', $labels ) );
 
+		// Palabras que un pack ya entendió como atributo ("camioneta" → carrocería SUV): siguen
+		// sumando en la búsqueda, pero ya no son obligatorias en el texto (las controla el atributo).
+		if ( ! empty( $result['attr_soft'] ) ) {
+			foreach ( $result['groups'] as &$group ) {
+				$alts = array_merge( array( $group['text'] ), isset( $group['alts'] ) ? (array) $group['alts'] : array() );
+				if ( array_intersect( $alts, $result['attr_soft'] ) ) {
+					$group['critical'] = false;
+					$group['soft']     = true;
+				}
+			}
+			unset( $group );
+		}
+		unset( $result['attr_soft'] );
 		return $result;
 	}
 
@@ -523,6 +542,35 @@ class ASI_Query_Analyzer {
 		$result['price_currency'] = $budget['currency'];
 		$result['budget']         = $budget['budget'];
 		return ASI_Normalizer::normalize( str_replace( $budget['spans'], ' ', ASI_Money::fold( $message ) ) );
+	}
+
+	/**
+	 * Atributos del giro que pidió el cliente ("de 7 pasajeros", "4x4", "del 2020 en adelante").
+	 * Se quitan del texto para que no se busquen como palabras; la carrocería se queda.
+	 *
+	 * @param string $message Frase original.
+	 * @param array  $result  Resultado.
+	 * @param string $text    Texto normalizado hasta ahora.
+	 * @return string
+	 */
+	private function extract_attributes( $message, array &$result, $text ) {
+		if ( ! $this->packs ) {
+			return $text;
+		}
+		$parsed                = ASI_Attributes::parse( $this->packs, $message, $this->lexicon->language() );
+		$result['attrs']       = $parsed['constraints'];
+		$result['attr_labels'] = $parsed['labels'];
+		$result['attr_soft']   = array();
+		foreach ( $parsed['soft'] as $word ) {
+			$result['attr_soft'][] = ASI_Lexicon::normal_form( $word );
+		}
+		foreach ( $parsed['spans'] as $span ) {
+			$normal = ASI_Normalizer::normalize( $span );
+			if ( '' !== $normal ) {
+				$text = trim( preg_replace( '/(^|\s)' . preg_quote( $normal, '/' ) . '(\s|$)/', ' ', ' ' . $text . ' ' ) );
+			}
+		}
+		return preg_replace( '/\s+/', ' ', $text );
 	}
 
 	/**

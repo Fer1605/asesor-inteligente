@@ -143,8 +143,11 @@ class ASI_Search {
 		);
 
 		$empty = array( 'items' => array(), 'total' => 0, 'quality' => 'none', 'facets' => array(), 'brands' => array(), 'ids' => array(), 'similar' => array(), 'named' => false );
-		if ( empty( $query['groups'] ) ) {
-			return self::has_price_filter( $query ) && in_array( 'catalog', $options['roles'], true )
+		// Sin palabras obligatorias pero con presupuesto o atributos ("camioneta del 2024", "7
+		// pasajeros 4x4"): se recorre el catálogo por atributos; el texto solo ordena.
+		$soft_only = ! empty( $query['groups'] ) && ! empty( $query['attrs'] ) && count( array_filter( array_column( $query['groups'], 'soft' ) ) ) === count( $query['groups'] );
+		if ( empty( $query['groups'] ) || $soft_only ) {
+			return self::has_hard_filter( $query ) && in_array( 'catalog', $options['roles'], true )
 				? $this->browse_by_budget( $lang, $query, $options, $empty )
 				: $empty;
 		}
@@ -158,7 +161,30 @@ class ASI_Search {
 			if ( $result['score'] <= 0 || ! $this->passes_price( $row, $query ) || $this->is_excluded( $row, $query ) ) {
 				continue;
 			}
-			$scored[] = array_merge( $row, $result );
+			// Atributos del giro: lo que no cumple se va; lo que cumple todo sube; lo que no se
+			// sabe (p. ej. un accesorio, o un vehículo sin ese dato) se queda sin premio.
+			$fits = self::fits( $row, $query );
+			if ( false === $fits ) {
+				continue;
+			}
+			if ( true === $fits && ! empty( $query['attrs'] ) ) {
+				$result['score'] *= 1.5;
+				$result['final'] *= 1.5;
+			}
+			$result['fits'] = $fits;
+			$scored[]       = array_merge( $row, $result );
+		}
+		// Pidió algo concreto además del tipo ("4x4", "usada", "7 pasajeros") y hay productos que
+		// lo cumplen de verdad: los que no se sabe si lo cumplen (accesorios, fichas incompletas) se van.
+		if ( ! empty( $query['attrs'] ) && array_diff( array_keys( (array) $query['attrs'] ), array( 'body' ) ) && in_array( true, array_column( $scored, 'fits' ), true ) ) {
+			$scored = array_values(
+				array_filter(
+					$scored,
+					static function ( $row ) {
+						return true === $row['fits'];
+					}
+				)
+			);
 		}
 		if ( ! $scored ) {
 			return $empty;
@@ -228,31 +254,62 @@ class ASI_Search {
 		);
 	}
 
+	/**
+	 * ¿La fila cumple los atributos pedidos? true / false / null (no se sabe).
+	 */
+	private static function fits( array $row, array $query ) {
+		if ( empty( $query['attrs'] ) ) {
+			return true;
+		}
+		$attrs = isset( $row['card']['attrs'] ) ? (array) $row['card']['attrs'] : array();
+		return ASI_Attributes::accepts( $attrs, (array) $query['attrs'] );
+	}
+
+	/**
+	 * ¿Pidió algo que se puede listar sin palabras? (presupuesto o atributos: "7 pasajeros 4x4").
+	 */
+	public static function has_hard_filter( array $query ) {
+		return self::has_price_filter( $query ) || ! empty( $query['attrs'] );
+	}
+
 	public static function has_price_filter( array $query ) {
 		return isset( $query['price_max'] ) && null !== $query['price_max'] || isset( $query['price_min'] ) && null !== $query['price_min'];
 	}
 
 	/**
-	 * Solo presupuesto ("algo de 60 a 70 mil dólares"): todo el catálogo que cabe, primero lo que
-	 * más aprovecha el presupuesto (el precio más cercano al tope).
+	 * Solo presupuesto o atributos ("algo de 60 a 70 mil dólares", "7 pasajeros 4x4"): todo el
+	 * catálogo que cumple, primero lo que más aprovecha el presupuesto (el precio más cercano al
+	 * tope) o, sin presupuesto, lo más reciente.
 	 */
 	private function browse_by_budget( $lang, array $query, array $options, array $empty ) {
 		$pool = array();
+		$by_price = self::has_price_filter( $query );
 		foreach ( $this->repository->catalog( $lang, self::BROWSE_LIMIT ) as $row ) {
 			if ( ! $this->passes_price( $row, $query ) || $this->is_excluded( $row, $query ) ) {
 				continue;
 			}
+			// Sin palabras de búsqueda, solo entra lo que cumple de verdad (no "no se sabe").
+			if ( ! empty( $query['attrs'] ) && true !== self::fits( $row, $query ) ) {
+				continue;
+			}
 			$price         = ASI_Money::card_price( (array) $row['card'], $this->money );
-			$row['score']  = 1;
-			$row['final']  = (float) $price['base'];
+			$year          = isset( $row['card']['attrs']['year'] ) ? (int) $row['card']['attrs']['year'] : 0;
+			$text          = empty( $query['groups'] ) ? 0.0 : (float) self::score( $row, $query, $this->vocab )['score'];
+			$row['score']  = 1 + $text;
+			$row['text']   = $text;
+			$row['final']  = $by_price ? (float) $price['base'] : (float) $year;
 			$pool[]        = $row;
 		}
 		if ( ! $pool ) {
 			return $empty;
 		}
+		// Primero lo que también coincide con las palabras; después, presupuesto o año.
 		usort(
 			$pool,
 			static function ( $a, $b ) {
+				if ( $a['text'] !== $b['text'] ) {
+					return $a['text'] < $b['text'] ? 1 : -1;
+				}
 				return $a['final'] === $b['final'] ? strcmp( $a['title'], $b['title'] ) : ( $a['final'] < $b['final'] ? 1 : -1 );
 			}
 		);
@@ -275,7 +332,8 @@ class ASI_Search {
 				'facets'  => self::facets( $pool ),
 				'brands'  => self::brands( $pool ),
 				'ids'     => array_map( 'intval', array_column( $pool, 'post_id' ) ),
-				'budget'  => true,
+				'budget'  => $by_price,
+				'browse'  => true,
 			)
 		);
 	}
