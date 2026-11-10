@@ -1,0 +1,1071 @@
+/**
+ * Asesor inteligente: estilos del panel de administración.
+ *
+ * Todo va bajo .asi-admin para no afectar otras pantallas. Se apoya en los tokens del propio
+ * WordPress (--wp-admin-theme-color y sus grises), así el panel se ve nativo en cualquier sitio y
+ * con cualquier esquema de color del admin. Los tonos de sección solo tiñen íconos, bordes y
+ * etiquetas, nunca superficies grandes.
+ */
+
+.asi-admin {
+	--asi-a-accent: var( --wp-admin-theme-color, #2271b1 );
+	--asi-a-border: #dcdcde;
+	--asi-a-surface: #fff;
+	--asi-a-muted: #646970;
+	--asi-a-soft: #f6f7f7;
+	--asi-a-ok: #0a7d3e;
+	--asi-a-warn: #bd5b00;
+	--asi-a-danger: #b32d2e;
+	--asi-a-radius: 8px;
+
+	--asi-tone-blue: #2271b1;
+	--asi-tone-teal: #0f7b7b;
+	--asi-tone-amber: #bd5b00;
+	--asi-tone-purple: #6b4fbb;
+	--asi-tone-green: #0a7d3e;
+
+	max-width: 1180px;
+}
+
+.asi-admin .dashicons {
+	vertical-align: middle;
+}
+
+/* ---------------------------------------------------------------- encabezado */
+
+.asi-admin .asi-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin: 16px 0 14px;
+}
+
+.asi-admin .asi-header__brand {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.asi-admin .asi-header__logo {
+	width: 44px;
+	height: 44px;
+	border-radius: 12px;
+	font-size: 24px;
+	line-height: 44px;
+	text-align: center;
+	color: #fff;
+	background: linear-gradient( 135deg, var( --asi-a-accent ) 0%, var( --asi-tone-purple ) 100% );
+	box-shadow: 0 4px 12px rgba( 34, 113, 177, 0.25 );
+}
+
+.asi-admin .asi-header__title {
+	margin: 0;
+	padding: 0;
+	font-size: 22px;
+	font-weight: 600;
+	line-height: 1.2;
+}
+
+.asi-admin .asi-header__subtitle {
+	margin: 2px 0 0;
+	font-size: 12px;
+	color: var( --asi-a-muted );
+}
+
+/* Insignia del modo */
+.asi-admin .asi-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 12px 5px 9px;
+	border-radius: 999px;
+	border: 1px solid currentColor;
+	font-size: 12px;
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.asi-admin .asi-badge .dashicons {
+	width: 16px;
+	height: 16px;
+	font-size: 16px;
+}
+
+.asi-admin .asi-badge--off {
+	color: var( --asi-a-muted );
+	background: var( --asi-a-soft );
+}
+
+.asi-admin .asi-badge--admin {
+	color: var( --asi-a-warn );
+	background: #fff5e9;
+}
+
+.asi-admin .asi-badge--public {
+	color: var( --asi-a-ok );
+	background: #edfaf1;
+}
+
+/* -------------------------------------------------------------------- pestañas */
+
+.asi-admin .asi-tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin: 0 0 20px;
+	padding: 4px;
+	background: var( --asi-a-surface );
+	border: 1px solid var( --asi-a-border );
+	border-radius: 10px;
+	box-shadow: 0 1px 2px rgba( 0, 0, 0, 0.04 );
+}
+
+.asi-admin .asi-tabs__item {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 14px;
+	border-radius: 7px;
+	color: #3c434a;
+	font-weight: 500;
+	text-decoration: none;
+	transition: background 0.15s ease, color 0.15s ease;
+}
+
+.asi-admin .asi-tabs__item .dashicons {
+	width: 18px;
+	height: 18px;
+	font-size: 18px;
+	color: var( --asi-a-muted );
+}
+
+.asi-admin .asi-tabs__item:hover,
+.asi-admin .asi-tabs__item:focus {
+	background: var( --asi-a-soft );
+	color: #1d2327;
+	box-shadow: none;
+}
+
+.asi-admin .asi-tabs__item.is-active {
+	background: var( --asi-a-accent );
+	color: #fff;
+}
+
+.asi-admin .asi-tabs__item.is-active .dashicons {
+	color: #fff;
+}
+
+/* ------------------------------------------------------------------ tarjetas */
+
+.asi-admin .asi-panel {
+	background: var( --asi-a-surface );
+	border: 1px solid var( --asi-a-border );
+	border-radius: var( --asi-a-radius );
+	padding: 4px 22px 18px;
+	margin: 0 0 18px;
+	box-shadow: 0 1px 2px rgba( 0, 0, 0, 0.04 );
+}
+
+.asi-admin .asi-panel__title {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 16px 0 12px;
+	padding: 0 0 12px;
+	border-bottom: 1px solid var( --asi-a-border );
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.asi-admin .asi-panel--accent {
+	border-left-width: 4px;
+	padding-top: 16px;
+}
+
+.asi-admin .asi-panel--accent.asi-panel--blue { border-left-color: var( --asi-tone-blue ); }
+.asi-admin .asi-panel--accent.asi-panel--teal { border-left-color: var( --asi-tone-teal ); }
+.asi-admin .asi-panel--accent.asi-panel--purple { border-left-color: var( --asi-tone-purple ); }
+
+.asi-admin .asi-panel.is-disabled {
+	opacity: 0.65;
+	border-left-color: var( --asi-a-border );
+}
+
+/* Ícono con tono */
+.asi-admin .asi-icon {
+	flex: 0 0 auto;
+	width: 32px;
+	height: 32px;
+	border-radius: 8px;
+	font-size: 18px;
+	line-height: 32px;
+	text-align: center;
+}
+
+.asi-admin .asi-icon--blue { color: var( --asi-tone-blue ); background: #eaf3fb; }
+.asi-admin .asi-icon--teal { color: var( --asi-tone-teal ); background: #e6f4f4; }
+.asi-admin .asi-icon--amber { color: var( --asi-tone-amber ); background: #fdf2e6; }
+.asi-admin .asi-icon--purple { color: var( --asi-tone-purple ); background: #f0ecfa; }
+.asi-admin .asi-icon--green { color: var( --asi-tone-green ); background: #e9f6ee; }
+
+/* --------------------------------------------------------------- disposición */
+
+.asi-admin .asi-grid {
+	display: grid;
+	grid-template-columns: repeat( auto-fit, minmax( 360px, 1fr ) );
+	gap: 0 18px;
+	align-items: start;
+}
+
+.asi-admin .asi-split {
+	display: grid;
+	grid-template-columns: minmax( 0, 1fr ) minmax( 0, 1.05fr );
+	gap: 18px;
+	align-items: start;
+}
+
+.asi-admin .asi-sticky {
+	position: sticky;
+	top: 46px;
+}
+
+@media screen and ( max-width: 1100px ) {
+	.asi-admin .asi-split {
+		grid-template-columns: 1fr;
+	}
+
+	.asi-admin .asi-sticky {
+		position: static;
+	}
+}
+
+/* --------------------------------------------------------------------- guía */
+
+.asi-admin .asi-hero {
+	display: flex;
+	align-items: flex-start;
+	gap: 16px;
+	margin: 0 0 18px;
+	padding: 18px 22px;
+	border-radius: var( --asi-a-radius );
+	border: 1px solid #cfe3f5;
+	background: linear-gradient( 135deg, #f3f8fd 0%, #f7f4fd 100% );
+}
+
+.asi-admin .asi-hero--compact {
+	padding: 14px 18px;
+}
+
+.asi-admin .asi-hero__icon {
+	flex: 0 0 auto;
+	width: 32px;
+	height: 32px;
+	font-size: 32px;
+	color: var( --asi-a-accent );
+	opacity: 0.85;
+}
+
+.asi-admin .asi-hero__lead {
+	margin: 0;
+	max-width: 900px;
+	font-size: 14px;
+	line-height: 1.7;
+}
+
+/* Cifras */
+.asi-admin .asi-stats {
+	display: grid;
+	grid-template-columns: repeat( auto-fit, minmax( 190px, 1fr ) );
+	gap: 12px;
+	margin: 0 0 18px;
+}
+
+.asi-admin .asi-stat {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 14px 16px;
+	background: var( --asi-a-surface );
+	border: 1px solid var( --asi-a-border );
+	border-radius: var( --asi-a-radius );
+	box-shadow: 0 1px 2px rgba( 0, 0, 0, 0.04 );
+}
+
+.asi-admin .asi-stat .asi-icon {
+	width: 40px;
+	height: 40px;
+	font-size: 22px;
+	line-height: 40px;
+	border-radius: 10px;
+}
+
+.asi-admin .asi-stat__value {
+	display: block;
+	font-size: 20px;
+	line-height: 1.2;
+}
+
+.asi-admin .asi-stat__label {
+	display: block;
+	font-size: 12px;
+	font-weight: 600;
+	color: #3c434a;
+}
+
+.asi-admin .asi-stat__hint {
+	display: block;
+	font-size: 11px;
+	color: var( --asi-a-muted );
+}
+
+/* Pasos */
+.asi-admin .asi-steps {
+	display: grid;
+	grid-template-columns: repeat( auto-fit, minmax( 220px, 1fr ) );
+	gap: 14px;
+	margin: 4px 0 16px;
+	padding: 0;
+	list-style: none;
+	counter-reset: asi-step;
+}
+
+.asi-admin .asi-steps > li {
+	counter-increment: asi-step;
+	position: relative;
+	margin: 0;
+	padding: 14px 16px 14px 48px;
+	background: var( --asi-a-soft );
+	border: 1px solid var( --asi-a-border );
+	border-radius: var( --asi-a-radius );
+}
+
+.asi-admin .asi-steps > li::before {
+	content: counter( asi-step );
+	position: absolute;
+	top: 14px;
+	left: 14px;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background: var( --asi-a-accent );
+	color: #fff;
+	font-size: 12px;
+	font-weight: 700;
+	line-height: 24px;
+	text-align: center;
+}
+
+.asi-admin .asi-steps h3 {
+	margin: 0 0 4px;
+	font-size: 13px;
+}
+
+.asi-admin .asi-steps p {
+	margin: 0;
+	color: #3c434a;
+}
+
+/* Funciones */
+.asi-admin .asi-features {
+	display: grid;
+	grid-template-columns: repeat( auto-fit, minmax( 300px, 1fr ) );
+	gap: 18px 24px;
+	margin: 6px 0 4px;
+}
+
+.asi-admin .asi-feature {
+	display: flex;
+	gap: 12px;
+}
+
+.asi-admin .asi-feature h3 {
+	margin: 4px 0 2px;
+	font-size: 13px;
+}
+
+.asi-admin .asi-feature p {
+	margin: 0;
+	color: #3c434a;
+	line-height: 1.6;
+}
+
+/* ---------------------------------------------------------------- opciones */
+
+.asi-admin .asi-options {
+	display: grid;
+	gap: 8px;
+}
+
+.asi-admin .asi-options--inline {
+	grid-template-columns: repeat( auto-fit, minmax( 150px, 1fr ) );
+}
+
+.asi-admin .asi-option {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 14px;
+	border: 1px solid var( --asi-a-border );
+	border-radius: var( --asi-a-radius );
+	background: var( --asi-a-surface );
+	cursor: pointer;
+	transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.asi-admin .asi-option--compact {
+	padding: 10px 12px;
+}
+
+.asi-admin .asi-option input[type="radio"] {
+	margin: 0;
+}
+
+.asi-admin .asi-option > .dashicons {
+	color: var( --asi-a-muted );
+}
+
+.asi-admin .asi-option__text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.asi-admin .asi-option__text span {
+	color: var( --asi-a-muted );
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.asi-admin .asi-option:hover {
+	border-color: var( --asi-a-accent );
+}
+
+.asi-admin .asi-option:has( input:checked ) {
+	border-color: var( --asi-a-accent );
+	background: #f0f6fc;
+	box-shadow: 0 0 0 1px var( --asi-a-accent );
+}
+
+.asi-admin .asi-option:has( input:checked ) > .dashicons {
+	color: var( --asi-a-accent );
+}
+
+.asi-admin .asi-radius-sample {
+	display: inline-block;
+	width: 30px;
+	height: 22px;
+	border: 2px solid var( --asi-a-accent );
+	background: #f0f6fc;
+}
+
+/* Interruptor */
+.asi-admin .asi-switch {
+	position: relative;
+	display: inline-flex;
+	flex: 0 0 auto;
+	cursor: pointer;
+}
+
+.asi-admin .asi-switch input {
+	position: absolute;
+	opacity: 0;
+	width: 1px;
+	height: 1px;
+}
+
+.asi-admin .asi-switch__track {
+	position: relative;
+	width: 38px;
+	height: 22px;
+	border-radius: 999px;
+	background: #c3c4c7;
+	transition: background 0.15s ease;
+}
+
+.asi-admin .asi-switch__track::after {
+	content: "";
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 1px 2px rgba( 0, 0, 0, 0.2 );
+	transition: transform 0.15s ease;
+}
+
+.asi-admin .asi-switch input:checked + .asi-switch__track {
+	background: var( --asi-a-ok );
+}
+
+.asi-admin .asi-switch input:checked + .asi-switch__track::after {
+	transform: translateX( 16px );
+}
+
+.asi-admin .asi-switch input:focus-visible + .asi-switch__track {
+	box-shadow: 0 0 0 2px #fff, 0 0 0 4px var( --asi-a-accent );
+}
+
+/* ------------------------------------------------------------------- tablas */
+
+.asi-admin .asi-table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	margin: 8px 0 4px;
+	border: 1px solid var( --asi-a-border );
+	border-radius: var( --asi-a-radius );
+	overflow: hidden;
+}
+
+.asi-admin .asi-table th,
+.asi-admin .asi-table td {
+	padding: 10px 12px;
+	text-align: left;
+	vertical-align: middle;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.asi-admin .asi-table thead th {
+	background: var( --asi-a-soft );
+	border-bottom: 1px solid var( --asi-a-border );
+	font-size: 12px;
+	font-weight: 600;
+	color: #3c434a;
+}
+
+.asi-admin .asi-table tbody tr:last-child td {
+	border-bottom: 0;
+}
+
+.asi-admin .asi-table tbody tr:hover td {
+	background: #fafafa;
+}
+
+.asi-admin .asi-table tr.is-muted td {
+	color: var( --asi-a-muted );
+}
+
+.asi-admin .asi-table .dashicons-external {
+	width: 14px;
+	height: 14px;
+	font-size: 14px;
+}
+
+/* ------------------------------------------------------------- etiquetas */
+
+.asi-admin .asi-tag {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 1px 8px;
+	border-radius: 10px;
+	border: 1px solid transparent;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1.7;
+	white-space: nowrap;
+	text-decoration: none;
+}
+
+.asi-admin .asi-tag i {
+	display: inline-block;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	border: 1px solid rgba( 0, 0, 0, 0.15 );
+}
+
+.asi-admin .asi-tag em {
+	font-style: normal;
+	font-weight: 400;
+	opacity: 0.75;
+}
+
+.asi-admin .asi-tag--soft {
+	background: var( --asi-a-soft );
+	border-color: var( --asi-a-border );
+	color: #3c434a;
+}
+
+.asi-admin .asi-tag--code {
+	font-family: Consolas, Monaco, monospace;
+	background: #f0f6fc;
+	border-color: #c5d9ed;
+	color: #1d2327;
+}
+
+.asi-admin .asi-tag--ok {
+	background: #edfaf1;
+	border-color: #bde2cb;
+	color: var( --asi-a-ok );
+}
+
+.asi-admin .asi-tag--warn {
+	background: #fff5e9;
+	border-color: #f0d3b0;
+	color: var( --asi-a-warn );
+}
+
+.asi-admin .asi-dot {
+	display: inline-block;
+	width: 9px;
+	height: 9px;
+	margin-right: 4px;
+	border-radius: 50%;
+}
+
+.asi-admin .asi-dot--green {
+	background: var( --asi-a-ok );
+	box-shadow: 0 0 0 3px #edfaf1;
+}
+
+.asi-admin .asi-dot--amber {
+	background: var( --asi-a-warn );
+	box-shadow: 0 0 0 3px #fff5e9;
+	animation: asi-admin-pulse 1.4s ease-in-out infinite;
+}
+
+/* ---------------------------------------------------------- notas y textos */
+
+.asi-admin .asi-note {
+	margin: 12px 0;
+	padding: 12px 16px;
+	background: #f0f6fc;
+	border-left: 4px solid var( --asi-a-accent );
+	border-radius: 0 var( --asi-a-radius ) var( --asi-a-radius ) 0;
+}
+
+.asi-admin .asi-note--warn {
+	background: #fff8ee;
+	border-left-color: var( --asi-a-warn );
+}
+
+.asi-admin .asi-muted {
+	color: var( --asi-a-muted );
+}
+
+.asi-admin .asi-optional {
+	margin-left: 6px;
+	font-size: 11px;
+	font-weight: 400;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var( --asi-a-muted );
+}
+
+.asi-admin .asi-subtitle {
+	margin: 22px 0 4px;
+	font-size: 13px;
+}
+
+.asi-admin .asi-example {
+	margin: 8px 0 14px;
+	padding: 8px 12px;
+	font-family: Consolas, Monaco, monospace;
+	font-size: 12px;
+	background: var( --asi-a-soft );
+	border-radius: 4px;
+}
+
+.asi-admin .asi-empty {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 18px;
+	border: 1px dashed var( --asi-a-border );
+	border-radius: var( --asi-a-radius );
+	color: var( --asi-a-muted );
+}
+
+.asi-admin .asi-empty .dashicons {
+	color: var( --asi-a-ok );
+}
+
+.asi-admin .asi-link-danger {
+	color: var( --asi-a-danger );
+}
+
+.asi-admin .asi-index-status {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0 0 6px;
+	font-size: 14px;
+}
+
+.asi-admin .asi-detected {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin: 0 0 16px;
+}
+
+/* ------------------------------------------------------------------ botones */
+
+.asi-admin .asi-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 16px 0 0;
+}
+
+.asi-admin .asi-inline-form {
+	display: inline;
+	margin: 0;
+}
+
+.asi-admin .button .dashicons {
+	width: 16px;
+	height: 16px;
+	font-size: 16px;
+	line-height: 1.6;
+}
+
+.asi-admin .asi-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+	margin: 0 0 14px;
+}
+
+/* ------------------------------------------------------------ apariencia */
+
+.asi-admin .asi-colors {
+	display: grid;
+	gap: 4px;
+}
+
+.asi-admin .asi-color-row {
+	display: grid;
+	grid-template-columns: minmax( 0, 1fr ) auto;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 0;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.asi-admin .asi-color-row:last-child {
+	border-bottom: 0;
+}
+
+.asi-admin .asi-color-row__label {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.asi-admin .asi-color-row__label .asi-muted {
+	font-size: 12px;
+}
+
+.asi-admin .asi-color-row__field {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 6px;
+}
+
+.asi-admin .asi-color-row .wp-picker-container .wp-color-result.button {
+	margin: 0;
+}
+
+.asi-admin .asi-assistant {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+}
+
+.asi-admin .asi-assistant__avatar {
+	flex: 0 0 auto;
+	display: grid;
+	place-items: center;
+	width: 64px;
+	height: 64px;
+	border-radius: 50%;
+	background: var( --asi-a-soft );
+	border: 1px solid var( --asi-a-border );
+	overflow: hidden;
+}
+
+.asi-admin .asi-assistant__avatar img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.asi-admin .asi-assistant__avatar .dashicons {
+	width: 28px;
+	height: 28px;
+	font-size: 28px;
+	color: var( --asi-a-muted );
+}
+
+.asi-admin .asi-assistant__fields {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.asi-admin .asi-assistant__fields p {
+	margin: 0;
+}
+
+/* ------------------------------------------------------------- contenido */
+
+.asi-admin .asi-type {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+}
+
+.asi-admin .asi-type__name {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 200px;
+}
+
+.asi-admin .asi-type__name strong {
+	font-size: 14px;
+}
+
+.asi-admin .asi-type__name .asi-muted {
+	font-size: 12px;
+}
+
+.asi-admin .asi-type__role {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 12px;
+	color: var( --asi-a-muted );
+}
+
+.asi-admin .asi-type__taxonomies {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 12px 0 0 50px;
+}
+
+.asi-admin .asi-details {
+	margin: 12px 0 0;
+}
+
+.asi-admin .asi-details > summary {
+	cursor: pointer;
+	padding: 6px 0;
+	color: var( --asi-a-accent );
+}
+
+.asi-admin .asi-json {
+	max-height: 320px;
+	overflow: auto;
+	padding: 10px 12px;
+	white-space: pre-wrap;
+	font-size: 12px;
+	background: var( --asi-a-soft );
+	border: 1px solid var( --asi-a-border );
+	border-radius: var( --asi-a-radius );
+}
+
+/* La vista previa y el probador usan los estilos reales del chat. */
+.asi-admin .asi-chat {
+	max-width: none;
+}
+
+@keyframes asi-admin-pulse {
+	50% {
+		opacity: 0.45;
+	}
+}
+
+@media screen and ( max-width: 782px ) {
+	.asi-admin .asi-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.asi-admin .asi-type__taxonomies {
+		margin-left: 0;
+	}
+}
+
+/* Leyenda de Contenido y notas por tipo */
+.asi-admin .asi-legend {
+	display: grid;
+	grid-template-columns: repeat( auto-fit, minmax( 300px, 1fr ) );
+	gap: 16px 24px;
+}
+
+.asi-admin .asi-legend__item {
+	display: flex;
+	gap: 12px;
+}
+
+.asi-admin .asi-legend__item p {
+	margin: 2px 0 0;
+	color: #3c434a;
+	line-height: 1.55;
+}
+
+.asi-admin .asi-type__note {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	margin: 12px 0 0 50px;
+	color: #3c434a;
+}
+
+.asi-admin .asi-type__note .dashicons {
+	width: 18px;
+	height: 18px;
+	font-size: 18px;
+	color: var( --asi-a-muted );
+}
+
+.asi-admin .asi-note--ok {
+	background: #edfaf1;
+	border-left-color: var( --asi-a-ok );
+}
+
+@media screen and ( max-width: 782px ) {
+	.asi-admin .asi-type__note {
+		margin-left: 0;
+	}
+}
+
+/* ---------- Aprendizaje ---------- */
+
+.asi-admin .asi-learning__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: flex-start;
+}
+
+.asi-admin .asi-teach {
+	flex: 1 1 100%;
+}
+
+.asi-admin .asi-teach > summary {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	list-style: none;
+}
+
+.asi-admin .asi-teach > summary::-webkit-details-marker {
+	display: none;
+}
+
+.asi-admin .asi-teach > summary .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+}
+
+.asi-admin .asi-teach__box {
+	display: grid;
+	gap: 16px;
+	margin-top: 10px;
+	padding: 14px;
+	border: 1px solid var(--asi-a-border);
+	border-radius: 8px;
+	background: var(--asi-a-soft);
+}
+
+.asi-admin .asi-teach__form {
+	display: grid;
+	gap: 8px;
+	margin: 0;
+}
+
+.asi-admin .asi-teach__form + .asi-teach__form {
+	padding-top: 14px;
+	border-top: 1px dashed var(--asi-a-border);
+}
+
+.asi-admin .asi-teach__row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.asi-admin .asi-teach__results,
+.asi-admin .asi-teach__chosen {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.asi-admin .asi-teach__results:empty,
+.asi-admin .asi-teach__chosen:empty {
+	display: none;
+}
+
+.asi-admin .asi-teach__results {
+	max-height: 220px;
+	overflow: auto;
+	border: 1px solid var(--asi-a-border);
+	border-radius: 6px;
+	background: #fff;
+}
+
+.asi-admin .asi-teach__item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	margin: 0;
+}
+
+.asi-admin .asi-teach__results .asi-teach__item + .asi-teach__item {
+	border-top: 1px solid var(--asi-a-border);
+}
+
+.asi-admin .asi-teach__item--chosen {
+	border-radius: 6px;
+	background: #fff;
+	border: 1px solid var(--asi-a-border);
+	margin-bottom: 6px;
+}
+
+.asi-admin .asi-teach__none {
+	padding: 8px 10px;
+	margin: 0;
+	color: var(--asi-a-muted);
+}
+
+.asi-admin .asi-teach__save {
+	justify-self: start;
+}
+
+.asi-admin .asi-learning td {
+	vertical-align: top;
+}
+
+/* Un paso con más texto ocupa dos columnas (solo cuando caben dos). */
+@media ( min-width: 783px ) {
+	.asi-admin .asi-steps > .asi-steps__wide {
+		grid-column: span 2;
+	}
+}
+
+.asi-admin .asi-list {
+	margin: 0;
+	padding-left: 18px;
+	list-style: disc;
+}
+
+.asi-admin .asi-list li {
+	margin: 0 0 8px;
+	line-height: 1.55;
+}

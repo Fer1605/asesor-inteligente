@@ -1,0 +1,22 @@
+<?php
+$c = 'ASI_Field_Classifier';
+check( 'código por nombre', 'code', $c::classify_field( 'codigo_producto', 'Código' ) );
+check( 'sku', 'code', $c::classify_field( '_sku' ) );
+check( 'modelo camelCase', 'code', $c::classify_field( 'numeroDeParte' ) );
+check( 'marca', 'brand', $c::classify_field( 'marca', 'Marca' ) );
+check( 'precio numérico', 'price', $c::classify_field( 'precio', 'Precio', 'number', array( '$ 12,500.00', '9800' ) ) );
+check( 'precio no numérico no es precio', 'attribute', $c::classify_field( 'precio', 'Precio', 'text', array( 'Consultar', 'Llamar' ) ) );
+check( 'imagen por tipo ACF', 'image', $c::classify_field( 'foto_principal', 'Foto', 'image' ) );
+check( 'ficha técnica PDF', 'document', $c::classify_field( 'ficha_tecnica', 'Ficha técnica', 'file' ) );
+check( 'ficha como texto', 'document', $c::classify_field( 'ficha_tecnica', 'Ficha técnica', 'text' ) );
+check( 'descripción wysiwyg', 'summary', $c::classify_field( 'descripcion', 'Descripción', 'wysiwyg' ) );
+check( 'true_false', 'flag', $c::classify_field( 'oferta', 'Oferta', 'true_false' ) );
+check( 'relación', 'related', $c::classify_field( 'productos_relacionados', 'Relacionados', 'relationship' ) );
+check( 'color de fondo ignorado', 'ignore', $c::classify_field( 'color_fondo', 'Color de fondo', 'color_picker' ) );
+check( 'meta suelta con urls', 'link', $c::classify_field( 'x1', '', '', array( 'https://a.com/x', 'https://b.com' ) ) );
+check( 'meta suelta con pdf', 'document', $c::classify_field( 'x2', '', '', array( 'https://a.com/f.pdf', 'https://a.com/g.pdf' ) ) );
+check( 'meta suelta JSON', 'summary', $c::classify_field( 'json_vehiculo', '', '', array( '{"detalle":{"marca":"Toyota"}}' ) ) );
+check( 'meta corta', 'attribute', $c::classify_field( 'potencia', 'Potencia', 'text', array( '75 HP', '90 HP' ) ) );
+check( 'taxonomía marca', 'brand', $c::classify_taxonomy( 'pa_marca', 'Marca', false ) );
+check( 'taxonomía jerárquica', 'category', $c::classify_taxonomy( 'categoria-producto', 'Categorías', true ) );
+check( 'taxonomía plana', 'tag', $c::classify_taxonomy( 'etiqueta', 'Etiquetas', false ) );
