@@ -17,7 +17,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ASI_VERSION', '0.1.0-dev.7' );
+define( 'ASI_VERSION', '0.1.0-dev.8' );
 define( 'ASI_FILE', __FILE__ );
 define( 'ASI_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ASI_URL', plugin_dir_url( __FILE__ ) );
@@ -61,6 +61,7 @@ require_once ASI_DIR . 'includes/extend/interface-asi-pack.php';
 require_once ASI_DIR . 'includes/extend/interface-asi-advisor.php';
 require_once ASI_DIR . 'includes/extend/interface-asi-similarity.php';
 require_once ASI_DIR . 'includes/extend/interface-asi-action-runner.php';
+require_once ASI_DIR . 'includes/class-asi-mailer.php';
 require_once ASI_DIR . 'includes/class-asi-actions.php';
 require_once ASI_DIR . 'includes/extend/class-asi-extensions.php';
 

@@ -34,8 +34,10 @@ final class ASI_Connector_Hello_Child_Pdf implements ASI_Connector {
 	public function actions() {
 		$actions = array(
 			'quote' => array(
-				'label'  => 'Cotización',
-				'fields' => array( 'name', 'email', 'phone' ),
+				'label'     => 'Cotización',
+				'fields'    => array( 'name', 'email', 'phone' ),
+				// Varios a la vez: el PDF de cotización de varios vehículos del tema (el de favoritos).
+				'max_items' => function_exists( 'hello_elementor_child_generate_vehicle_collection_pdf' ) ? 8 : 1,
 			),
 		);
 		if ( function_exists( 'hello_elementor_child_generate_vehicle_collection_pdf' ) ) {
@@ -54,7 +56,13 @@ final class ASI_Connector_Hello_Child_Pdf implements ASI_Connector {
 			return new WP_Error( 'asi_no_items', 'No hay vehículos para el PDF.' );
 		}
 
-		if ( 'quote' === $action ) {
+		if ( 'quote' === $action && count( $item_ids ) > 1 && function_exists( 'hello_elementor_child_generate_vehicle_collection_pdf' ) ) {
+			$ids      = array_slice( $item_ids, 0, 8 );
+			$binary   = hello_elementor_child_generate_vehicle_collection_pdf( 'favorites', $ids );
+			$filename = function_exists( 'hello_elementor_child_pdf_get_collection_filename' )
+				? hello_elementor_child_pdf_get_collection_filename( 'favorites' )
+				: 'cotizacion-vehiculos.pdf';
+		} elseif ( 'quote' === $action ) {
 			$binary   = hello_elementor_child_generate_vehicle_pdf( $item_ids[0] );
 			$filename = function_exists( 'hello_elementor_child_pdf_get_filename' )
 				? hello_elementor_child_pdf_get_filename( get_post( $item_ids[0] ) )
@@ -87,9 +95,13 @@ final class ASI_Connector_Hello_Child_Pdf implements ASI_Connector {
 			return null;
 		}
 		$ids  = array_values( array_map( 'absint', $item_ids ) );
-		$args = 'compare' === $action
-			? array( 'context' => 'compare', 'vehicle_ids' => $ids )
-			: array( 'context' => 'single', 'vehicle' => get_post( $ids[0] ), 'vehicle_id' => $ids[0] );
+		if ( 'compare' === $action ) {
+			$args = array( 'context' => 'compare', 'vehicle_ids' => $ids );
+		} elseif ( count( $ids ) > 1 ) {
+			$args = array( 'context' => 'favorites', 'vehicle_ids' => $ids );
+		} else {
+			$args = array( 'context' => 'single', 'vehicle' => get_post( $ids[0] ), 'vehicle_id' => $ids[0] );
+		}
 		return hello_elementor_child_pdf_send_email_attachment( $customer['email'], $file['filename'], $file['binary'], $args );
 	}
 

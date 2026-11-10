@@ -70,7 +70,16 @@ class ASI_Field_Classifier {
 		'message'      => 'ignore',
 		'tab'          => 'ignore',
 		'accordion'    => 'ignore',
+		'number'       => 'attribute', // Un número nunca es un distintivo sí/no.
+		'range'        => 'attribute',
 	);
+
+	/**
+	 * Campos de control interno (sincronización, publicación, inventario): no le dicen nada al
+	 * cliente. Solo cuando el nombre completo es eso ("stock", "activo"), para no perder
+	 * "Garantía activa" o "Stock de repuestos".
+	 */
+	const STATUS_NAMES = array( 'stock', 'in stock', 'instock', 'activo', 'activa', 'active', 'is active', 'inactive', 'inactivo', 'enabled', 'disabled', 'habilitado', 'deshabilitado', 'visible', 'oculto', 'hidden', 'publicado', 'published', 'eliminado', 'deleted', 'archivado', 'archived', 'status', 'estado', 'sync', 'synced', 'sincronizado' );
 
 	/**
 	 * Rol de un campo.
@@ -84,7 +93,7 @@ class ASI_Field_Classifier {
 	public static function classify_field( $name, $label = '', $type = '', array $samples = array() ) {
 		$haystack = self::haystack( $name . ' ' . $label );
 
-		if ( preg_match( self::PATTERNS['ignore'], $haystack ) ) {
+		if ( preg_match( self::PATTERNS['ignore'], $haystack ) || in_array( trim( self::haystack( $name ) ), self::STATUS_NAMES, true ) ) {
 			return 'ignore';
 		}
 

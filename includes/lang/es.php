@@ -71,6 +71,8 @@ return array(
 	'after_quote_chips' => array( 'Calcular cuotas', 'Ver otras opciones' ),
 	'finance_chips'     => array( 'Sí, envíamela', 'Con 30 % de enganche', 'A 60 meses' ),
 
+	'target_fillers'    => array( 'te dije', 'como te dije', 'de estos', 'de estas', 'de esos', 'de esas', 'quiero', 'quisiera', 'me puedes', 'me podrias', 'por favor', 'porfa', 'la cotizacion de', 'cotizacion de', 'las cotizaciones de', 'cotizaciones de', 'tambien', 'y tambien', 'mejor' ),
+
 	'money_words' => array(
 		'max'          => array( 'menos de', 'menor a', 'menor de', 'hasta', 'maximo', 'max', 'no mas de', 'por debajo de', 'que no pase de', 'que no pase los', 'abajo de', 'tope de', 'que no supere', 'que no supere los', 'no mayor a' ),
 		'min'          => array( 'mas de', 'mayor a', 'mayor de', 'desde', 'minimo', 'arriba de', 'por encima de', 'no menos de' ),
@@ -423,6 +425,8 @@ return array(
 		'finance_down_max'   => array( 'El enganche máximo es del {pct}, así que lo calculé con {down}.' ),
 		'finance_offer_quote' => array( 'Tasa de referencia del {rate} anual; el valor final lo confirma un asesor. ¿Te preparo la cotización en PDF y te la envío por correo?' ),
 		'finance_disclaimer' => array( 'Tasa de referencia del {rate} anual; el valor final lo confirma un asesor.' ),
+		'action_ask_quote_many' => array( '¡Con gusto te preparo la cotización de {titles}! Solo necesito tu nombre y tu correo (y un teléfono si quieres que un asesor te llame).' ),
+		'action_done_quote_many' => array( '¡Listo, {name}! Aquí tienes la cotización de {titles}.' ),
 		'results_budget' => array(
 			'Con un presupuesto {budget} tengo {n}. Te muestro primero las que más aprovechan tu presupuesto.',
 			'Para un presupuesto {budget} hay {n}. Empiezo por las más completas dentro de ese monto.',

@@ -7,7 +7,7 @@ final class ASI_Test_Runner implements ASI_Action_Runner {
 	public $fail  = false;
 	public function available() {
 		return array(
-			'quote'   => array( 'label' => 'Cotización', 'fields' => array( 'name', 'email', 'phone' ) ),
+			'quote'   => array( 'label' => 'Cotización', 'fields' => array( 'name', 'email', 'phone' ), 'max_items' => 8 ),
 			'compare' => array( 'label' => 'Comparación', 'fields' => array( 'name', 'email', 'phone' ), 'max_items' => 4 ),
 		);
 	}
@@ -122,3 +122,38 @@ $r  = $say( 'busco algo parecido al Frontier', $s7 );
 $first_similar = $s7['results'][0];
 $r  = $say( 'me interesa el primero', $s7 );
 check( 'parecido → "me interesa el primero" cotiza (no compara)', array( 'quote', array( $first_similar ) ), isset( $runner->calls[0] ) ? array( $runner->calls[0][0], $runner->calls[0][1] ) : array() );
+// Varias cotizaciones a la vez (frases reales de la prueba del usuario).
+$runner->calls = array();
+$add( 4, 'MG RX9 ELEGANCE', 284900 );
+$s8 = array( 'customer' => array( 'name' => 'Ana', 'email' => 'ana@example.com', 'phone' => '' ) );
+$say( 'pick up 4x4', $s8 );
+$s8['shown'] = array_merge( $s8['shown'], array( 4 ) );
+$r = $say( 'cotízame la nissan frontier y la suv mg rx9', $s8 );
+check( 'varias: por nombre', array( 'quote', array( 1, 4 ) ), isset( $runner->calls[0] ) ? array( $runner->calls[0][0], $runner->calls[0][1] ) : array() );
+check( 'varias: lo dice con los dos nombres', true, false !== strpos( $r['text'], 'NISSAN FRONTIER DC' ) && false !== strpos( $r['text'], 'MG RX9 ELEGANCE' ) );
+$r = $say( 'quiero la cotización de estos 2 NISSAN FRONTIER DC y MG RX9 ELEGANCE', $s8 );
+check( 'varias: "de estos 2 X y Y" usa los nombres, no los dos primeros', array( 1, 4 ), $runner->calls[1][1] );
+$say( 'pick up 4x4', $s8 );
+$r = $say( 'cotízame el primero y el tercero', $s8 );
+check( 'varias: por número', array( $s8['results'][0] ?? 0, 0 )[0] ? 2 : 2, count( $runner->calls[2][1] ) );
+$say( 'pick up 4x4', $s8 );
+$r = $say( 'me interesan las dos primeras', $s8 );
+check( 'varias: "las dos primeras"', 2, count( $runner->calls[3][1] ) );
+$say( 'pick up 4x4', $s8 );
+$r = $say( 'cotízame todas', $s8 );
+check( 'varias: "todas" (los 4 resultados)', 4, count( $runner->calls[4][1] ) );
+// Después de "¿cuál te interesa?", responder con nombres.
+$s9 = array( 'customer' => array( 'name' => 'Ana', 'email' => 'ana@example.com', 'phone' => '' ) );
+$say( 'pick up 4x4', $s9 );
+$say( 'me interesa', $s9 );
+$runner->calls = array();
+$r = $say( 'la nissan frontier te dije y la mazda', $s9 );
+check( 'varias: responde "¿cuál?" con dos nombres', array( 1, 3 ), isset( $runner->calls[0] ) ? $runner->calls[0][1] : array() );
+// Un modelo con varias versiones que no se mostró: toma la más relevante.
+$runner->calls = array();
+$shop3->add( 5, 'es', 'catalog', 'KIA SORENTO EX', array( 'category' => array( 'SUV' ), 'brand' => array( 'KIA' ) ), 'SUV.', array(), array( 'price' => '300000', 'currency_raw' => '2', 'brand' => 'KIA' ) );
+$shop3->add( 6, 'es', 'catalog', 'KIA SORENTO GT', array( 'category' => array( 'SUV' ), 'brand' => array( 'KIA' ) ), 'SUV.', array(), array( 'price' => '350000', 'currency_raw' => '2', 'brand' => 'KIA' ) );
+$s10 = array( 'customer' => array( 'name' => 'Ana', 'email' => 'ana@example.com', 'phone' => '' ) );
+$say( 'pick up 4x4', $s10 );
+$r = $say( 'cotízame la nissan frontier y la kia sorento', $s10 );
+check( 'varias: un modelo con dos versiones no se pierde', 2, isset( $runner->calls[0] ) ? count( $runner->calls[0][1] ) : 0 );

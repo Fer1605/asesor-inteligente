@@ -714,12 +714,13 @@
 
 /* Documento generado en el chat (cotización / comparación) */
 .asi-chat .asi-file {
+	width: 100%;
 	margin: 8px 0 4px;
 	border: 1px solid var(--asi-border, #e3e6ea);
 	border-radius: var(--asi-radius, 12px);
 	background: var(--asi-surface, #fff);
 	overflow: hidden;
-	max-width: 520px;
+	max-width: 640px;
 }
 .asi-chat .asi-file__head {
 	display: flex;
@@ -756,7 +757,10 @@
 .asi-chat .asi-file__preview {
 	display: block;
 	width: 100%;
-	height: 420px;
+	/* Proporción de una hoja carta, sin pasar del alto de la pantalla. */
+	aspect-ratio: 8.5 / 11;
+	height: auto;
+	max-height: 80vh;
 	border: 0;
 	border-top: 1px solid var(--asi-border, #e3e6ea);
 	background: #f5f5f5;

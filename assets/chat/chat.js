@@ -245,7 +245,8 @@
 		box.appendChild( head );
 		if ( window.innerWidth >= 700 ) {
 			const frame = el( 'iframe', 'asi-file__preview' );
-			frame.src = url;
+			// Sin barra ni miniaturas del visor, ajustado al ancho (Chrome, Edge, Brave, Firefox).
+			frame.src = url + '#toolbar=0&navpanes=0&scrollbar=1&view=FitH';
 			frame.title = data.label || 'PDF';
 			frame.loading = 'lazy';
 			box.appendChild( frame );

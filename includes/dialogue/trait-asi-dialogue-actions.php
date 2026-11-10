@@ -44,10 +44,13 @@ trait ASI_Dialogue_Actions {
 
 		// 2. "Sí" a lo último que ofreció el chat.
 		if ( ! empty( $state['offer']['action'] ) ) {
-			$ref = $this->detect_reference( $normalized, $state );
-			// "El tercero" responde a "¿cuál te cotizo?"; después de otras ofertas sigue el flujo normal.
-			if ( $ref && 'quote' === $state['offer']['action'] && count( $state['offer']['ids'] ) > 1 ) {
-				return $this->start_action( $state['offer']['action'], array( $ref ), $state );
+			// "El tercero", "la Frontier y la MG RX9" responden a "¿cuál te cotizo?"; después de otras
+			// ofertas sigue el flujo normal.
+			if ( 'quote' === $state['offer']['action'] && count( $state['offer']['ids'] ) > 1 ) {
+				$picked = $this->action_targets( $message, $normalized, $state );
+				if ( $picked ) {
+					return $this->start_action( 'quote', $picked, $state );
+				}
 			}
 			if ( $this->words_in( $normalized, 'yes_words' ) && str_word_count( $normalized ) <= 5 ) {
 				if ( 'finance' === $state['offer']['action'] ) {
@@ -82,9 +85,10 @@ trait ASI_Dialogue_Actions {
 
 		// 5. Cotización.
 		if ( isset( $available['quote'] ) && $this->words_in( $normalized, 'quote_words' ) ) {
-			$target = $this->action_target( $normalized, $state );
-			if ( $target ) {
-				return $this->start_action( 'quote', array( $target ), $state );
+			$max     = isset( $available['quote']['max_items'] ) ? (int) $available['quote']['max_items'] : 1;
+			$targets = array_slice( $this->action_targets( $message, $normalized, $state ), 0, max( 1, $max ) );
+			if ( $targets ) {
+				return $this->start_action( 'quote', $targets, $state );
 			}
 			if ( count( $state['results'] ) > 1 ) {
 				return $this->ask_which( 'quote', $state );
@@ -133,6 +137,125 @@ trait ASI_Dialogue_Actions {
 		return 1 === count( $state['results'] ) ? (int) $state['results'][0] : 0;
 	}
 
+	/**
+	 * Uno o varios productos de un mensaje: por nombre ("la Frontier y la MG RX9"), por número
+	 * ("el primero y el tercero") o en grupo ("las dos", "estos 3", "todas").
+	 *
+	 * @return int[]
+	 */
+	private function action_targets( $message, $normalized, array $state ) {
+		// 1. Por nombre: cada parte separada por "y", coma, "con"…
+		$named = array();
+		$rest  = ' ' . $normalized . ' ';
+		foreach ( array( 'quote_words', 'finance_words', 'yes_words', 'target_fillers' ) as $list ) {
+			foreach ( (array) $this->lexicon->get_list( $list ) as $phrase ) {
+				$rest = preg_replace( '/\s' . preg_quote( ASI_Normalizer::normalize( $phrase ), '/' ) . '(?=\s)/', ' ', $rest );
+			}
+		}
+		foreach ( preg_split( '/\s(?:y|e|con|mas|and|o)\s|,|\//', $rest ) as $chunk ) {
+			$id = $this->product_by_name( trim( $chunk ), $state );
+			if ( $id && ! in_array( $id, $named, true ) ) {
+				$named[] = $id;
+			}
+		}
+		if ( count( $named ) >= 2 ) {
+			return $named;
+		}
+
+		// 2. Por número: todos los ordinales del mensaje, en orden.
+		$ordinals = (array) $this->lexicon->get_list( 'ordinals' );
+		$markers  = (array) $this->lexicon->get_list( 'reference_markers' );
+		$tokens   = explode( ' ', $normalized );
+		$by_order = array();
+		foreach ( $tokens as $position => $token ) {
+			if ( ! isset( $ordinals[ $token ] ) || ! $state['results'] ) {
+				continue;
+			}
+			$previous = $position > 0 ? $tokens[ $position - 1 ] : '';
+			if ( ctype_digit( $token ) && ! in_array( $previous, $markers, true ) && ! in_array( $previous, array( 'y', 'e', 'el', 'la' ), true ) ) {
+				continue;
+			}
+			$index = (int) $ordinals[ $token ];
+			$index = -1 === $index ? count( $state['results'] ) - 1 : $index - 1;
+			if ( isset( $state['results'][ $index ] ) && ! in_array( (int) $state['results'][ $index ], $by_order, true ) ) {
+				$by_order[] = (int) $state['results'][ $index ];
+			}
+		}
+		if ( $by_order ) {
+			return $by_order;
+		}
+
+		// 3. En grupo: "las dos", "ambas", "estos 3", "todas".
+		if ( $state['results'] && preg_match( '/(?:^|\s)(?:(?:los|las|estos|estas|esos|esas|esas)\s+)?(ambos|ambas|todos|todas|dos|2|tres|3|cuatro|4)(?:\s+(?:primeros|primeras|opciones|carros|vehiculos))?(?:\s|$)/', $normalized, $m ) && preg_match( '/(ambos|ambas|todos|todas|los|las|estos|estas|esos|esas)/', $m[0] ) ) {
+			$counts = array( 'ambos' => 2, 'ambas' => 2, 'dos' => 2, '2' => 2, 'tres' => 3, '3' => 3, 'cuatro' => 4, '4' => 4, 'todos' => 8, 'todas' => 8 );
+			return array_map( 'intval', array_slice( $state['results'], 0, $counts[ $m[1] ] ) );
+		}
+
+		if ( $named ) {
+			return $named;
+		}
+		$one = $this->action_target( $normalized, $state );
+		return $one ? array( $one ) : array();
+	}
+
+	/**
+	 * Un producto por su nombre, primero entre los que ya se mostraron en la conversación
+	 * ("la suv mg rx9" → MG RX9 ELEGANCE), luego en el catálogo.
+	 */
+	private function product_by_name( $chunk, array $state ) {
+		$words = array();
+		foreach ( explode( ' ', ASI_Lexicon::normal_form( $chunk ) ) as $word ) {
+			if ( strlen( $word ) >= 2 && ! $this->lexicon->is_stopword( $word ) ) {
+				$words[] = $word;
+			}
+		}
+		if ( ! $words ) {
+			return 0;
+		}
+		$recent = array_reverse( array_slice( array_values( array_unique( array_merge( $state['shown'], $state['results'] ) ) ), -40 ) );
+		if ( $recent ) {
+			$best  = 0;
+			$score = 0;
+			foreach ( $this->repository->rows( $this->context['lang'], $recent ) as $row ) {
+				$title = ' ' . $row['title_norm'] . ' ' . str_replace( '|', ' ', (string) $row['terms_norm'] ) . ' ';
+				$hits  = 0;
+				foreach ( $words as $word ) {
+					$hits += false !== strpos( $title, ' ' . $word . ' ' ) ? 1 : 0;
+				}
+				// La mayoría de las palabras y al menos una que no sea un número.
+				$named = (bool) array_filter(
+					$words,
+					static function ( $w ) use ( $title ) {
+						return ! ctype_digit( $w ) && false !== strpos( $title, ' ' . $w . ' ' );
+					}
+				);
+				$ratio = $hits / count( $words );
+				// Los más recientes ganan en empate (la lista va del más nuevo al más viejo).
+				if ( $named && $ratio >= 0.6 && $ratio > $score ) {
+					$best  = (int) $row['post_id'];
+					$score = $ratio;
+				}
+			}
+			if ( $best ) {
+				return $best;
+			}
+		}
+		if ( count( $words ) < 1 || ! preg_match( '/[a-z]{3,}/', implode( ' ', $words ) ) ) {
+			return 0;
+		}
+		$row = $this->resolve_product( implode( ' ', $words ), $state );
+		if ( $row ) {
+			return (int) $row['post_id'];
+		}
+		// Varias versiones del mismo modelo ("MG RX9 Elegance" y "MG RX9 Premier"): la más relevante.
+		$query  = $this->analyzer->analyze( implode( ' ', $words ) );
+		$result = $query['groups'] ? $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'catalog' ), 'limit' => 4 ) ) : array( 'items' => array() );
+		if ( count( $result['items'] ) >= 2 && 'exact' === $result['quality'] && self::model_key( $result['items'][0] ) === self::model_key( $result['items'][1] ) ) {
+			return (int) $result['items'][0]['post_id'];
+		}
+		return 0;
+	}
+
 	private function ask_which( $action, array $state ) {
 		$rows   = $this->repository->rows( $this->context['lang'], array_slice( $state['results'], 0, 4 ) );
 		$titles = array_map(
@@ -174,7 +297,8 @@ trait ASI_Dialogue_Actions {
 			return $this->action_reply( 'action_failed', $vars, $state, array( 'pending' => array() ) );
 		}
 		if ( empty( $customer['name'] ) && empty( $customer['email'] ) ) {
-			$reply = $this->action_reply( 'compare' === $action ? 'action_ask_compare' : 'action_ask_quote', $vars, $state, array( 'pending' => $pending, 'customer' => $customer ) );
+			$ask   = 'compare' === $action ? 'action_ask_compare' : ( count( $rows ) > 1 ? 'action_ask_quote_many' : 'action_ask_quote' );
+			$reply = $this->action_reply( $ask, $vars, $state, array( 'pending' => $pending, 'customer' => $customer ) );
 			$reply['followup'] = $this->responder->say( 'action_consent', $vars );
 			return $reply;
 		}
@@ -197,12 +321,12 @@ trait ASI_Dialogue_Actions {
 			return $reply;
 		}
 		$vars['email'] = $customer['email'];
-		$text          = array( $this->responder->say( 'compare' === $action ? 'action_done_compare' : 'action_done_quote', $vars ) );
+		$text          = array( $this->responder->say( 'compare' === $action ? 'action_done_compare' : ( count( $rows ) > 1 ? 'action_done_quote_many' : 'action_done_quote' ), $vars ) );
 		$text[]        = $this->responder->say( $result['emailed'] ? 'action_emailed' : 'action_not_emailed', $vars );
 		if ( ! empty( $result['test'] ) ) {
 			$text[] = $this->responder->say( 'action_test_note' );
 		}
-		$offer = 'quote' === $action ? array( 'action' => 'finance', 'ids' => array( $ids[0] ) ) : array();
+		$offer = 'quote' === $action && 1 === count( $ids ) ? array( 'action' => 'finance', 'ids' => array( $ids[0] ) ) : array();
 		return array(
 			'kind'        => 'file',
 			'text'        => $this->sentences( $text ),

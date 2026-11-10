@@ -20,3 +20,7 @@ check( 'meta corta', 'attribute', $c::classify_field( 'potencia', 'Potencia', 't
 check( 'taxonomía marca', 'brand', $c::classify_taxonomy( 'pa_marca', 'Marca', false ) );
 check( 'taxonomía jerárquica', 'category', $c::classify_taxonomy( 'categoria-producto', 'Categorías', true ) );
 check( 'taxonomía plana', 'tag', $c::classify_taxonomy( 'etiqueta', 'Etiquetas', false ) );
+check( 'clasificador: "stock" es control interno', 'ignore', ASI_Field_Classifier::classify_field( 'stock', 'Stock', 'true_false', array( '1' ) ) );
+check( 'clasificador: "activo" es control interno', 'ignore', ASI_Field_Classifier::classify_field( 'activo', 'Activo', 'true_false', array( '1' ) ) );
+check( 'clasificador: "Garantía activa" sigue siendo distintivo', 'flag', ASI_Field_Classifier::classify_field( 'garantia_activa', 'Garantía Activa', 'true_false', array( '1' ) ) );
+check( 'clasificador: número de ACF no es distintivo', 'attribute', ASI_Field_Classifier::classify_field( 'tonelaje', 'Tonelaje', 'number', array( '0', '0' ) ) );

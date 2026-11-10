@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class ASI_Document_Builder {
 
 	/** Subir cuando cambie la forma de construir documentos: fuerza el reindexado. */
-	const DOC_VERSION = 7;
+	const DOC_VERSION = 8;
 
 	const MAX_BODY  = 20000;
 	const MAX_SPECS = 4;

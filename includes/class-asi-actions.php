@@ -90,7 +90,7 @@ final class ASI_Actions implements ASI_Action_Runner {
 		$test    = 'test' === self::mode();
 		$emailed = $connector->email_customer( $action, $item_ids, $customer, $file );
 		if ( null === $emailed ) {
-			$emailed = self::email_file( $customer['email'], $file, 'compare' === $action ? 'Comparación de productos' : 'Tu cotización' );
+			$emailed = self::email_file( $customer['email'], $file, 'compare' === $action ? 'Tu comparación' : 'Tu cotización', $item_ids, $customer );
 		}
 
 		$lead   = $connector->save_lead( $action, $item_ids, $customer, $test );
@@ -207,28 +207,83 @@ final class ASI_Actions implements ASI_Action_Runner {
 
 	// ---------- Correo ----------
 
-	private static function email_file( $to, array $file, $subject ) {
+	/**
+	 * Respaldo cuando el sitio no tiene su propio correo: la plantilla del asistente con el PDF.
+	 */
+	private static function email_file( $to, array $file, $subject, array $item_ids, array $customer ) {
 		$path = trailingslashit( get_temp_dir() ) . sanitize_file_name( $file['filename'] );
 		file_put_contents( $path, $file['binary'] );
-		$sent = wp_mail( $to, $subject, 'Adjuntamos el documento que pediste en nuestro sitio.', array(), array( $path ) );
+		$sent = ASI_Mailer::send(
+			$to,
+			$subject,
+			array(
+				'title' => $subject,
+				'intro' => sprintf( 'Hola %s, gracias por tu interés. Te adjuntamos el documento que pediste; si tienes cualquier duda, responde a este correo.', strtok( $customer['name'], ' ' ) ),
+				'items' => self::mail_items( $item_ids ),
+			),
+			array(),
+			array( $path )
+		);
 		wp_delete_file( $path );
 		return $sent ? true : new WP_Error( 'asi_mail', 'No se pudo enviar el correo.' );
 	}
 
+	/**
+	 * Aviso a ventas con la imagen del sitio: quién es, cómo contactarlo y qué le interesó.
+	 */
 	private static function notify_sales( array $to, $action, array $item_ids, array $customer, $test ) {
-		$lines = array(
-			( $test ? '[PRUEBA] ' : '' ) . ( 'compare' === $action ? 'Comparación' : 'Cotización' ) . ' pedida desde el chat del sitio.',
-			'',
-			'Nombre: ' . $customer['name'],
-			'Correo: ' . $customer['email'],
-			'Teléfono: ' . ( '' !== $customer['phone'] ? $customer['phone'] : '—' ),
-			'',
+		$what  = 'compare' === $action ? 'una comparación' : ( count( $item_ids ) > 1 ? 'una cotización de ' . count( $item_ids ) . ' vehículos' : 'una cotización' );
+		$rows  = array(
+			'Nombre'   => $customer['name'],
+			'Correo'   => array( 'text' => $customer['email'], 'url' => 'mailto:' . $customer['email'] ),
+			'Teléfono' => '' !== $customer['phone'] ? array( 'text' => $customer['phone'], 'url' => 'tel:' . preg_replace( '/[^0-9+]/', '', $customer['phone'] ) ) : '',
+			'Pidió'    => ucfirst( $what ) . ' en PDF (ya la recibió en su correo)',
+			'Fecha'    => wp_date( 'j \d\e F, H:i' ),
 		);
-		foreach ( $item_ids as $id ) {
-			$lines[] = '• ' . wp_strip_all_tags( get_the_title( $id ) ) . ' — ' . get_permalink( $id );
-		}
 		$subject = ( $test ? '[PRUEBA] ' : '' ) . 'Nuevo interesado desde el chat: ' . $customer['name'];
-		wp_mail( $to, $subject, implode( "\n", $lines ), array( 'Reply-To: ' . $customer['name'] . ' <' . $customer['email'] . '>' ) );
+		ASI_Mailer::send(
+			$to,
+			$subject,
+			array(
+				'badge'  => $test ? 'PRUEBA · ESTE AVISO NO LLEGÓ A VENTAS' : '',
+				'title'  => 'Nuevo interesado desde el chat',
+				'intro'  => $customer['name'] . ' pidió ' . $what . ' al asistente del sitio. Estos son sus datos y lo que le interesó.',
+				'rows'   => $rows,
+				'items'  => self::mail_items( $item_ids ),
+				'button' => array(
+					'label' => 'Responder a ' . strtok( $customer['name'], ' ' ),
+					'url'   => 'mailto:' . $customer['email'] . '?subject=' . rawurlencode( 'Tu ' . ( 'compare' === $action ? 'comparación' : 'cotización' ) . ' en ' . ASI_Mailer::site_name() ),
+				),
+				'note'   => 'Enviado por el asistente del sitio.',
+			),
+			array( 'Reply-To: ' . $customer['name'] . ' <' . $customer['email'] . '>' )
+		);
+	}
+
+	/**
+	 * Productos para el correo: foto, precio con su moneda y datos clave del índice.
+	 */
+	private static function mail_items( array $item_ids ) {
+		global $wpdb;
+		$money = ASI_Settings::money();
+		$items = array();
+		foreach ( $item_ids as $id ) {
+			$card = json_decode( (string) $wpdb->get_var( $wpdb->prepare( 'SELECT card FROM ' . ASI_Index_Table::name() . ' WHERE post_id = %d LIMIT 1', $id ) ), true ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			$card  = is_array( $card ) ? $card : array();
+			$price = ASI_Money::card_price( $card, $money );
+			$specs = array();
+			foreach ( isset( $card['specs'] ) ? array_slice( (array) $card['specs'], 0, 3 ) : array() as $spec ) {
+				$specs[] = $spec['value'];
+			}
+			$items[] = array(
+				'title' => wp_strip_all_tags( get_the_title( $id ) ),
+				'url'   => get_permalink( $id ),
+				'image' => get_the_post_thumbnail_url( $id, 'medium' ),
+				'price' => $price['amount'] ? ASI_Money::format( $price['amount'], '' !== $price['currency'] ? $price['currency'] : $money['base'] ) : '',
+				'meta'  => implode( ' · ', array_filter( array_merge( array( isset( $card['category'] ) ? $card['category'] : '' ), $specs ) ) ),
+			);
+		}
+		return $items;
 	}
 
 	// ---------- Utilidades ----------
