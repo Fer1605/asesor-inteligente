@@ -286,8 +286,41 @@ class ASI_Index_Repository implements ASI_Repository {
 	 * @param array|null $rows Filas.
 	 * @return array[]
 	 */
-	private function decode_rows( $rows ) {
+	/**
+	 * Red de seguridad: solo lo que sigue publicado y sin contraseña en este momento. Si algo se
+	 * despublicó sin pasar por WordPress (p. ej. directo en la base), se saca del índice aquí mismo.
+	 * Una sola consulta por respuesta.
+	 *
+	 * @param array[] $rows Filas.
+	 * @return array[]
+	 */
+	private function only_published( array $rows ) {
+		global $wpdb;
+		$ids = array_values( array_unique( array_map( 'intval', array_column( $rows, 'post_id' ) ) ) );
+		if ( ! $ids ) {
+			return $rows;
+		}
+		$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+		$live         = array_flip(
+			array_map(
+				'intval',
+				$wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE ID IN ({$placeholders}) AND post_status = 'publish' AND post_password = ''", $ids ) ) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			)
+		);
 		$out = array();
+		foreach ( $rows as $row ) {
+			if ( isset( $live[ (int) $row['post_id'] ] ) ) {
+				$out[] = $row;
+			} else {
+				ASI_Index_Table::delete( (int) $row['post_id'] );
+			}
+		}
+		return $out;
+	}
+
+	private function decode_rows( $rows ) {
+		$rows = $this->only_published( (array) $rows );
+		$out  = array();
 		foreach ( (array) $rows as $row ) {
 			$card        = json_decode( (string) $row['card'], true );
 			$row['card'] = is_array( $card ) ? $card : array( 'title' => $row['title'], 'url' => get_permalink( (int) $row['post_id'] ) );

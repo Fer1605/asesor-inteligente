@@ -16,6 +16,9 @@ class ASI_Indexer {
 	const CRON_DISCOVER = 'asi_discover';
 	const CRON_BATCH    = 'asi_reindex_batch';
 	const STATE_OPTION  = 'asi_reindex_state';
+	const CRON_PENDING   = 'asi_reindex_pending';
+	const PENDING_OPTION = 'asi_reindex_pending_ids';
+	const PENDING_INLINE = 25; // Más que esto en una petición (importación) → segundo plano.
 
 	/** Posts por lote y segundos entre lotes. Ajustables por filtro. */
 	const BATCH_SIZE  = 20;
@@ -28,6 +31,9 @@ class ASI_Indexer {
 	/** @var ASI_Document_Builder */
 	private $builder;
 
+	/** @var array<int,bool> Posts con cambios en esta petición, para reindexar al final. */
+	private $pending = array();
+
 	public function __construct( ASI_Schema_Discovery $discovery, ASI_Document_Builder $builder ) {
 		$this->discovery = $discovery;
 		$this->builder   = $builder;
@@ -36,6 +42,14 @@ class ASI_Indexer {
 		add_action( 'deleted_post', array( $this, 'on_post_removed' ) );
 		add_action( 'trashed_post', array( $this, 'on_post_removed' ) );
 		add_action( 'set_object_terms', array( $this, 'on_terms_changed' ), 20, 1 );
+		// Muchos sitios escriben los datos después de guardar el post (importadores, webhooks,
+		// ACF por código, stock de WooCommerce). Se anota el post y se reindexa una sola vez al
+		// final de la petición, ya con todo guardado.
+		add_action( 'added_post_meta', array( $this, 'on_meta_changed' ), 20, 3 );
+		add_action( 'updated_post_meta', array( $this, 'on_meta_changed' ), 20, 3 );
+		add_action( 'deleted_post_meta', array( $this, 'on_meta_changed' ), 20, 3 );
+		add_action( 'shutdown', array( $this, 'flush_pending' ) );
+		add_action( self::CRON_PENDING, array( $this, 'flush_pending_cron' ) );
 
 		add_action( self::CRON_DISCOVER, array( $this, 'run_discovery' ) );
 		add_action( self::CRON_BATCH, array( $this, 'run_batch' ) );
@@ -173,6 +187,8 @@ class ASI_Indexer {
 			return;
 		}
 		$this->index_post( $post_id, $schema, true );
+		// Lo que se escriba después en esta misma petición (datos, términos) se recoge al final.
+		unset( $this->pending[ (int) $post_id ] );
 	}
 
 	/**
@@ -181,10 +197,92 @@ class ASI_Indexer {
 	 * @param int $object_id Post.
 	 */
 	public function on_terms_changed( $object_id ) {
-		if ( doing_action( 'wp_after_insert_post' ) || ! ASI_Index_Table::get_signature( $object_id ) ) {
+		if ( doing_action( 'wp_after_insert_post' ) ) {
 			return;
 		}
-		$this->index_post( $object_id, null, true );
+		$type   = get_post_type( (int) $object_id );
+		$schema = ASI_Schema_Discovery::get_schema();
+		if ( $type && ! empty( $schema['post_types'][ $type ] ) ) {
+			$this->pending[ (int) $object_id ] = true;
+		}
+	}
+
+	/**
+	 * Cambió un dato del post. Se ignoran las claves técnicas que no cambian lo que se busca.
+	 *
+	 * @param int|int[] $meta_id   ID del meta (no se usa).
+	 * @param int       $object_id Post.
+	 * @param string    $meta_key  Clave.
+	 */
+	public function on_meta_changed( $meta_id, $object_id, $meta_key ) {
+		if ( preg_match( '/^(_asi_|_edit_|_wp_|_oembed|_elementor_(css|page_assets|element_cache|controls_usage)|_thumbnail_id_tmp|_transient)/', (string) $meta_key ) ) {
+			return;
+		}
+		$type   = get_post_type( (int) $object_id );
+		$schema = ASI_Schema_Discovery::get_schema();
+		if ( $type && ! empty( $schema['post_types'][ $type ] ) ) {
+			$this->pending[ (int) $object_id ] = true;
+		}
+	}
+
+	/**
+	 * Al final de la petición: reindexa lo anotado. Si son muchos (una importación), se manda a
+	 * segundo plano para no alargar la petición.
+	 */
+	public function flush_pending() {
+		if ( ! $this->pending ) {
+			return;
+		}
+		$ids           = array_keys( $this->pending );
+		$this->pending = array();
+		if ( count( $ids ) > self::PENDING_INLINE ) {
+			$queued = array_values( array_unique( array_merge( (array) get_option( self::PENDING_OPTION, array() ), $ids ) ) );
+			update_option( self::PENDING_OPTION, $queued, false );
+			if ( ! wp_next_scheduled( self::CRON_PENDING ) ) {
+				wp_schedule_single_event( time() + 10, self::CRON_PENDING );
+			}
+			return;
+		}
+		$schema = ASI_Schema_Discovery::get_schema();
+		foreach ( $ids as $id ) {
+			self::forget_cached_values( $id );
+			$this->index_post( $id, $schema, true );
+		}
+	}
+
+	/**
+	 * Lo que se escribió con update_post_meta() no se ve si ACF o la caché de objetos ya tenían el
+	 * valor de antes en esta misma petición: se olvida antes de reindexar.
+	 *
+	 * @param int $post_id Post.
+	 */
+	private static function forget_cached_values( $post_id ) {
+		clean_post_cache( (int) $post_id );
+		wp_cache_delete( (int) $post_id, 'post_meta' );
+		if ( function_exists( 'acf_get_store' ) ) {
+			foreach ( array( 'values', 'fields' ) as $name ) {
+				$store = acf_get_store( $name );
+				if ( $store && method_exists( $store, 'reset' ) ) {
+					$store->reset();
+				}
+			}
+		}
+	}
+
+	/**
+	 * Cola de segundo plano: por lotes, con la misma pausa que el reindexado completo.
+	 */
+	public function flush_pending_cron() {
+		$queued = (array) get_option( self::PENDING_OPTION, array() );
+		$batch  = array_splice( $queued, 0, (int) apply_filters( 'asi_reindex_batch_size', self::BATCH_SIZE ) );
+		update_option( self::PENDING_OPTION, $queued, false );
+		$schema = ASI_Schema_Discovery::get_schema();
+		foreach ( $batch as $id ) {
+			$this->index_post( (int) $id, $schema, true );
+		}
+		if ( $queued ) {
+			wp_schedule_single_event( time() + (int) apply_filters( 'asi_reindex_batch_delay', self::BATCH_DELAY ), self::CRON_PENDING );
+		}
 	}
 
 	/**

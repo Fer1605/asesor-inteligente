@@ -151,6 +151,7 @@ final class ASI_Plugin {
 	public static function deactivate() {
 		wp_clear_scheduled_hook( ASI_Indexer::CRON_DISCOVER );
 		wp_clear_scheduled_hook( ASI_Indexer::CRON_BATCH );
+		wp_clear_scheduled_hook( ASI_Indexer::CRON_PENDING );
 	}
 }
 
