@@ -45,7 +45,8 @@ trait ASI_Dialogue_Actions {
 		// 2. "Sí" a lo último que ofreció el chat.
 		if ( ! empty( $state['offer']['action'] ) ) {
 			$ref = $this->detect_reference( $normalized, $state );
-			if ( $ref && count( $state['offer']['ids'] ) > 1 ) {
+			// "El tercero" responde a "¿cuál te cotizo?"; después de otras ofertas sigue el flujo normal.
+			if ( $ref && 'quote' === $state['offer']['action'] && count( $state['offer']['ids'] ) > 1 ) {
 				return $this->start_action( $state['offer']['action'], array( $ref ), $state );
 			}
 			if ( $this->words_in( $normalized, 'yes_words' ) && str_word_count( $normalized ) <= 5 ) {

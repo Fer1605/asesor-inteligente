@@ -115,3 +115,10 @@ $say( 'pick up 4x4', $s6 );
 $say( 'cuánto pagaría al mes por el primero', $s6 );
 $r = $say( 'compara el primero con el segundo', $s6 );
 check( 'cuotas: no borra los resultados (se puede comparar después)', 'compare', $r['kind'] );
+// Después de "parecido al Frontier" (que ofrece comparar), "me interesa el primero" es cotizar.
+$runner->calls = array();
+$s7 = array( 'customer' => array( 'name' => 'Ana', 'email' => 'ana@example.com', 'phone' => '' ) );
+$r  = $say( 'busco algo parecido al Frontier', $s7 );
+$first_similar = $s7['results'][0];
+$r  = $say( 'me interesa el primero', $s7 );
+check( 'parecido → "me interesa el primero" cotiza (no compara)', array( 'quote', array( $first_similar ) ), isset( $runner->calls[0] ) ? array( $runner->calls[0][0], $runner->calls[0][1] ) : array() );
