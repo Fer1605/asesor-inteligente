@@ -9,6 +9,8 @@
  *  - code:      código, SKU, modelo, referencia. Búsqueda exacta y máxima prioridad.
  *  - brand:     marca o fabricante.
  *  - price:     precio numérico.
+ *  - price_old: precio anterior / tachado (no es el precio vigente).
+ *  - currency:  moneda del precio ("USD", "Q", o un código que se traduce en el panel).
  *  - image:     imagen o galería (solo tarjeta).
  *  - document:  archivo o PDF (ficha técnica, solo enlace).
  *  - link:      URL (no se indexa como texto).
@@ -30,6 +32,8 @@ class ASI_Field_Classifier {
 	const PATTERNS = array(
 		'code'     => '/(^|[^a-z])(cod|codigo|code|sku|modelo|model|referencia|ref|part[ _-]?(no|number|num)|numero[ _-]?de[ _-]?parte|no[ _-]?parte|serie|serial|item[ _-]?(no|number))([^a-z]|$)/',
 		'brand'    => '/(^|[^a-z])(marca|marcas|brand|brands|fabricante|manufacturer|make)([^a-z]|$)/',
+		'currency' => '/(^|[^a-z])(moneda|currency|divisa|curr)([^a-z]|$)/',
+		'price_old' => '/(^|[^a-z])(precio|price)[ _-]?(anterior|antes|old|regular|before|compare|tachado|lista|list)([^a-z]|$)/',
 		'price'    => '/(^|[^a-z])(precio|price|costo|cost|valor|tarifa)([^a-z]|$)/',
 		'document' => '/(^|[^a-z])(pdf|ficha|brochure|catalogo|catalog|datasheet|manual|documento|document|archivo|file|descarga|download)([^a-z]|$)/',
 		'image'    => '/(^|[^a-z])(imagen|imagenes|image|images|foto|fotos|photo|gallery|galeria|logo|thumbnail|icono|icon)([^a-z]|$)/',
@@ -89,9 +93,9 @@ class ASI_Field_Classifier {
 			return self::ACF_TYPES[ $type ];
 		}
 
-		foreach ( array( 'code', 'brand', 'price', 'document', 'image', 'link' ) as $role ) {
+		foreach ( array( 'currency', 'code', 'brand', 'price_old', 'price', 'document', 'image', 'link' ) as $role ) {
 			if ( preg_match( self::PATTERNS[ $role ], $haystack ) ) {
-				if ( 'price' === $role && ! self::samples_are_numeric( $samples ) && ! empty( $samples ) ) {
+				if ( in_array( $role, array( 'price', 'price_old' ), true ) && ! self::samples_are_numeric( $samples ) && ! empty( $samples ) ) {
 					continue;
 				}
 				return $role;

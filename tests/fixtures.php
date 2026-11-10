@@ -90,6 +90,21 @@ class ASI_Test_Repository implements ASI_Repository {
 		return $out;
 	}
 
+	public function catalog( $lang, $limit ) {
+		return array_slice(
+			array_values(
+				array_filter(
+					$this->rows,
+					function ( $row ) use ( $lang ) {
+						return $row['lang'] === $lang && 'catalog' === $row['role'];
+					}
+				)
+			),
+			0,
+			$limit
+		);
+	}
+
 	public function by_post_types( $lang, array $types, $limit ) {
 		$out = array();
 		foreach ( $this->rows as $row ) {

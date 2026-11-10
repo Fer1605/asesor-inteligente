@@ -29,6 +29,16 @@ return array(
 
 	'price_words' => array( 'price', 'prices', 'how much', 'cost', 'costs', 'pricing', 'rate' ),
 
+	// Customer amounts (ASI_Money::extract_budget). Lowercase, no accents.
+	'money_words' => array(
+		'max'          => array( 'under', 'less than', 'below', 'up to', 'max', 'maximum', 'no more than', 'at most', 'not over', 'cheaper than' ),
+		'min'          => array( 'over', 'more than', 'above', 'at least', 'minimum', 'starting at' ),
+		'between'      => array( 'between', 'from' ),
+		'between_join' => array( 'and', 'to' ),
+		'budget'       => array( 'budget', 'my budget', 'i have', 'i can spend', 'i can pay', 'i want to spend', 'spend' ),
+		'around'       => array( 'around', 'about', 'roughly', 'approximately', 'approx', 'close to' ),
+	),
+
 	'price_max_patterns' => array(
 		'/(?:less than|under|below|up to|max|maximum|no more than|cheaper than)\s*(?:\$|usd|q|l)?\s*([0-9][0-9.,]*\s*k?)/',
 	),
@@ -37,6 +47,7 @@ return array(
 	),
 
 	'synonyms' => array(
+		array( 'pickup', 'pick up', 'pickup truck' ),
 		array( 'spare part', 'part', 'replacement', 'component' ),
 		array( 'used', 'pre owned', 'preowned', 'second hand', 'secondhand' ),
 		array( 'truck', 'lorry', 'pickup' ),
@@ -232,6 +243,13 @@ return array(
 			'These {n} match what you are looking for.',
 			'I found {n} related to {label}.',
 		),
+		'results_budget' => array(
+			'With a budget {budget} I have {n}. The ones that make the most of your budget come first.',
+			'For a budget {budget} there are {n}; I start with the most complete within that amount.',
+		),
+		'budget_between' => array( 'between {min} and {max}' ),
+		'budget_max'     => array( 'of up to {max}' ),
+		'budget_min'     => array( 'from {min}' ),
 		'results_single' => array(
 			'I found exactly one option for {label}{en_pais}:',
 			'There is one option that fits what you need:',

@@ -301,6 +301,13 @@
 	color: var(--asi-accent);
 }
 
+.asi-chat .asi-card__price-alt {
+	display: block;
+	font-size: 0.8em;
+	font-weight: 400;
+	opacity: 0.75;
+}
+
 /* Enlaces informativos */
 .asi-chat .asi-links {
 	display: flex;

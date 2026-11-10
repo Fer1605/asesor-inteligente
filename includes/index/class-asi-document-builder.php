@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class ASI_Document_Builder {
 
 	/** Subir cuando cambie la forma de construir documentos: fuerza el reindexado. */
-	const DOC_VERSION = 5;
+	const DOC_VERSION = 6;
 
 	const MAX_BODY  = 20000;
 	const MAX_SPECS = 4;
@@ -114,6 +114,8 @@ class ASI_Document_Builder {
 				'brand'      => '',
 				'code'     => '',
 				'price'    => '',
+				'price_old' => '',
+				'currency_raw' => '',
 				'specs'    => array(),
 				'docs'     => array(),
 				'flags'    => array(),
@@ -319,7 +321,18 @@ class ASI_Document_Builder {
 				return;
 
 			case 'price':
-				$doc['card']['price'] = $doc['card']['price'] ? $doc['card']['price'] : $this->to_text( $value );
+			case 'price_old':
+				// Un precio en 0 o vacío no cuenta: no tapa al de otro campo.
+				$text = $this->to_text( $value );
+				if ( '' === $doc['card'][ $field['role'] ] && (float) preg_replace( '/[^0-9.]/', '', $text ) > 0 ) {
+					$doc['card'][ $field['role'] ] = $text;
+				}
+				return;
+
+			case 'currency':
+				if ( '' === $doc['card']['currency_raw'] && is_scalar( $value ) ) {
+					$doc['card']['currency_raw'] = trim( (string) $value );
+				}
 				return;
 
 			case 'image':

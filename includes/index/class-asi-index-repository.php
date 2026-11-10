@@ -94,6 +94,22 @@ class ASI_Index_Repository implements ASI_Repository {
 		);
 	}
 
+	public function catalog( $lang, $limit ) {
+		global $wpdb;
+		$table = ASI_Index_Table::name();
+		return $this->decode_rows(
+			$wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT post_id, post_type, role, lang, title, title_norm, terms_norm, codes, '' AS body_norm, card
+					FROM {$table} WHERE lang IN (%s, '') AND role = 'catalog' LIMIT %d",
+					$lang,
+					(int) $limit
+				),
+				ARRAY_A
+			)
+		);
+	}
+
 	public function details( $lang, array $ids ) {
 		global $wpdb;
 		$ids = array_values( array_filter( array_map( 'intval', $ids ) ) );

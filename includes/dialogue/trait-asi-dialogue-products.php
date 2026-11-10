@@ -268,8 +268,8 @@ trait ASI_Dialogue_Products {
 		if ( $diff ) {
 			$parts[] = $this->responder->say( 'compare_diff', array( 'label' => $this->lower_label( $diff[0] ), 'va' => $diff[1], 'vb' => $diff[2] ) );
 		}
-		$price_a = self::parse_price( $a['card']['price'] );
-		$price_b = self::parse_price( $b['card']['price'] );
+		$price_a = $this->base_price( $a );
+		$price_b = $this->base_price( $b );
 		if ( $price_a > 0 && $price_b > 0 && $price_a !== $price_b ) {
 			$parts[] = $this->responder->say( 'compare_cheaper', array( 'title' => $price_a < $price_b ? $a['card']['title'] : $b['card']['title'] ) );
 		}
@@ -321,7 +321,7 @@ trait ASI_Dialogue_Products {
 
 		$priced = array();
 		foreach ( $result['items'] as $row ) {
-			$price = self::parse_price( isset( $row['card']['price'] ) ? $row['card']['price'] : '' );
+			$price = $this->base_price( $row );
 			if ( $price > 0 ) {
 				$priced[] = array( $price, $row );
 			}

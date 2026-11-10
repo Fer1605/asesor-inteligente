@@ -39,8 +39,12 @@ class ASI_Query_Analyzer {
 	 * @param ASI_Lexicon $lexicon Idioma.
 	 * @param array      $vocab   Vocabulario del contexto.
 	 */
-	public function __construct( ASI_Lexicon $lexicon, array $vocab ) {
+	/** @var array Configuración de moneda (ASI_Money::config). */
+	private $money;
+
+	public function __construct( ASI_Lexicon $lexicon, array $vocab, array $money = array() ) {
 		$this->lexicon = $lexicon;
+		$this->money   = ASI_Money::config( $money );
 		$this->vocab   = array_merge( array( 'docs' => 0, 'tokens' => array(), 'phrases' => array() ), $vocab );
 
 		foreach ( $this->vocab['phrases'] as $normal => $info ) {
@@ -77,13 +81,15 @@ class ASI_Query_Analyzer {
 			'content'     => '',
 			'price_max'   => null,
 			'price_min'   => null,
+			'price_currency' => '', // Moneda que dijo el cliente ('' = la base del sitio).
+			'budget'      => false,  // Lo dijo como presupuesto ("tengo 200 mil").
 			'asks_price'  => '' !== ASI_Lexicon::find_phrase( $normalized, $this->lexicon->get_list( 'price_words' ) ),
 			'corrections' => array(),
 			'exclude'     => array(),
 			'exclude_label' => '',
 		);
 
-		$text = $this->extract_prices( $normalized, $result );
+		$text = $this->extract_prices( $message, $normalized, $result );
 		$text = $this->extract_separated_codes( $message, $text, $result );
 		$text = $this->extract_negation( $text, $result, $display );
 
@@ -499,22 +505,24 @@ class ASI_Query_Analyzer {
 	}
 
 	/**
-	 * Saca los rangos de precio del texto y los guarda en el resultado.
+	 * Saca el presupuesto o rango de precio de la frase original (con símbolos y separadores) y
+	 * devuelve el texto normalizado sin esos montos.
 	 *
-	 * @param string $text   Texto normalizado.
-	 * @param array  $result Resultado.
-	 * @return string Texto sin los rangos.
+	 * @param string $message    Frase original.
+	 * @param string $normalized Texto normalizado.
+	 * @param array  $result     Resultado.
+	 * @return string
 	 */
-	private function extract_prices( $text, array &$result ) {
-		foreach ( array( 'price_max' => 'price_max_patterns', 'price_min' => 'price_min_patterns' ) as $key => $list ) {
-			foreach ( (array) $this->lexicon->get_list( $list ) as $pattern ) {
-				if ( preg_match( $pattern, $text, $m ) ) {
-					$result[ $key ] = self::parse_amount( $m[1] );
-					$text           = trim( str_replace( $m[0], ' ', $text ) );
-				}
-			}
+	private function extract_prices( $message, $normalized, array &$result ) {
+		$budget = ASI_Money::extract_budget( $message, (array) $this->lexicon->get_list( 'money_words' ), $this->money );
+		if ( ! $budget['spans'] ) {
+			return $normalized;
 		}
-		return $text;
+		$result['price_min']      = $budget['min'];
+		$result['price_max']      = $budget['max'];
+		$result['price_currency'] = $budget['currency'];
+		$result['budget']         = $budget['budget'];
+		return ASI_Normalizer::normalize( str_replace( $budget['spans'], ' ', ASI_Money::fold( $message ) ) );
 	}
 
 	/**

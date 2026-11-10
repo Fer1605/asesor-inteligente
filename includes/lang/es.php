@@ -53,6 +53,16 @@ return array(
 	// Palabras que piden precio.
 	'price_words' => array( 'precio', 'precios', 'cuanto cuesta', 'cuanto cuestan', 'cuanto vale', 'cuanto valen', 'costo', 'costos', 'valor', 'tarifa' ),
 
+	// Montos del cliente (ASI_Money::extract_budget). Frases sin acentos, en minúsculas.
+	'money_words' => array(
+		'max'          => array( 'menos de', 'menor a', 'menor de', 'hasta', 'maximo', 'max', 'no mas de', 'por debajo de', 'que no pase de', 'que no pase los', 'abajo de', 'tope de', 'que no supere', 'que no supere los', 'no mayor a' ),
+		'min'          => array( 'mas de', 'mayor a', 'mayor de', 'desde', 'minimo', 'arriba de', 'por encima de', 'no menos de' ),
+		'between'      => array( 'entre', 'de', 'desde' ),
+		'between_join' => array( 'y', 'a', 'hasta' ),
+		'budget'       => array( 'presupuesto', 'mi presupuesto', 'tengo', 'cuento con', 'dispongo de', 'puedo pagar', 'puedo gastar', 'quiero gastar', 'pienso gastar', 'pagar' ),
+		'around'       => array( 'alrededor de', 'aproximadamente', 'aprox', 'como de', 'unos', 'unas', 'cerca de', 'por ahi de', 'mas o menos' ),
+	),
+
 	// Rangos de precio: el número se captura en el grupo 1.
 	'price_max_patterns' => array(
 		'/(?:menos de|menor a|hasta|maximo|max|no mas de|por debajo de|que no pase de|abajo de)\s*(?:q|\$|usd|lps|l|c|b\/|crc|₡)?\s*([0-9][0-9.,]*\s*(?:mil|k)?)/',
@@ -66,6 +76,7 @@ return array(
 		array( 'repuesto', 'refaccion', 'pieza', 'parte', 'recambio' ),
 		array( 'usado', 'seminuevo', 'segunda mano' ),
 		array( 'camion', 'troca', 'camioneta' ),
+		array( 'pickup', 'pick up', 'picop', 'palangana' ),
 		array( 'carro', 'auto', 'automovil', 'vehiculo', 'coche' ),
 		array( 'montacarga', 'montacargas', 'carretilla elevadora', 'elevador de carga' ),
 		array( 'computadora', 'ordenador', 'pc', 'laptop', 'portatil' ),
@@ -302,6 +313,13 @@ return array(
 			'Estas son {n} que encajan con lo que buscas.',
 			'Te encontré {n} de {label}.',
 		),
+		'results_budget' => array(
+			'Con un presupuesto {budget} tengo {n}. Te muestro primero las que más aprovechan tu presupuesto.',
+			'Para un presupuesto {budget} hay {n}. Empiezo por las más completas dentro de ese monto.',
+		),
+		'budget_between' => array( 'entre {min} y {max}' ),
+		'budget_max'     => array( 'de hasta {max}' ),
+		'budget_min'     => array( 'desde {min}' ),
 		'results_single' => array(
 			'Encontré justo una opción de {label}{en_pais}:',
 			'Hay una opción que encaja con lo que buscas:',

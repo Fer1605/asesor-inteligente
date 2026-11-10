@@ -54,6 +54,9 @@ class ASI_Settings {
 			'emojis'              => false,
 			'synonyms_text'       => array(),
 			'synonyms'            => array(),
+			'currency_base'       => '',      // ISO; vacío = WooCommerce o el país del sitio.
+			'currency_map'        => array(), // valor guardado en el sitio => ISO ('1' => 'USD').
+			'currency_rates'      => array(), // ISO => unidades de la base por 1 unidad.
 		);
 	}
 
@@ -85,6 +88,32 @@ class ASI_Settings {
 	 */
 	public static function update( array $values ) {
 		update_option( self::OPTION, array_merge( self::all(), $values ), false );
+	}
+
+	/**
+	 * Configuración de moneda para ASI_Money: la base configurada; si no, la de WooCommerce; si no,
+	 * la del país del contexto o del idioma del sitio (es_GT → GTQ).
+	 *
+	 * @param string $country País del contexto (ISO-2), si se conoce.
+	 * @return array base, map, rates
+	 */
+	public static function money( $country = '' ) {
+		$settings = self::all();
+		$base     = ASI_Money::resolve_base( $settings['currency_base'] );
+		if ( '' === $base && function_exists( 'get_woocommerce_currency' ) ) {
+			$base = ASI_Money::resolve_base( get_woocommerce_currency() );
+		}
+		if ( '' === $base ) {
+			$base = ASI_Money::resolve_base( '', $country );
+		}
+		if ( '' === $base && preg_match( '/_([A-Z]{2})/', (string) get_locale(), $m ) ) {
+			$base = ASI_Money::resolve_base( '', $m[1] );
+		}
+		return array(
+			'base'  => $base,
+			'map'   => (array) $settings['currency_map'],
+			'rates' => (array) $settings['currency_rates'],
+		);
 	}
 
 	public static function mode() {

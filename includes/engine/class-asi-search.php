@@ -78,12 +78,21 @@ interface ASI_Repository {
 	 * @return array
 	 */
 	public function vocabulary( $lang );
+
+	/**
+	 * Todas las filas de catálogo del contexto (para "¿qué hay con 200 mil?", sin tipo de producto).
+	 * @param string $lang  Idioma.
+	 * @param int    $limit Máximo.
+	 * @return array[]
+	 */
+	public function catalog( $lang, $limit );
 }
 
 class ASI_Search {
 
 	const PAGE_SIZE       = 8;
 	const CANDIDATE_LIMIT = 400;
+	const BROWSE_LIMIT    = 3000;
 	const BODY_POINTS     = 3;
 	const MIN_CLICKS      = 3;
 	const MAX_BOOST       = 0.5;
@@ -100,9 +109,13 @@ class ASI_Search {
 	/** @var array */
 	private $vocab;
 
-	public function __construct( ASI_Repository $repository, array $vocab ) {
+	/** @var array Configuración de moneda. */
+	private $money;
+
+	public function __construct( ASI_Repository $repository, array $vocab, array $money = array() ) {
 		$this->repository = $repository;
 		$this->vocab      = $vocab;
+		$this->money      = ASI_Money::config( $money );
 	}
 
 	/**
@@ -131,7 +144,9 @@ class ASI_Search {
 
 		$empty = array( 'items' => array(), 'total' => 0, 'quality' => 'none', 'facets' => array(), 'brands' => array(), 'ids' => array(), 'similar' => array(), 'named' => false );
 		if ( empty( $query['groups'] ) ) {
-			return $empty;
+			return self::has_price_filter( $query ) && in_array( 'catalog', $options['roles'], true )
+				? $this->browse_by_budget( $lang, $query, $options, $empty )
+				: $empty;
 		}
 
 		list( $words, $codes ) = $this->search_terms( $query['groups'] );
@@ -210,6 +225,58 @@ class ASI_Search {
 			'ids'     => $ids,
 			'similar' => array_slice( $similar, 0, 4 ), // Filas con nombre parecido (si hubo nombre exacto).
 			'named'   => $named, // Lo que escribió es exactamente el nombre de un resultado.
+		);
+	}
+
+	public static function has_price_filter( array $query ) {
+		return isset( $query['price_max'] ) && null !== $query['price_max'] || isset( $query['price_min'] ) && null !== $query['price_min'];
+	}
+
+	/**
+	 * Solo presupuesto ("algo de 60 a 70 mil dólares"): todo el catálogo que cabe, primero lo que
+	 * más aprovecha el presupuesto (el precio más cercano al tope).
+	 */
+	private function browse_by_budget( $lang, array $query, array $options, array $empty ) {
+		$pool = array();
+		foreach ( $this->repository->catalog( $lang, self::BROWSE_LIMIT ) as $row ) {
+			if ( ! $this->passes_price( $row, $query ) || $this->is_excluded( $row, $query ) ) {
+				continue;
+			}
+			$price         = ASI_Money::card_price( (array) $row['card'], $this->money );
+			$row['score']  = 1;
+			$row['final']  = (float) $price['base'];
+			$pool[]        = $row;
+		}
+		if ( ! $pool ) {
+			return $empty;
+		}
+		usort(
+			$pool,
+			static function ( $a, $b ) {
+				return $a['final'] === $b['final'] ? strcmp( $a['title'], $b['title'] ) : ( $a['final'] < $b['final'] ? 1 : -1 );
+			}
+		);
+		$exclude = array_flip( array_map( 'intval', $options['exclude'] ) );
+		$items   = array();
+		foreach ( $pool as $row ) {
+			if ( ! isset( $exclude[ (int) $row['post_id'] ] ) ) {
+				$items[] = $row;
+			}
+			if ( count( $items ) >= $options['limit'] ) {
+				break;
+			}
+		}
+		return array_merge(
+			$empty,
+			array(
+				'items'   => $items,
+				'total'   => count( $pool ),
+				'quality' => 'exact',
+				'facets'  => self::facets( $pool ),
+				'brands'  => self::brands( $pool ),
+				'ids'     => array_map( 'intval', array_column( $pool, 'post_id' ) ),
+				'budget'  => true,
+			)
 		);
 	}
 
@@ -500,7 +567,9 @@ class ASI_Search {
 	}
 
 	/**
-	 * Filtro de precio: si hay rango y la fila tiene precio numérico fuera de él, se descarta.
+	 * Filtro de precio, siempre en la moneda base: el monto del cliente y el de cada producto se
+	 * convierten antes de comparar. Sin precio publicado o con una moneda que no se puede
+	 * convertir, el producto se descarta (no se sabe si cumple).
 	 *
 	 * @param array $row   Fila.
 	 * @param array $query Consulta.
@@ -510,14 +579,21 @@ class ASI_Search {
 		if ( null === $query['price_max'] && null === $query['price_min'] ) {
 			return true;
 		}
-		$price = isset( $row['card']['price'] ) ? self::parse_price( $row['card']['price'] ) : null;
-		if ( null === $price ) {
-			return true;
-		}
-		if ( null !== $query['price_max'] && $price > $query['price_max'] ) {
+		$price = ASI_Money::card_price( isset( $row['card'] ) ? (array) $row['card'] : array(), $this->money );
+		// Con presupuesto solo cuentan los que tienen precio: un accesorio sin precio no "cabe" en él.
+		if ( null === $price['amount'] ) {
 			return false;
 		}
-		return null === $query['price_min'] || $price >= $query['price_min'];
+		if ( null === $price['base'] ) {
+			return false;
+		}
+		$currency = isset( $query['price_currency'] ) ? $query['price_currency'] : '';
+		$max      = null === $query['price_max'] ? null : ASI_Money::to_base( $query['price_max'], $currency, $this->money );
+		$min      = null === $query['price_min'] ? null : ASI_Money::to_base( $query['price_min'], $currency, $this->money );
+		if ( null !== $max && $price['base'] > $max ) {
+			return false;
+		}
+		return null === $min || $price['base'] >= $min;
 	}
 
 	/**

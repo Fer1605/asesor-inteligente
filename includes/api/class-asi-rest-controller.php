@@ -209,6 +209,7 @@ class ASI_REST_Controller {
 			'learned'        => ASI_Learning::learned_for( $context->lang ),
 			'tone'           => 'usted' === $settings['tone'] ? 'usted' : 'tu',
 			'emojis'         => ! empty( $settings['emojis'] ),
+			'money'          => ASI_Settings::money( $context->country ),
 		);
 	}
 

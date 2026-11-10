@@ -147,7 +147,11 @@
 			body.appendChild( el( 'span', 'asi-card__spec', spec.label + ': ' + spec.value ) );
 		} );
 		if ( data.price ) {
-			body.appendChild( el( 'span', 'asi-card__price', data.price ) );
+			const price = el( 'span', 'asi-card__price', data.price );
+			if ( data.price_alt ) {
+				price.appendChild( el( 'small', 'asi-card__price-alt', data.price_alt ) );
+			}
+			body.appendChild( price );
 		}
 		link.appendChild( body );
 		return link;

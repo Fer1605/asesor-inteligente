@@ -40,6 +40,8 @@ class ASI_Admin {
 		'code'      => 'Código / SKU / modelo',
 		'brand'     => 'Marca',
 		'price'     => 'Precio',
+		'price_old' => 'Precio anterior',
+		'currency'  => 'Moneda',
 		'summary'   => 'Descripción',
 		'attribute' => 'Especificación',
 		'flag'      => 'Distintivo (sí/no)',
@@ -187,6 +189,10 @@ class ASI_Admin {
 				$this->save_appearance();
 				break;
 
+			case 'money':
+				$this->save_money();
+				break;
+
 			case 'connection':
 				$search_mode = isset( $_POST['search_mode'] ) ? sanitize_key( wp_unslash( $_POST['search_mode'] ) ) : 'none';
 				ASI_Settings::update( array( 'search_mode' => in_array( $search_mode, ASI_Settings::SEARCH_MODES, true ) ? $search_mode : 'none' ) );
@@ -284,6 +290,119 @@ class ASI_Admin {
 		ASI_Settings::update( array( 'synonyms_text' => $texts, 'synonyms' => $groups ) );
 		ASI_Index_Repository::flush_vocabulary();
 		ASI_Learning::dismiss( $id );
+	}
+
+	/**
+	 * Guarda la moneda base, qué significa cada código de moneda del sitio y los tipos de cambio.
+	 * No hace falta reindexar: la moneda se resuelve al responder.
+	 */
+	private function save_money() {
+		$known = array_keys( ASI_Money::CURRENCIES );
+		$base  = isset( $_POST['currency_base'] ) ? strtoupper( sanitize_key( wp_unslash( $_POST['currency_base'] ) ) ) : '';
+		$map   = array();
+		foreach ( isset( $_POST['currency_map'] ) && is_array( $_POST['currency_map'] ) ? wp_unslash( $_POST['currency_map'] ) : array() as $value => $iso ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+			$iso = strtoupper( sanitize_key( $iso ) );
+			if ( in_array( $iso, $known, true ) ) {
+				$map[ sanitize_text_field( (string) $value ) ] = $iso;
+			}
+		}
+		$rates = array();
+		foreach ( isset( $_POST['currency_rates'] ) && is_array( $_POST['currency_rates'] ) ? wp_unslash( $_POST['currency_rates'] ) : array() as $iso => $rate ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+			$iso  = strtoupper( sanitize_key( $iso ) );
+			$rate = (float) str_replace( ',', '.', sanitize_text_field( (string) $rate ) );
+			if ( in_array( $iso, $known, true ) && $rate > 0 ) {
+				$rates[ $iso ] = $rate;
+			}
+		}
+		ASI_Settings::update(
+			array(
+				'currency_base'  => in_array( $base, $known, true ) ? $base : '',
+				'currency_map'   => $map,
+				'currency_rates' => $rates,
+			)
+		);
+	}
+
+	/**
+	 * Valores distintos de los campos de moneda del sitio (solo campos sueltos, no dentro de JSON).
+	 *
+	 * @param array $schema Esquema.
+	 * @return string[] valor => cuántos productos lo usan
+	 */
+	private function currency_values( array $schema ) {
+		global $wpdb;
+		$values = array();
+		foreach ( (array) $schema['post_types'] as $type ) {
+			foreach ( (array) $type['fields'] as $name => $field ) {
+				if ( 'currency' !== $field['role'] || ! in_array( $field['source'], array( 'meta', 'acf' ), true ) ) {
+					continue;
+				}
+				$rows = $wpdb->get_results( $wpdb->prepare( "SELECT meta_value AS v, COUNT(*) AS n FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value <> '' GROUP BY meta_value ORDER BY n DESC LIMIT 12", $name ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+				foreach ( (array) $rows as $row ) {
+					$values[ (string) $row->v ] = ( isset( $values[ (string) $row->v ] ) ? $values[ (string) $row->v ] : 0 ) + (int) $row->n;
+				}
+			}
+		}
+		return $values;
+	}
+
+	/**
+	 * Tarjeta "Precios y moneda" (pestaña Contenido).
+	 *
+	 * @param array $schema Esquema.
+	 */
+	private function money_card( array $schema ) {
+		$settings = ASI_Settings::all();
+		$money    = ASI_Settings::money();
+		$values   = $this->currency_values( $schema );
+		$isos     = array_keys( ASI_Money::CURRENCIES );
+		$used     = array( $money['base'] );
+		foreach ( $values as $value => $count ) {
+			$iso    = ASI_Money::currency_from_value( $value, $money );
+			$used[] = $iso;
+		}
+		$used = array_values( array_unique( array_filter( array_merge( $used, array_keys( (array) $settings['currency_rates'] ) ) ) ) );
+		$this->card_open( 'Precios y moneda', 'dashicons-money-alt', 'green', 'asi-moneda' );
+		?>
+			<p class="asi-muted">Para filtrar por presupuesto, el asistente convierte todo a la <strong>moneda base</strong> antes de comparar: nunca compara dólares con quetzales. El cliente puede escribir el monto en cualquier moneda (“hasta $40 mil”, “entre 100 y 200 mil quetzales”); si no dice cuál, se usa la base.</p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php $this->hidden_fields( 'money', 'contenido' ); ?>
+				<p><label><strong>Moneda base</strong><br>
+					<select name="currency_base">
+						<option value="">Automática<?php echo $money['base'] && '' === $settings['currency_base'] ? esc_html( ' (' . $money['base'] . ')' ) : ''; ?></option>
+						<?php foreach ( $isos as $iso ) : ?>
+							<option value="<?php echo esc_attr( $iso ); ?>" <?php selected( $settings['currency_base'], $iso ); ?>><?php echo esc_html( $iso . ' · ' . ASI_Money::CURRENCIES[ $iso ]['symbol'] ); ?></option>
+						<?php endforeach; ?>
+					</select></label></p>
+				<?php if ( $values ) : ?>
+					<p><strong>Qué significa cada valor del campo de moneda</strong></p>
+					<table class="widefat striped asi-table"><thead><tr><th>Valor guardado</th><th>Productos</th><th>Moneda</th></tr></thead><tbody>
+						<?php foreach ( $values as $value => $count ) : ?>
+							<?php $current = ASI_Money::currency_from_value( $value, $money ); ?>
+							<tr><td><code><?php echo esc_html( $value ); ?></code></td><td><?php echo esc_html( (string) $count ); ?></td><td>
+								<select name="currency_map[<?php echo esc_attr( $value ); ?>]">
+									<option value=""><?php echo $current ? esc_html( 'Automática (' . $current . ')' ) : '— Sin definir —'; ?></option>
+									<?php foreach ( $isos as $iso ) : ?>
+										<option value="<?php echo esc_attr( $iso ); ?>" <?php selected( isset( $settings['currency_map'][ $value ] ) ? $settings['currency_map'][ $value ] : '', $iso ); ?>><?php echo esc_html( $iso ); ?></option>
+									<?php endforeach; ?>
+								</select>
+								<?php if ( ! $current ) : ?><span class="asi-tag asi-tag--warn">Sin definir: esos productos no entran en búsquedas por presupuesto</span><?php endif; ?>
+							</td></tr>
+						<?php endforeach; ?>
+					</tbody></table>
+				<?php endif; ?>
+				<?php if ( $money['base'] ) : ?>
+					<p><strong>Tipo de cambio</strong> <span class="asi-muted">(cuántos <?php echo esc_html( $money['base'] ); ?> vale 1 unidad de cada moneda)</span></p>
+					<?php foreach ( array_diff( $used, array( $money['base'] ) ) ?: array( 'USD' === $money['base'] ? 'EUR' : 'USD' ) as $iso ) : ?>
+						<?php $reference = ASI_Money::rate( $iso, array( 'base' => $money['base'] ) ); ?>
+						<p><label>1 <?php echo esc_html( $iso ); ?> = <input type="text" inputmode="decimal" size="8" name="currency_rates[<?php echo esc_attr( $iso ); ?>]" value="<?php echo esc_attr( isset( $settings['currency_rates'][ $iso ] ) ? (string) $settings['currency_rates'][ $iso ] : '' ); ?>" placeholder="<?php echo esc_attr( null === $reference ? '' : (string) round( $reference, 4 ) ); ?>"> <?php echo esc_html( $money['base'] ); ?></label>
+						<?php if ( empty( $settings['currency_rates'][ $iso ] ) && null !== $reference ) : ?><span class="asi-muted">Vacío = valor de referencia <?php echo esc_html( (string) round( $reference, 4 ) ); ?>. Confírmalo con el que usa el negocio.</span><?php endif; ?></p>
+					<?php endforeach; ?>
+				<?php endif; ?>
+				<p class="asi-actions"><?php submit_button( 'Guardar moneda', 'primary', 'submit', false ); ?></p>
+			</form>
+		<?php
+		$this->card_close();
 	}
 
 	private function save_synonyms() {
@@ -865,6 +984,7 @@ class ASI_Admin {
 				<div class="asi-legend__item"><span class="asi-icon asi-icon--blue dashicons dashicons-list-view" aria-hidden="true"></span><div><strong>Datos que usa</strong><p>Los campos de cada contenido (código, marca, precio, descripción…). Los datos internos de otros plugins se ignoran solos.</p></div></div>
 			</div>
 		<?php $this->card_close(); ?>
+		<?php $this->money_card( $schema ); ?>
 		<p class="asi-detected">
 			<?php foreach ( array( 'acf' => 'ACF', 'woocommerce' => 'WooCommerce', 'elementor' => 'Elementor' ) as $key => $label ) : ?>
 				<span class="asi-tag asi-tag--<?php echo $schema[ $key ] ? 'ok' : 'soft'; ?>"><?php echo esc_html( $label . ( $schema[ $key ] ? ' detectado' : ' no' ) ); ?></span>

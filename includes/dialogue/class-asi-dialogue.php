@@ -76,6 +76,7 @@ class ASI_Dialogue {
 				'learned'       => array(), // clave de búsqueda => IDs enseñados desde el panel.
 				'tone'          => 'tu',
 				'emojis'        => false,
+				'money'         => array(), // base, map, rates (ASI_Money).
 			),
 			$context
 		);
@@ -95,8 +96,8 @@ class ASI_Dialogue {
 
 		$this->lexicon   = ASI_Lexicon::get( $this->context['language'], $this->context['synonyms'] );
 		$this->vocab     = $this->repository->vocabulary( $this->context['lang'] );
-		$this->analyzer  = new ASI_Query_Analyzer( $this->lexicon, $this->vocab );
-		$this->search    = new ASI_Search( $this->repository, $this->vocab );
+		$this->analyzer  = new ASI_Query_Analyzer( $this->lexicon, $this->vocab, (array) $this->context['money'] );
+		$this->search    = new ASI_Search( $this->repository, $this->vocab, (array) $this->context['money'] );
 		$this->responder = new ASI_Responder( $this->lexicon, $this->context, $state['recent'], $this->random );
 
 		$normalized = ASI_Normalizer::normalize( $message );
@@ -173,6 +174,11 @@ class ASI_Dialogue {
 				return $this->search_flow( $stripped, $query, $state, array( 'greet' => 'greeting' === $intent['intent'] ) );
 			}
 			return $this->smalltalk( $intent['intent'] );
+		}
+
+		// Solo un presupuesto ("algo de 60 a 70 mil dólares"): es una búsqueda, diga lo que diga el clasificador.
+		if ( empty( $query['groups'] ) && ASI_Search::has_price_filter( $query ) && ! in_array( $intent['intent'], array( 'contact', 'location', 'hours', 'jobs', 'about' ), true ) ) {
+			return $this->search_flow( $stripped, $query, $state );
 		}
 
 		if ( 'search' !== $intent['intent'] ) {
@@ -284,7 +290,11 @@ class ASI_Dialogue {
 		}
 
 		$total = $catalog['total'];
+		if ( ! empty( $catalog['budget'] ) && empty( $options['opening'] ) ) {
+			$options['opening'] = 'results_budget';
+		}
 		$vars  = array(
+			'budget' => ASI_Search::has_price_filter( $query ) ? $this->budget_text( $query ) : '',
 			'n'      => $this->responder->count_options( $total ),
 			'label'  => $query['label'],
 			'query'  => $this->short( $text ),
@@ -1009,7 +1019,25 @@ class ASI_Dialogue {
 	 * ¿Queda algo que buscar después de quitar saludos y palabras de petición?
 	 */
 	private function is_searchable( array $query ) {
-		return ! empty( $query['groups'] );
+		return ! empty( $query['groups'] ) || ASI_Search::has_price_filter( $query );
+	}
+
+	/**
+	 * El presupuesto como lo dijo el cliente: "entre $ 60,000 y $ 70,000", "hasta Q 300,000".
+	 */
+	private function budget_text( array $query ) {
+		$money = ASI_Money::config( (array) $this->context['money'] );
+		$iso   = '' !== $query['price_currency'] ? $query['price_currency'] : $money['base'];
+		$fmt   = function ( $amount ) use ( $iso ) {
+			return ASI_Money::format( $amount, $iso );
+		};
+		if ( null !== $query['price_min'] && null !== $query['price_max'] ) {
+			return $this->responder->say( 'budget_between', array( 'min' => $fmt( $query['price_min'] ), 'max' => $fmt( $query['price_max'] ) ) );
+		}
+		if ( null !== $query['price_max'] ) {
+			return $this->responder->say( 'budget_max', array( 'max' => $fmt( $query['price_max'] ) ) );
+		}
+		return $this->responder->say( 'budget_min', array( 'min' => $fmt( $query['price_min'] ) ) );
 	}
 
 	private function has_critical( array $query ) {
@@ -1124,9 +1152,46 @@ class ASI_Dialogue {
 				}
 			}
 			unset( $card['categories'] );
-			$cards[] = $card;
+			$cards[] = $this->money_card( $card );
 		}
 		return $cards;
+	}
+
+	/**
+	 * Precio de la tarjeta con su símbolo y, si está en otra moneda, el equivalente en la base
+	 * ("$ 61,900" · "≈ Q 476,630").
+	 *
+	 * @param array $card Tarjeta.
+	 * @return array
+	 */
+	private function money_card( array $card ) {
+		$money = ASI_Money::config( (array) $this->context['money'] );
+		$price = ASI_Money::card_price( $card, $money );
+		unset( $card['currency_raw'] );
+		if ( null === $price['amount'] ) {
+			$card['price'] = '';
+			return $card;
+		}
+		// Si el sitio guarda el número solo, se le pone el símbolo; si ya trae formato, se respeta.
+		if ( preg_match( '/^[0-9.,\s]+$/', trim( (string) $card['price'] ) ) && '' !== $price['currency'] ) {
+			$card['price'] = ASI_Money::format( $price['amount'], $price['currency'] );
+		}
+		$card['currency'] = $price['currency'];
+		if ( '' !== $money['base'] && $price['currency'] !== $money['base'] && null !== $price['base'] ) {
+			$card['price_alt'] = '≈ ' . ASI_Money::format( round( $price['base'] ), $money['base'] );
+		}
+		return $card;
+	}
+
+	/**
+	 * Precio de una fila en la moneda base (0 si no tiene o no se puede convertir). Para ordenar.
+	 *
+	 * @param array $row Fila.
+	 * @return float
+	 */
+	private function base_price( array $row ) {
+		$price = ASI_Money::card_price( isset( $row['card'] ) ? (array) $row['card'] : array(), (array) $this->context['money'] );
+		return null === $price['base'] ? 0.0 : (float) $price['base'];
 	}
 
 	private function links( array $rows ) {
