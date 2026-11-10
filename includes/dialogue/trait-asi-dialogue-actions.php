@@ -20,6 +20,10 @@ trait ASI_Dialogue_Actions {
 	}
 
 	private function words_in( $normalized, $list ) {
+		// Cualquier forma de "cotizar" (cotizarme, cotízamelas, cotizaciones…).
+		if ( 'quote_words' === $list && preg_match( '/(^|\s)(cotiz|quot)[a-z]*/', $normalized ) ) {
+			return true;
+		}
 		return '' !== ASI_Lexicon::find_phrase( $normalized, (array) $this->lexicon->get_list( $list ) );
 	}
 
@@ -158,6 +162,7 @@ trait ASI_Dialogue_Actions {
 		// 1. Por nombre: cada parte separada por "y", coma, "con"…
 		$named = array();
 		$rest  = ' ' . $normalized . ' ';
+		$rest = preg_replace( '/\s(cotiz|quot)[a-z]*(?=\s)/', ' ', $rest );
 		foreach ( array( 'quote_words', 'finance_words', 'yes_words', 'target_fillers' ) as $list ) {
 			foreach ( (array) $this->lexicon->get_list( $list ) as $phrase ) {
 				$rest = preg_replace( '/\s' . preg_quote( ASI_Normalizer::normalize( $phrase ), '/' ) . '(?=\s)/', ' ', $rest );
@@ -183,7 +188,9 @@ trait ASI_Dialogue_Actions {
 				continue;
 			}
 			$previous = $position > 0 ? $tokens[ $position - 1 ] : '';
-			if ( ctype_digit( $token ) && ! in_array( $previous, $markers, true ) && ! in_array( $previous, array( 'y', 'e', 'el', 'la' ), true ) ) {
+			// Un número suelto es una tarjeta si va con "la/el/y" o si el mensaje es para cotizar
+			// ("cotízame 1 y 3"), y solo hasta la cantidad de tarjetas mostradas.
+			if ( ctype_digit( $token ) && ( (int) $token > count( $state['results'] ) || ( ! in_array( $previous, $markers, true ) && ! in_array( $previous, array( 'y', 'e', 'el', 'la', 'los', 'las', 'numero', 'num' ), true ) && ! $this->words_in( $normalized, 'quote_words' ) ) ) ) {
 				continue;
 			}
 			$index = (int) $ordinals[ $token ];
@@ -214,9 +221,15 @@ trait ASI_Dialogue_Actions {
 	 * ("la suv mg rx9" → MG RX9 ELEGANCE), luego en el catálogo.
 	 */
 	private function product_by_name( $chunk, array $state ) {
-		$words = array();
+		// Por precio o por año, entre lo ya mostrado: "la de 169 mil", "la de Q 199,990", "la 2023".
+		$by_detail = $this->product_by_detail( $chunk, $state );
+		if ( $by_detail ) {
+			return $by_detail;
+		}
+		$words   = array();
+		$generic = array_map( array( 'ASI_Lexicon', 'normal_form' ), (array) $this->lexicon->get_list( 'generic_product_words' ) );
 		foreach ( explode( ' ', ASI_Lexicon::normal_form( $chunk ) ) as $word ) {
-			if ( strlen( $word ) >= 2 && ! $this->lexicon->is_stopword( $word ) ) {
+			if ( strlen( $word ) >= 2 && ! $this->lexicon->is_stopword( $word ) && ! in_array( $word, $generic, true ) ) {
 				$words[] = $word;
 			}
 		}
@@ -230,18 +243,18 @@ trait ASI_Dialogue_Actions {
 			foreach ( $this->repository->rows( $this->context['lang'], $recent ) as $row ) {
 				$title = ' ' . $row['title_norm'] . ' ';
 				$hits  = 0;
+				$named = false;
 				foreach ( $words as $word ) {
-					$hits += false !== strpos( $title, ' ' . $word . ' ' ) ? 1 : 0;
-				}
-				// La mayoría de las palabras y al menos una que no sea un número.
-				$named = (bool) array_filter(
-					$words,
-					static function ( $w ) use ( $title ) {
-						return ! ctype_digit( $w ) && strlen( $w ) >= 3 && false !== strpos( $title, ' ' . $w . ' ' );
+					if ( self::word_in_title( $word, $title ) ) {
+						$hits++;
+						// Al menos una que no sea un número.
+						$named = $named || ( ! ctype_digit( $word ) && strlen( $word ) >= 3 );
 					}
-				);
+				}
 				$ratio = $hits / count( $words );
-				// Los más recientes ganan en empate (la lista va del más nuevo al más viejo).
+				// Basta con la mayoría de las palabras o con dos que coinciden ("mmm puedes … mitsubishi
+				// outlander"). Los más recientes ganan en empate (la lista va del más nuevo al más viejo).
+				$ratio = $hits >= 2 ? max( $ratio, 0.6 + 0.01 * $hits ) : $ratio;
 				if ( $named && $ratio >= 0.6 && $ratio > $score ) {
 					$best  = (int) $row['post_id'];
 					$score = $ratio;
@@ -471,6 +484,63 @@ trait ASI_Dialogue_Actions {
 			$out['name'] = function_exists( 'mb_convert_case' ) ? mb_convert_case( trim( $out['name'] ), MB_CASE_TITLE, 'UTF-8' ) : ucwords( trim( $out['name'] ) );
 		}
 		return $out;
+	}
+
+	/**
+	 * Un producto ya mostrado por su precio ("la de 169 mil") o su año ("la 2023").
+	 */
+	private function product_by_detail( $chunk, array $state ) {
+		$recent = array_reverse( array_slice( array_values( array_unique( array_merge( $state['shown'], $state['results'] ) ) ), -40 ) );
+		if ( ! $recent || ! preg_match( '/[0-9]/', $chunk ) ) {
+			return 0;
+		}
+		$money  = ASI_Money::config( (array) $this->context['money'] );
+		// "199 990" (la coma se volvió espacio al normalizar) → "199990".
+		$chunk  = preg_replace( '/(\d)\s(?=\d{3}(?:\D|$))/', '$1', $chunk );
+		$amount = null;
+		if ( preg_match( '/([0-9][0-9.,]*)\s*(mil|k)?/', $chunk, $m ) ) {
+			$amount = (float) preg_replace( '/[^0-9.]/', '', str_replace( ',', '', $m[1] ) ) * ( empty( $m[2] ) ? 1 : 1000 );
+		}
+		$year = preg_match( '/(?:^|\s)(19[5-9][0-9]|20[0-4][0-9])(?:\s|$)/', $chunk, $y ) ? (int) $y[1] : 0;
+		foreach ( $this->repository->rows( $this->context['lang'], $recent ) as $row ) {
+			$card = (array) $row['card'];
+			if ( $year && ( ( isset( $card['attrs']['year'] ) && (int) $card['attrs']['year'] === $year ) || false !== strpos( ' ' . $row['title_norm'] . ' ', ' ' . $year . ' ' ) ) && ( ! $amount || $amount === (float) $year ) ) {
+				return (int) $row['post_id'];
+			}
+			if ( $amount && $amount >= 1000 && ( ! $year || $amount !== (float) $year ) ) {
+				$price = ASI_Money::card_price( $card, $money );
+				if ( $price['amount'] && abs( $price['amount'] - $amount ) <= max( 1000, $price['amount'] * 0.01 ) ) {
+					return (int) $row['post_id'];
+				}
+			}
+		}
+		return 0;
+	}
+
+	/**
+	 * ¿La palabra está en el título? Exacta, con las letras cruzadas ("gmw" por "gwm") o con un
+	 * error de dedo en palabras largas ("outlader" por "outlander").
+	 */
+	private static function word_in_title( $word, $title ) {
+		if ( false !== strpos( $title, ' ' . $word . ' ' ) ) {
+			return true;
+		}
+		if ( ctype_digit( $word ) || strlen( $word ) < 3 ) {
+			return false;
+		}
+		$sorted = str_split( $word );
+		sort( $sorted );
+		foreach ( explode( ' ', trim( $title ) ) as $candidate ) {
+			if ( strlen( $candidate ) !== strlen( $word ) && abs( strlen( $candidate ) - strlen( $word ) ) > 1 ) {
+				continue;
+			}
+			$letters = str_split( $candidate );
+			sort( $letters );
+			if ( $letters === $sorted || ( strlen( $word ) >= 5 && levenshtein( $word, $candidate ) <= 1 ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

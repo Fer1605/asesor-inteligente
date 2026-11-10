@@ -77,6 +77,8 @@ return array(
 	'more_options_words' => array( 'mas opciones', 'otras opciones', 'ver mas', 'ver otras', 'ninguna', 'ninguno', 'no elegi', 'no escogi', 'que mas tienes', 'que otras', 'otras', 'mas', 'sugiereme', 'suguiereme', 'sugiere', 'sugerencias', 'sugiereme vehiculos', 'recomiendame mas', 'muestrame mas' ),
 	'not_name_words'    => array( 'hola', 'buenas', 'gracias', 'porfavor', 'por favor', 'ok', 'opciones', 'vehiculos', 'carros', 'autos', 'camionetas', 'pickup', 'suv', 'familia', 'trabajo', 'finca', 'precio', 'cuotas', 'cotizacion', 'mas', 'otras', 'ninguna' ),
 
+	'generic_product_words' => array( 'suv', 'pickup', 'pick', 'up', 'pick up', 'carro', 'carros', 'auto', 'autos', 'camioneta', 'camionetas', 'vehiculo', 'vehiculos', 'modelo', 'opcion', 'numero', 'la', 'el', 'ese', 'esa', 'este', 'esta', 'sedan', 'microbus', 'panel', 'camion' ),
+
 	'money_words' => array(
 		'max'          => array( 'menos de', 'menor a', 'menor de', 'hasta', 'maximo', 'max', 'no mas de', 'por debajo de', 'que no pase de', 'que no pase los', 'abajo de', 'tope de', 'que no supere', 'que no supere los', 'no mayor a' ),
 		'min'          => array( 'mas de', 'mayor a', 'mayor de', 'desde', 'minimo', 'arriba de', 'por encima de', 'no menos de' ),
@@ -354,8 +356,8 @@ return array(
 			'Con {budget} lo que más te conviene se pasa un poco: lo más accesible está en {min}. ¿Te muestro alternativas dentro de tu presupuesto o te sirven estas?',
 		),
 		'advice_closing' => array(
-			'¿Te interesa alguna? Te puedo dar más detalles, compararlas o calcularte las cuotas.',
-			'Si alguna te llama la atención, dime cuál y te cuento más o te calculo las cuotas.',
+			'¿Te interesa alguna? Dime su número (por ejemplo, “cotízame la 1 y la 3”) y te preparo la cotización, te las comparo o te calculo las cuotas.',
+			'Si alguna te llama la atención, dime su número o su nombre y te la cotizo, te cuento más o te calculo las cuotas.',
 		),
 		'ask_budget' => array(
 			'¿Cuánto tienes de presupuesto aproximado? Así te muestro lo que mejor te queda.',
@@ -392,7 +394,7 @@ return array(
 		'similar_no_price' => array( 'precio a consultar' ),
 		'similar_have_ref' => array( 'Y si te interesa el {ref}, también lo tenemos desde {price}.', 'Del {ref} también tenemos, desde {price}.' ),
 		'similar_none'     => array( 'Ahora mismo no tengo otro parecido al {ref}.' ),
-		'similar_closing'  => array( '¿Quieres que te las compare lado a lado?', 'Si quieres te las comparo, o te calculo las cuotas de la que te guste.' ),
+		'similar_closing'  => array( '¿Quieres que te las compare lado a lado?', 'Si quieres te las comparo, o te cotizo las que te gusten: dime sus números, por ejemplo “la 1 y la 2”.' ),
 		'similar_unknown'  => array( 'No conozco bien el “{ref}”. ¿Qué tipo de vehículo es: pickup, SUV o sedán? Así te busco algo parecido.' ),
 		'action_ask_quote'   => array(
 			'¡Con gusto te preparo la cotización del {title}! Solo necesito tu nombre y tu correo (y un teléfono si quieres que un asesor te llame).',

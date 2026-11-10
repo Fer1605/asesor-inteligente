@@ -53,6 +53,8 @@ return array(
 	'more_options_words' => array( 'more options', 'other options', 'see more', 'none of them', 'what else', 'suggest more', 'show me more' ),
 	'not_name_words'    => array( 'hello', 'thanks', 'please', 'ok', 'options', 'vehicles', 'cars', 'suv', 'pickup', 'family', 'work', 'price' ),
 
+	'generic_product_words' => array( 'suv', 'pickup', 'truck', 'car', 'cars', 'vehicle', 'vehicles', 'model', 'option', 'number', 'the', 'that', 'this', 'sedan', 'van' ),
+
 	'money_words' => array(
 		'max'          => array( 'under', 'less than', 'below', 'up to', 'max', 'maximum', 'no more than', 'at most', 'not over', 'cheaper than' ),
 		'min'          => array( 'over', 'more than', 'above', 'at least', 'minimum', 'starting at' ),

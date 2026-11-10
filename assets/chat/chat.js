@@ -112,7 +112,7 @@
 		return row;
 	}
 
-	function card( data ) {
+	function card( data, number ) {
 		const link = el( 'a', 'asi-card' );
 		link.href = safeUrl( data.url );
 		if ( data.id ) {
@@ -120,6 +120,10 @@
 		}
 
 		const media = el( 'div', 'asi-card__media' );
+		// Número de la tarjeta: para pedir "cotízame la 1 y la 3" sin escribir nombres.
+		if ( number ) {
+			media.appendChild( el( 'span', 'asi-card__num', String( number ) ) );
+		}
 		if ( data.image ) {
 			const img = el( 'img' );
 			img.src = data.image;
@@ -305,8 +309,8 @@
 		file( data.file );
 		if ( data.cards && data.cards.length ) {
 			const grid = el( 'div', 'asi-cards' );
-			data.cards.forEach( function ( item ) {
-				grid.appendChild( card( item ) );
+			data.cards.forEach( function ( item, index ) {
+				grid.appendChild( card( item, index + 1 ) );
 			} );
 			tagQuery( grid, data );
 			log.appendChild( grid );

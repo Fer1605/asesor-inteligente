@@ -135,3 +135,4 @@ $s = array();
 $chat( 'somos 4, 2 adultos y 2 niños, trabajamos en fincas', $s );
 $r = $chat( 'no no somos 4, 2 adulto y 2 niños, mi esposo trabaja mcho en fincas enotnces neceistamos un bien carro tipo pickup pero tambien podria ser una suv para uqe nos sirva con la familia', $s );
 check( 'real: la aclaración sin datos nuevos vuelve a recomendar', true, false !== strpos( $r['text'], 'te recomiendo' ) || false !== strpos( $r['text'], 'me iría' ) || false !== strpos( $r['text'], 'mejor te queda' ) );
+check( 'reco: con terracería no ofrece sedán', false, isset( $adv->recommend( array( 'people' => 5, 'kids' => 3, 'uses' => array( 'rough' ) ), 'es' )['weights']['sedan'] ) );

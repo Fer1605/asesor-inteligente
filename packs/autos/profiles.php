@@ -94,10 +94,15 @@ return array(
 	array(
 		'when'    => array( 'use' => 'rough' ),
 		'weights' => array( 'pickup' => 0.6, 'suv' => 0.5 ),
+		'avoid'   => array( 'sedan', 'hatchback', 'car', 'coupe' ),
 		'prefer'  => array( 'traction' => array( 'in' => array( '4x4', 'awd' ) ) ),
 		'reason'  => array(
 			'es' => 'Para caminos de terracería o finca, que sea 4x4 y con buena altura al piso.',
 			'en' => 'For dirt roads or a farm, go for 4x4 and good ground clearance.',
+		),
+		'avoid_reason' => array(
+			'es' => 'Un sedán no te lo recomiendo para terracería: es bajo y sufre en esos caminos.',
+			'en' => 'I would not suggest a sedan for dirt roads: it sits low and suffers there.',
 		),
 	),
 	array(

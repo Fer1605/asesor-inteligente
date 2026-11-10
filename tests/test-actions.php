@@ -177,3 +177,23 @@ $say( 'pick up 4x4', $s12 );
 $say( 'me interesa el primero', $s12 );
 $say( 'Ana López', $s12 );
 check( 'nombre: un nombre de verdad sí', 'Ana López', $s12['customer']['name'] );
+// La frase real: nombres cortos con "la suv / el pickup", "cotizarme" y "gmw" por GWM.
+$runner->calls = array();
+$shop3->add( 20, 'es', 'catalog', 'MITSUBISHI OUTLANDER GLX 2023', array( 'category' => array( 'SUV' ) ), 'SUV.', array(), array( 'price' => '169900', 'currency_raw' => '2', 'attrs' => array( 'body' => 'suv', 'year' => 2023 ) ) );
+$shop3->add( 21, 'es', 'catalog', 'MITSUBISHI OUTLANDER 2024', array( 'category' => array( 'SUV' ) ), 'SUV.', array(), array( 'price' => '229900', 'currency_raw' => '2', 'attrs' => array( 'body' => 'suv', 'year' => 2024 ) ) );
+$shop3->add( 22, 'es', 'catalog', 'GWM POER ELITE', array( 'category' => array( 'Pick up' ) ), 'Pickup.', array(), array( 'price' => '174900', 'currency_raw' => '2', 'attrs' => array( 'body' => 'pickup', 'year' => 2026 ) ) );
+$shop3->add( 23, 'es', 'catalog', 'HYUNDAI VENUE', array( 'category' => array( 'SUV' ) ), 'SUV.', array(), array( 'price' => '199990', 'currency_raw' => '2', 'attrs' => array( 'body' => 'suv', 'year' => 2026 ) ) );
+$base = array( 'customer' => array( 'name' => 'Ana', 'email' => 'ana@example.com', 'phone' => '' ), 'results' => array( 20, 23, 22, 2 ), 'shown' => array( 21, 20, 23, 22, 2 ) );
+$try = function ( $message ) use ( $say, $base, $runner ) {
+	$runner->calls = array();
+	$st = $base;
+	$say( $message, $st );
+	return isset( $runner->calls[0] ) ? $runner->calls[0][1] : array();
+};
+check( 'real: "cotizarme la suv mitsubishi outlander y el pickup gmw poer"', array( 20, 22 ), $try( 'mmm puedes cotizarme la suv mitsubishi outlander y el pickup gmw poer porfavor' ) );
+check( 'corto: "la mitsubishi y la venue"', array( 20, 23 ), $try( 'cotízame la mitsubishi y la venue' ) );
+check( 'número de tarjeta: "la 1 y la 3"', array( 20, 22 ), $try( 'cotízame la 1 y la 3' ) );
+check( 'número suelto con cotizar: "1 y 3"', array( 20, 22 ), $try( 'cotizame 1 y 3' ) );
+check( 'por precio: "la de 169 mil y la de 199,990"', array( 20, 23 ), $try( 'quiero cotizar la de 169 mil y la de 199,990' ) );
+check( 'por año: "la outlander 2023" (no la 2024)', array( 20 ), $try( 'cotízame la outlander 2023' ) );
+check( 'error de dedo: "outlader"', array( 20 ), $try( 'cotizame la outlader' ) );
