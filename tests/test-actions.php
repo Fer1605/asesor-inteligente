@@ -157,3 +157,23 @@ $s10 = array( 'customer' => array( 'name' => 'Ana', 'email' => 'ana@example.com'
 $say( 'pick up 4x4', $s10 );
 $r = $say( 'cotízame la nissan frontier y la kia sorento', $s10 );
 check( 'varias: un modelo con dos versiones no se pierde', 2, isset( $runner->calls[0] ) ? count( $runner->calls[0][1] ) : 0 );
+// Sellos: solo los que el sitio elige (o los que distinguen), con su nombre.
+$fbot = new ASI_Dialogue( $shop3, array( 'lang' => 'es', 'language' => 'es', 'card_flags' => array( 'Híbrido' => 'Híbrido', 'Reciente Ingreso' => 'Nuevo ingreso' ) ), function () {
+	return 0;
+} );
+$shop3->add( 9, 'es', 'catalog', 'TOYOTA RAV4 HIBRIDA', array( 'category' => array( 'SUV' ) ), 'SUV.', array(), array( 'price' => '300000', 'flags' => array( 'Stock', 'Nuevo', 'Garantía Activa', 'Híbrido', 'Reciente Ingreso' ) ) );
+$r = $fbot->handle( 'toyota rav4 hibrida' );
+check( 'sellos: solo los elegidos y con su nombre', array( 'Híbrido', 'Nuevo ingreso' ), $r['cards'][0]['flags'] );
+
+// Pidiendo datos, el cliente pide otra cosa (frase real): se deja la cotización y no se toma como nombre.
+$s11 = array();
+$say( 'pick up 4x4', $s11 );
+$say( 'me interesa el primero', $s11 );
+$r = $say( 'suguiereme vehiculos porfavor', $s11 );
+check( 'real: "suguiereme vehiculos" no es un nombre', '', $s11['customer']['name'] );
+check( 'real: y deja de pedir datos', array(), $s11['pending'] );
+$s12 = array();
+$say( 'pick up 4x4', $s12 );
+$say( 'me interesa el primero', $s12 );
+$say( 'Ana López', $s12 );
+check( 'nombre: un nombre de verdad sí', 'Ana López', $s12['customer']['name'] );

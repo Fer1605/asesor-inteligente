@@ -73,6 +73,10 @@ return array(
 
 	'target_fillers'    => array( 'te dije', 'como te dije', 'de estos', 'de estas', 'de esos', 'de esas', 'quiero', 'quisiera', 'me puedes', 'me podrias', 'por favor', 'porfa', 'la cotizacion de', 'cotizacion de', 'las cotizaciones de', 'cotizaciones de', 'tambien', 'y tambien', 'mejor' ),
 
+	'not_data_words'    => array( 'mas opciones', 'otras opciones', 'ver mas', 'ver otras', 'ninguna', 'ninguno', 'no elegi', 'no escogi', 'no quiero esa', 'no quiero ese', 'otra cosa', 'sugiereme', 'sugiere', 'recomiendame', 'muestrame', 'ensename', 'que mas tienes', 'que otras' ),
+	'more_options_words' => array( 'mas opciones', 'otras opciones', 'ver mas', 'ver otras', 'ninguna', 'ninguno', 'no elegi', 'no escogi', 'que mas tienes', 'que otras', 'otras', 'mas', 'sugiereme', 'suguiereme', 'sugiere', 'sugerencias', 'sugiereme vehiculos', 'recomiendame mas', 'muestrame mas' ),
+	'not_name_words'    => array( 'hola', 'buenas', 'gracias', 'porfavor', 'por favor', 'ok', 'opciones', 'vehiculos', 'carros', 'autos', 'camionetas', 'pickup', 'suv', 'familia', 'trabajo', 'finca', 'precio', 'cuotas', 'cotizacion', 'mas', 'otras', 'ninguna' ),
+
 	'money_words' => array(
 		'max'          => array( 'menos de', 'menor a', 'menor de', 'hasta', 'maximo', 'max', 'no mas de', 'por debajo de', 'que no pase de', 'que no pase los', 'abajo de', 'tope de', 'que no supere', 'que no supere los', 'no mayor a' ),
 		'min'          => array( 'mas de', 'mayor a', 'mayor de', 'desde', 'minimo', 'arriba de', 'por encima de', 'no menos de' ),
@@ -427,6 +431,7 @@ return array(
 		'finance_disclaimer' => array( 'Tasa de referencia del {rate} anual; el valor final lo confirma un asesor.' ),
 		'action_ask_quote_many' => array( '¡Con gusto te preparo la cotización de {titles}! Solo necesito tu nombre y tu correo (y un teléfono si quieres que un asesor te llame).' ),
 		'action_done_quote_many' => array( '¡Listo, {name}! Aquí tienes la cotización de {titles}.' ),
+		'advice_more' => array( 'Claro, aquí van otras opciones para {summary}: {options}.', 'Te muestro más: para {summary} también te pueden servir {options}.' ),
 		'results_budget' => array(
 			'Con un presupuesto {budget} tengo {n}. Te muestro primero las que más aprovechan tu presupuesto.',
 			'Para un presupuesto {budget} hay {n}. Empiezo por las más completas dentro de ese monto.',

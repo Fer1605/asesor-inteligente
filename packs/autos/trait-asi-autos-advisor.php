@@ -37,14 +37,16 @@ trait ASI_Autos_Advisor {
 	public function read_profile( $message, $language, array $profile ) {
 		$text    = ' ' . self::fold( $message ) . ' ';
 		$num     = '([0-9]{1,2}|' . implode( '|', array_keys( self::$number_words ) ) . ')';
+		// Sin "un/una": "somos una familia de 4" no es "somos 1".
+		$count   = '([0-9]{1,2}|' . implode( '|', array_diff( array_keys( self::$number_words ), array( 'un', 'una', 'uno', 'a', 'one' ) ) ) . ')';
 		$before  = $profile;
 		$changed = array();
 
 		// Cuántos son.
 		$people_patterns = array(
-			'/[^a-z](?:somos|seriamos|vamos a ser|viajamos|nos movemos|we are|there are)\s+' . $num . '(?:\s+(?:personas|de familia|en la familia|integrantes|people|of us))?[^a-z0-9]/',
-			'/[^a-z](?:familia de|family of)\s+' . $num . '[^a-z0-9]/',
-			'/[^a-z]' . $num . '\s+(?:de familia|integrantes|miembros|en la familia|in the family|in my family)[^a-z]/',
+			'/[^a-z](?:familia de|family of)\s+' . $count . '[^a-z0-9]/',
+			'/[^a-z](?:somos|seriamos|vamos a ser|viajamos|nos movemos|we are|there are)\s+' . $count . '(?:\s+(?:personas|de familia|en la familia|integrantes|people|of us))?[^a-z0-9]/',
+			'/[^a-z]' . $count . '\s+(?:de familia|integrantes|itnegrantes|intengrantes|miembros|personas en total|en la familia|in the family|in my family)[^a-z]/',
 		);
 		foreach ( $people_patterns as $pattern ) {
 			if ( preg_match( $pattern, $text, $m ) ) {
@@ -54,7 +56,9 @@ trait ASI_Autos_Advisor {
 		}
 
 		// Adultos.
-		if ( preg_match( '/[^a-z](?:solo yo|yo solo|soy soltero|soy soltera|just me|only me)[^a-z]/', $text ) ) {
+		if ( preg_match( '/[^a-z]' . $count . '\s+(?:adultos?|adults?|grandes)[^a-z]/', $text, $m ) ) {
+			$profile['adults'] = self::to_number( $m[1] );
+		} elseif ( preg_match( '/[^a-z](?:solo yo|yo solo|soy soltero|soy soltera|just me|only me)[^a-z]/', $text ) ) {
 			$profile['adults'] = 1;
 		} elseif ( preg_match( '/[^a-z](?:mi esposa|mi esposo|mi pareja|mi mujer|mi marido|mi novia|mi novio|my wife|my husband|my partner)[^a-z]/', $text ) ) {
 			$profile['adults'] = 2;
@@ -104,10 +108,10 @@ trait ASI_Autos_Advisor {
 			$uses[] = 'city';
 			$rest   = preg_replace( '/(para ir al trabajo|ir a trabajar|ir a la oficina)/', ' ', $rest );
 		}
-		if ( preg_match( '/[^a-z](trabajo|trabajar|negocio|carga|cargar|mercaderia|herramientas|reparto|repartir|distribuir|construccion|obra|work|business|haul|hauling|tools|deliveries)[^a-z]/', $rest ) ) {
+		if ( preg_match( '/[^a-z](trabaj[a-z]*|negocios?|carga|cargar|mercaderia|herramientas?|reparto|repartir|distribuir|construccion|obras?|work|business|haul|hauling|tools|deliveries)[^a-z]/', $rest ) ) {
 			$uses[] = 'work';
 		}
-		if ( preg_match( '/[^a-z](finca|campo|terraceria|montana|camino de tierra|caminos de tierra|lodo|off ?road|aldea|cerro|rio|farm|dirt|mountain)[^a-z]/', $rest ) ) {
+		if ( preg_match( '/[^a-z](fincas?|campos?|terracerias?|montanas?|caminos? de tierra|lodo|off ?road|aldeas?|cerros?|rios?|farms?|dirt|mountains?)[^a-z]/', $rest ) ) {
 			$uses[] = 'rough';
 		}
 		if ( preg_match( '/[^a-z](carretera|viajes|viajar|paseos|interior|road trips?|highway|long trips)[^a-z]/', $rest ) ) {
@@ -132,7 +136,7 @@ trait ASI_Autos_Advisor {
 
 	public function asks_advice( $message, $language ) {
 		$text = ' ' . self::fold( $message ) . ' ';
-		return (bool) preg_match( '/[^a-z](recomiendas|recomendas|recomienda|recomiende|recomendarias|recomendaria|recomendacion|recomiendame|recomiendeme|me conviene|conviene mas|aconsejas|aconseja|aconsejame|aconsejame vos|sugieres|sugeris|sugiere|sugerencia|cual me queda|que me queda|que opciones tengo|que me ofreces|que tienes para mi|recommend|suggest|what should i (get|buy)|which one is best|what do you have for)[^a-z]/', $text );
+		return (bool) preg_match( '/[^a-z](suger[a-z]*|sugier[a-z]*|suguier[a-z]*|opciones para mi|que opciones|recomiendas|recomendas|recomienda|recomiende|recomendarias|recomendaria|recomendacion|recomiendame|recomiendeme|me conviene|conviene mas|aconsejas|aconseja|aconsejame|aconsejame vos|sugieres|sugeris|sugiere|sugerencia|cual me queda|que me queda|que opciones tengo|que me ofreces|que tienes para mi|recommend|suggest|what should i (get|buy)|which one is best|what do you have for)[^a-z]/', $text );
 	}
 
 	public function can_advise( array $profile ) {

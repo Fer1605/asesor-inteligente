@@ -113,3 +113,25 @@ check( 'conv: no repite el mismo modelo', count( $titles ), count( array_unique(
 $farm_r = $adv->recommend( array( 'people' => 3, 'uses' => array( 'work', 'rough' ) ), 'es' )['reasons'];
 check( 'reco: finca → primero palangana y 4x4', array( true, true ), array( false !== strpos( $farm_r[0] . $farm_r[1], 'palangana' ), false !== strpos( $farm_r[0] . $farm_r[1], '4x4' ) ) );
 check( 'reco: con uso claro no dice "3 adultos"', false, false !== strpos( implode( ' ', $farm_r ), 'adultos' ) );
+// La conversación real de la prueba del usuario (con sus errores de dedo).
+$fam2 = $p( 'oye mira ando viendo camionetas , somos una familia de 4 itnegrantes, 2 niños de 6 y 13 años, pero mi esposo también trabaj mucho en fincas, entonces ando viendo opciones' );
+check( 'real: "somos una familia de 4" son 4, no 1', 4, $fam2['people'] );
+check( 'real: 2 niños de 6 y 13', array( 2, array( 6, 13 ) ), array( $fam2['kids'], ( function ( $a ) { sort( $a ); return $a; } )( $fam2['ages'] ) ) );
+check( 'real: "trabaj… en fincas" es trabajo y finca', array( 'work', 'rough' ), $fam2['uses'] );
+check( 'real: "2 adulto y 2 niños"', 2, $p( 'no no somos 4, 2 adulto y 2 niños' )['adults'] );
+
+$s = array();
+$r = $chat( 'oye mira ando viendo camionetas , somos una familia de 4 itnegrantes, 2 niños de 6 y 13 años, pero mi esposo también trabaj mucho en fincas, entonces ando viendo opciones', $s );
+check( 'real: dice familia de 4', true, false !== strpos( $r['text'], 'familia de 4' ) );
+check( 'real: con finca y trabajo ofrece pickup', true, in_array( 'pickup', array_map( function ( $c ) use ( $yard ) { return $yard->rows( 'es', array( $c['id'] ) )[0]['card']['attrs']['body']; }, $r['cards'] ), true ) );
+$r = $chat( 'no no somos 4, 2 adulto y 2 niños, mi esposo trabaja mcho en fincas enotnces neceistamos un bien carro tipo pickup pero tambien podria ser una suv para uqe nos sirva con la familia', $s );
+check( 'real: una aclaración larga no se vuelve cotización', 'results', $r['kind'] );
+check( 'real: pickup o SUV, las dos', array( 'pickup', 'suv' ), ( function ( $cards ) use ( $yard ) { $b = array_unique( array_map( function ( $c ) use ( $yard ) { return $yard->rows( 'es', array( $c['id'] ) )[0]['card']['attrs']['body']; }, $cards ) ); sort( $b ); return array_values( $b ); } )( $r['cards'] ) );
+$shown_before = $s['shown'];
+$r = $chat( 'a ver pero quiero ver más opciones nyo no elegí ningua de las que me diste', $s );
+check( 'real: "más opciones" muestra otras', true, (bool) $r['cards'] && ! array_intersect( asi_card_ids( $r ), array_slice( $shown_before, -4 ) ) );
+// Repetir la situación (sin datos nuevos) sigue siendo una conversación de asesor y respeta "pickup o SUV".
+$s = array();
+$chat( 'somos 4, 2 adultos y 2 niños, trabajamos en fincas', $s );
+$r = $chat( 'no no somos 4, 2 adulto y 2 niños, mi esposo trabaja mcho en fincas enotnces neceistamos un bien carro tipo pickup pero tambien podria ser una suv para uqe nos sirva con la familia', $s );
+check( 'real: la aclaración sin datos nuevos vuelve a recomendar', true, false !== strpos( $r['text'], 'te recomiendo' ) || false !== strpos( $r['text'], 'me iría' ) || false !== strpos( $r['text'], 'mejor te queda' ) );

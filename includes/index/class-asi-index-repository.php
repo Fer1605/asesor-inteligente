@@ -94,6 +94,47 @@ class ASI_Index_Repository implements ASI_Repository {
 		);
 	}
 
+	/**
+	 * Qué parte del catálogo tiene cada sello (0 a 1). Se guarda 6 horas.
+	 *
+	 * @param string $lang Idioma.
+	 * @return array<string,float>
+	 */
+	public static function flag_shares( $lang ) {
+		$key    = 'asi_flag_shares_' . md5( (string) $lang );
+		$cached = get_transient( $key );
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+		global $wpdb;
+		$table  = ASI_Index_Table::name();
+		$cards  = $wpdb->get_col( $wpdb->prepare( "SELECT card FROM {$table} WHERE lang IN (%s, '') AND role = 'catalog'", $lang ) );
+		$counts = array();
+		foreach ( (array) $cards as $raw ) {
+			$card = json_decode( (string) $raw, true );
+			foreach ( isset( $card['flags'] ) ? array_unique( (array) $card['flags'] ) : array() as $flag ) {
+				$counts[ (string) $flag ] = ( isset( $counts[ $flag ] ) ? $counts[ $flag ] : 0 ) + 1;
+			}
+		}
+		$total  = max( 1, count( (array) $cards ) );
+		$shares = array();
+		foreach ( $counts as $flag => $count ) {
+			$shares[ $flag ] = round( $count / $total, 4 );
+		}
+		// También los sellos que hoy nadie tiene (para poder activarlos en el panel).
+		$schema = ASI_Schema_Discovery::get_schema();
+		foreach ( isset( $schema['post_types'] ) ? (array) $schema['post_types'] : array() as $type ) {
+			foreach ( isset( $type['fields'] ) ? (array) $type['fields'] : array() as $field ) {
+				if ( 'flag' === $field['role'] && ! isset( $shares[ $field['label'] ] ) ) {
+					$shares[ $field['label'] ] = 0.0;
+				}
+			}
+		}
+		arsort( $shares );
+		set_transient( $key, $shares, 6 * HOUR_IN_SECONDS );
+		return $shares;
+	}
+
 	public function catalog( $lang, $limit ) {
 		global $wpdb;
 		$table = ASI_Index_Table::name();

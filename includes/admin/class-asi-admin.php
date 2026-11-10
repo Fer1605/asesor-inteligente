@@ -193,6 +193,17 @@ class ASI_Admin {
 				$this->save_money();
 				break;
 
+			case 'flags':
+				$flags = array();
+				foreach ( isset( $_POST['card_flags'] ) && is_array( $_POST['card_flags'] ) ? wp_unslash( $_POST['card_flags'] ) : array() as $label => $rule ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+					$flags[ sanitize_text_field( (string) $label ) ] = array(
+						'show' => ! empty( $rule['show'] ),
+						'as'   => sanitize_text_field( isset( $rule['as'] ) ? (string) $rule['as'] : '' ),
+					);
+				}
+				ASI_Settings::update( array( 'card_flags' => $flags ) );
+				break;
+
 			case 'actions':
 				$mode  = isset( $_POST['actions_mode'] ) ? sanitize_key( wp_unslash( $_POST['actions_mode'] ) ) : 'test';
 				$email = isset( $_POST['test_email'] ) ? sanitize_email( wp_unslash( $_POST['test_email'] ) ) : '';
@@ -413,6 +424,45 @@ class ASI_Admin {
 					<?php endforeach; ?>
 				<?php endif; ?>
 				<p class="asi-actions"><?php submit_button( 'Guardar moneda', 'primary', 'submit', false ); ?></p>
+			</form>
+		<?php
+		$this->card_close();
+	}
+
+	/**
+	 * Tarjeta "Sellos en las tarjetas" (pestaña Contenido).
+	 */
+	private function flags_card() {
+		$lang     = '';
+		foreach ( $this->plugin->languages->all() as $slug => $language ) {
+			$lang = $slug;
+			break;
+		}
+		$shares   = ASI_Index_Repository::flag_shares( $lang );
+		$settings = (array) ASI_Settings::all()['card_flags'];
+		if ( ! $shares ) {
+			return;
+		}
+		$this->card_open( 'Sellos en las tarjetas', 'dashicons-awards', 'amber', 'asi-sellos' );
+		?>
+			<p class="asi-muted">Por defecto solo se muestran los sellos que distinguen: los que tiene la mitad del catálogo o menos. Un sello que tienen casi todos (“Nuevo”, “Garantía activa”) no le dice nada al cliente. Aquí puedes elegirlos y cambiar cómo se llaman.</p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php $this->hidden_fields( 'flags', 'contenido' ); ?>
+				<table class="widefat striped asi-table"><thead><tr><th>Mostrar</th><th>Sello del sitio</th><th>Lo tienen</th><th>Se muestra como</th></tr></thead><tbody>
+				<?php foreach ( $shares as $label => $share ) : ?>
+					<?php
+					$rule = isset( $settings[ $label ] ) ? (array) $settings[ $label ] : array();
+					$show = isset( $rule['show'] ) ? (bool) $rule['show'] : $share <= 0.5;
+					?>
+					<tr>
+						<td><input type="checkbox" name="card_flags[<?php echo esc_attr( $label ); ?>][show]" value="1" <?php checked( $show ); ?>></td>
+						<td><?php echo esc_html( $label ); ?></td>
+						<td><?php echo esc_html( round( $share * 100 ) . ' %' ); ?></td>
+						<td><input type="text" name="card_flags[<?php echo esc_attr( $label ); ?>][as]" value="<?php echo esc_attr( isset( $rule['as'] ) ? $rule['as'] : '' ); ?>" placeholder="<?php echo esc_attr( $label ); ?>"></td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody></table>
+				<p class="asi-actions"><?php submit_button( 'Guardar sellos', 'primary', 'submit', false ); ?></p>
 			</form>
 		<?php
 		$this->card_close();
@@ -1036,6 +1086,7 @@ class ASI_Admin {
 			</div>
 		<?php $this->card_close(); ?>
 		<?php $this->money_card( $schema ); ?>
+		<?php $this->flags_card(); ?>
 		<p class="asi-detected">
 			<?php foreach ( array( 'acf' => 'ACF', 'woocommerce' => 'WooCommerce', 'elementor' => 'Elementor' ) as $key => $label ) : ?>
 				<span class="asi-tag asi-tag--<?php echo $schema[ $key ] ? 'ok' : 'soft'; ?>"><?php echo esc_html( $label . ( $schema[ $key ] ? ' detectado' : ' no' ) ); ?></span>

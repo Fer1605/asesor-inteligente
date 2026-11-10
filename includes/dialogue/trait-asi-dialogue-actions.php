@@ -35,10 +35,20 @@ trait ASI_Dialogue_Actions {
 
 		// 1. Esperando los datos del cliente.
 		if ( ! empty( $state['pending']['action'] ) ) {
-			if ( $this->words_in( $normalized, 'cancel_words' ) ) {
+			if ( $this->words_in( $normalized, 'cancel_words' ) && str_word_count( $normalized ) <= 4 ) {
 				return $this->action_reply( 'action_cancelled', array(), $state, array( 'pending' => array(), 'offer' => array() ) );
 			}
-			$customer = array_merge( $state['customer'], array_filter( $this->parse_customer( $message, true ) ) );
+			$given = array_filter( $this->parse_customer( $message, true ) );
+			// No dio sus datos sino que pidió otra cosa ("quiero ver más opciones", "sugiéreme
+			// vehículos"): se deja la cotización y se atiende lo que pidió.
+			if ( ! $given || $this->words_in( $normalized, 'not_data_words' ) ) {
+				$state['pending'] = array();
+				$state['offer']   = array();
+				$reply            = $this->route( $message, $normalized, $state );
+				$reply['state']   = array_merge( isset( $reply['state'] ) ? $reply['state'] : array(), array( 'pending' => array() ) );
+				return $reply;
+			}
+			$customer = array_merge( $state['customer'], $given );
 			return $this->continue_action( $state['pending']['action'], $state['pending']['ids'], $customer, $state );
 		}
 
@@ -46,7 +56,8 @@ trait ASI_Dialogue_Actions {
 		if ( ! empty( $state['offer']['action'] ) ) {
 			// "El tercero", "la Frontier y la MG RX9" responden a "¿cuál te cotizo?"; después de otras
 			// ofertas sigue el flujo normal.
-			if ( 'quote' === $state['offer']['action'] && count( $state['offer']['ids'] ) > 1 ) {
+			// Solo en respuestas cortas: un mensaje largo es otra cosa (aclarar, contar su situación).
+			if ( 'quote' === $state['offer']['action'] && count( $state['offer']['ids'] ) > 1 && ( str_word_count( $normalized ) <= 8 || $this->words_in( $normalized, 'quote_words' ) ) && ! $this->words_in( $normalized, 'not_data_words' ) ) {
 				$picked = $this->action_targets( $message, $normalized, $state );
 				if ( $picked ) {
 					return $this->start_action( 'quote', $picked, $state );
@@ -217,7 +228,7 @@ trait ASI_Dialogue_Actions {
 			$best  = 0;
 			$score = 0;
 			foreach ( $this->repository->rows( $this->context['lang'], $recent ) as $row ) {
-				$title = ' ' . $row['title_norm'] . ' ' . str_replace( '|', ' ', (string) $row['terms_norm'] ) . ' ';
+				$title = ' ' . $row['title_norm'] . ' ';
 				$hits  = 0;
 				foreach ( $words as $word ) {
 					$hits += false !== strpos( $title, ' ' . $word . ' ' ) ? 1 : 0;
@@ -226,7 +237,7 @@ trait ASI_Dialogue_Actions {
 				$named = (bool) array_filter(
 					$words,
 					static function ( $w ) use ( $title ) {
-						return ! ctype_digit( $w ) && false !== strpos( $title, ' ' . $w . ' ' );
+						return ! ctype_digit( $w ) && strlen( $w ) >= 3 && false !== strpos( $title, ' ' . $w . ' ' );
 					}
 				);
 				$ratio = $hits / count( $words );
@@ -452,8 +463,7 @@ trait ASI_Dialogue_Actions {
 			$rest  = preg_replace( '/\b(mi|mis|correo|email|e-mail|mail|es|son|telefono|teléfono|tel|cel|celular|numero|número|whatsapp|nombre|y|datos|aqui|aquí|van|estan|están|los|el|la|phone|and|is|name)\b/iu', ' ', $text );
 			$rest  = trim( preg_replace( '/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+/u', ' ', $rest ) );
 			$words = array_values( array_filter( explode( ' ', $rest ), 'strlen' ) );
-			$yes   = array_map( array( 'ASI_Normalizer', 'normalize' ), (array) $this->lexicon->get_list( 'yes_words' ) );
-			if ( $words && count( $words ) <= 4 && ! in_array( ASI_Normalizer::normalize( implode( ' ', $words ) ), $yes, true ) ) {
+			if ( $words && count( $words ) <= 4 && false === strpos( $text, '?' ) && $this->looks_like_name( $words ) ) {
 				$out['name'] = implode( ' ', $words );
 			}
 		}
@@ -461,6 +471,26 @@ trait ASI_Dialogue_Actions {
 			$out['name'] = function_exists( 'mb_convert_case' ) ? mb_convert_case( trim( $out['name'] ), MB_CASE_TITLE, 'UTF-8' ) : ucwords( trim( $out['name'] ) );
 		}
 		return $out;
+	}
+
+	/**
+	 * ¿Estas palabras son un nombre? No si alguna es una palabra común del idioma, del sitio
+	 * ("vehículos", "SUV") o de pedido ("sugiéreme", "quiero").
+	 */
+	private function looks_like_name( array $words ) {
+		$not = array_map( array( 'ASI_Normalizer', 'normalize' ), array_merge( (array) $this->lexicon->get_list( 'yes_words' ), (array) $this->lexicon->get_list( 'not_name_words' ) ) );
+		foreach ( $words as $word ) {
+			$normal = ASI_Normalizer::normalize( $word );
+			if ( strlen( $normal ) < 2 || $this->lexicon->is_stopword( $normal ) || in_array( $normal, $not, true ) || isset( $this->vocab['tokens'][ ASI_Lexicon::normal_form( $normal ) ] ) ) {
+				return false;
+			}
+			foreach ( array( 'sugier', 'suguier', 'suger', 'recomiend', 'muestr', 'ensen', 'busc', 'quier', 'necesit', 'opcion', 'vehicul', 'carro', 'favor' ) as $stem ) {
+				if ( 0 === strpos( $normal, $stem ) ) {
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 
 	private function action_reply( $key, array $vars, array $state, array $state_changes ) {

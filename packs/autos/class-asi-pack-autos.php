@@ -392,19 +392,28 @@ final class ASI_Pack_Autos implements ASI_Pack, ASI_Advisor, ASI_Similarity {
 			$out['spans'][]                  = trim( $m[1] );
 			$out['labels'][]                 = $en ? 'new' : 'nuevas';
 		}
-		// Carrocería: se deja también en la búsqueda por palabras (no se quita del texto).
+		// Carrocería (una o varias: "pickup, pero también podría ser una SUV"). Se deja también en la
+		// búsqueda por palabras (no se quita del texto).
+		$bodies = array();
+		$names  = array();
 		foreach ( self::BODIES as $body => $words ) {
 			foreach ( $words as $word ) {
 				if ( strlen( $word ) <= 3 && ! in_array( $word, array( 'suv', 'van', 'bus' ), true ) ) {
 					continue; // "hb", "ton": solo al leer fichas.
 				}
 				if ( preg_match( '/[^a-z]' . preg_quote( $word, '/' ) . 's?[^a-z]/', $text ) ) {
-					$out['constraints']['body'] = array( 'in' => self::QUERY_BODIES[ $body ] );
-					array_unshift( $out['labels'], $labels[ $body ] ); // "pickup 4x4 y diésel": el tipo va primero.
-					$out['soft'][]              = $word;
-					break 2;
+					// "Camioneta" en Centroamérica puede ser SUV, pickup o van.
+					$bodies        = array_merge( $bodies, 'camioneta' === $word ? array( 'suv', 'pickup', 'van' ) : self::QUERY_BODIES[ $body ] );
+					$names[]       = $labels[ $body ];
+					$out['soft'][] = $word;
+					break;
 				}
 			}
+		}
+		if ( $bodies ) {
+			$out['constraints']['body'] = array( 'in' => array_values( array_unique( $bodies ) ) );
+			// "pickup 4x4 y diésel": el tipo va primero.
+			array_unshift( $out['labels'], implode( 'en' === $language ? ' or ' : ' o ', $names ) );
 		}
 		return $out;
 	}

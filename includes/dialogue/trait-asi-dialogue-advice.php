@@ -63,8 +63,15 @@ trait ASI_Dialogue_Advice {
 		}
 		$changed = array_values( array_unique( $changed ) );
 
-		$about_me   = (bool) array_diff( $changed, array( 'budget' ) );
+		// Habla de su situación aunque no sea nuevo ("no no, somos 4, 2 adultos y 2 niños…"):
+		// cuenta lo que dice el mensaje por sí solo, no solo lo que cambió.
+		$own        = $advisor->read_profile( $message, $language, array() );
+		$about_me   = (bool) array_diff( $changed, array( 'budget' ) ) || (bool) array_intersect( $own['changed'], array( 'people', 'kids', 'adults', 'uses', 'cargo_t' ) );
 		$asks       = $advisor->asks_advice( $message, $language );
+		// "Quiero ver más opciones", "ninguna me gustó": otra tanda con el mismo perfil.
+		if ( ! $about_me && $advisor->can_advise( $before ) && '' !== ASI_Lexicon::find_phrase( ASI_Normalizer::normalize( $message ), (array) $this->lexicon->get_list( 'more_options_words' ) ) ) {
+			return $this->recommend( $advisor, $profile, $this->analyzer->analyze( '' ), $state, true );
+		}
 		$only_soft  = ! array_filter(
 			$query['groups'],
 			static function ( $group ) {
@@ -86,7 +93,7 @@ trait ASI_Dialogue_Advice {
 	/**
 	 * Recomienda con lo que se sabe del cliente.
 	 */
-	private function recommend( ASI_Advisor $advisor, array $profile, array $query, array $state ) {
+	private function recommend( ASI_Advisor $advisor, array $profile, array $query, array $state, $more = false ) {
 		$language = $this->context['language'];
 		$rec      = $advisor->recommend( $profile, $language );
 		$group_by = $rec['group_by'];
@@ -111,14 +118,15 @@ trait ASI_Dialogue_Advice {
 		$search['price_min']      = $has_budget ? $profile['budget_min'] : null;
 		$search['price_currency'] = $has_budget ? (string) $profile['budget_currency'] : '';
 
-		$found = $this->search->search( $this->context['lang'], $search, array( 'roles' => array( 'catalog' ), 'limit' => 80 ) )['items'];
+		$exclude = $more ? $state['shown'] : array();
+		$found   = $this->search->search( $this->context['lang'], $search, array( 'roles' => array( 'catalog' ), 'limit' => 80, 'exclude' => $exclude ) )['items'];
 		$over  = false;
 		if ( ! $found && $has_budget ) {
 			// Nada de lo que conviene entra en el presupuesto: se muestra lo más accesible y se dice.
 			$wide              = $search;
 			$wide['price_max'] = null;
 			$wide['price_min'] = null;
-			$found             = $this->search->search( $this->context['lang'], $wide, array( 'roles' => array( 'catalog' ), 'limit' => 80 ) )['items'];
+			$found             = $this->search->search( $this->context['lang'], $wide, array( 'roles' => array( 'catalog' ), 'limit' => 80, 'exclude' => $exclude ) )['items'];
 			$over              = (bool) $found;
 		}
 
@@ -149,7 +157,7 @@ trait ASI_Dialogue_Advice {
 		$options = array_slice( $options, 0, 2 );
 		$vars    = array( 'summary' => $rec['summary'], 'options' => $this->responder->join_list( $options, 'or' ) );
 
-		$text   = array( $this->responder->say( '' !== $rec['summary'] ? 'advice_open' : 'advice_open_generic', $vars ) );
+		$text   = array( $this->responder->say( $more ? 'advice_more' : ( '' !== $rec['summary'] ? 'advice_open' : 'advice_open_generic' ), $vars ) );
 		$text   = array_merge( $text, array_slice( $rec['reasons'], 0, 2 ) );
 		$follow = array();
 		if ( '' !== $rec['avoid'] ) {
@@ -197,6 +205,7 @@ trait ASI_Dialogue_Advice {
 				'profile' => $profile,
 				'asked'   => array_values( array_unique( $asked ) ),
 				'offer'   => array( 'action' => 'quote', 'ids' => array_slice( $ids, 0, 4 ) ),
+				'pending' => array(),
 			),
 		);
 	}

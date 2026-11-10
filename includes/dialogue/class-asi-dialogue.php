@@ -82,6 +82,7 @@ class ASI_Dialogue {
 				'money'         => array(), // base, map, rates (ASI_Money).
 				'packs'         => array(), // ASI_Pack activos (atributos del giro).
 				'actions'       => null,    // ASI_Action_Runner: cotizar, comparar en PDF, cuotas.
+				'card_flags'    => null,    // Sellos visibles: etiqueta => cómo se muestra (null = todos).
 			),
 			$context
 		);
@@ -746,7 +747,8 @@ class ASI_Dialogue {
 			'followup'    => '',
 			'cards'       => array(),
 			'links'       => array(),
-			'suggestions' => in_array( $intent, array( 'greeting', 'help' ), true ) ? $categories : array(),
+			// Con un asesor, el saludo ofrece contar su situación; si no, las categorías del sitio.
+			'suggestions' => in_array( $intent, array( 'greeting', 'help' ), true ) ? ( $this->advisor() ? (array) $this->lexicon->get_list( 'profile_chips' ) : $categories ) : array(),
 			'more'        => false,
 			'state'       => array(),
 		);
@@ -1182,6 +1184,15 @@ class ASI_Dialogue {
 				}
 			}
 			unset( $card['categories'] );
+			if ( is_array( $this->context['card_flags'] ) && isset( $card['flags'] ) ) {
+				$shown = array();
+				foreach ( (array) $card['flags'] as $flag ) {
+					if ( isset( $this->context['card_flags'][ $flag ] ) ) {
+						$shown[] = $this->context['card_flags'][ $flag ];
+					}
+				}
+				$card['flags'] = array_values( array_unique( $shown ) );
+			}
 			$cards[] = $this->money_card( $card );
 		}
 		return $cards;

@@ -49,6 +49,10 @@ return array(
 
 	'target_fillers'    => array( 'i told you', 'of these', 'i want', 'i would like', 'please', 'the quote for', 'quotes for', 'also' ),
 
+	'not_data_words'    => array( 'more options', 'other options', 'see more', 'none of them', 'something else', 'suggest', 'recommend' ),
+	'more_options_words' => array( 'more options', 'other options', 'see more', 'none of them', 'what else', 'suggest more', 'show me more' ),
+	'not_name_words'    => array( 'hello', 'thanks', 'please', 'ok', 'options', 'vehicles', 'cars', 'suv', 'pickup', 'family', 'work', 'price' ),
+
 	'money_words' => array(
 		'max'          => array( 'under', 'less than', 'below', 'up to', 'max', 'maximum', 'no more than', 'at most', 'not over', 'cheaper than' ),
 		'min'          => array( 'over', 'more than', 'above', 'at least', 'minimum', 'starting at' ),
@@ -334,6 +338,7 @@ return array(
 		'finance_disclaimer' => array( 'Reference rate {rate} per year; an advisor confirms the final figure.' ),
 		'action_ask_quote_many' => array( 'Happy to prepare the quote for {titles}! I just need your name and email (and a phone number if you want an advisor to call you).' ),
 		'action_done_quote_many' => array( 'Done, {name}! Here is the quote for {titles}.' ),
+		'advice_more' => array( 'Sure, here are other options for {summary}: {options}.' ),
 		'results_budget' => array(
 			'With a budget {budget} I have {n}. The ones that make the most of your budget come first.',
 			'For a budget {budget} there are {n}; I start with the most complete within that amount.',

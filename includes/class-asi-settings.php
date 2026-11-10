@@ -57,6 +57,7 @@ class ASI_Settings {
 			'currency_base'       => '',      // ISO; vacío = WooCommerce o el país del sitio.
 			'currency_map'        => array(), // valor guardado en el sitio => ISO ('1' => 'USD').
 			'currency_rates'      => array(), // ISO => unidades de la base por 1 unidad.
+			'card_flags'          => array(), // Sellos de las tarjetas: etiqueta => array( show, as ). Vacío = automático.
 			'actions_mode'        => 'test',  // Cotizar/comparar desde el chat: off, test (aviso a ventas solo al correo de prueba), live.
 			'test_email'          => '',
 			'finance_rate'        => '',      // Tasa anual en % si el sitio no trae calculadora propia.
@@ -118,6 +119,28 @@ class ASI_Settings {
 			'map'   => (array) $settings['currency_map'],
 			'rates' => (array) $settings['currency_rates'],
 		);
+	}
+
+	/**
+	 * Sellos que se muestran en las tarjetas: etiqueta del sitio => cómo se muestra.
+	 * Automático: solo los que distinguen (los tiene la mitad o menos del catálogo); un sello que
+	 * tienen casi todos ("Nuevo", "Garantía activa") no le dice nada al cliente.
+	 *
+	 * @param string $lang Idioma del contexto.
+	 * @return array<string,string>
+	 */
+	public static function card_flags( $lang ) {
+		$shares = ASI_Index_Repository::flag_shares( $lang );
+		$custom = (array) self::all()['card_flags'];
+		$out    = array();
+		foreach ( $shares as $label => $share ) {
+			$rule = isset( $custom[ $label ] ) ? (array) $custom[ $label ] : array();
+			$show = isset( $rule['show'] ) ? (bool) $rule['show'] : $share <= 0.5;
+			if ( $show ) {
+				$out[ $label ] = ! empty( $rule['as'] ) ? (string) $rule['as'] : $label;
+			}
+		}
+		return $out;
 	}
 
 	public static function mode() {

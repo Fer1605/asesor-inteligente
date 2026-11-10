@@ -100,5 +100,5 @@ check( 'agrícola: Hilux es pickup', 'pickup', $agri( 'TOYOTA HILUX 2019' ) );
 check( 'frase: etiqueta en femenino plural', array( 'automáticas', 'usadas' ), $autos->parse_query( 'automático usado', 'es' )['labels'] );
 check( 'frase: "camioneta" queda como palabra blanda', array( 'camioneta' ), $autos->parse_query( 'camioneta del 2024', 'es' )['soft'] );
 $r = $lot_bot()->handle( 'camioneta del 2026' );
-check( 'conv: "camioneta" no exige la palabra si la carrocería cumple', 'exact', array( 3 ) === asi_card_ids( $r ) ? 'exact' : json_encode( asi_card_ids( $r ) ) );
+check( 'conv: "camioneta" (SUV, pickup o van) no exige la palabra si la carrocería cumple', array( 1, 3 ), $ids( $r ) );
 check( 'conv: frase de solo atributos sin "con de"', false, strpos( $lot_bot()->handle( 'algo para 7 personas' )['text'], 'con de' ) );
