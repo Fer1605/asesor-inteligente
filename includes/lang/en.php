@@ -32,6 +32,12 @@ return array(
 	// Customer amounts (ASI_Money::extract_budget). Lowercase, no accents.
 	'profile_chips' => array( 'We are 4 with kids', 'It is for work', 'For the city', 'For the farm' ),
 
+	'similar_markers' => array( 'similar to', 'similar to the', 'like the', 'something like', 'alternative to', 'alternatives to', 'instead of', 'instead of the', 'comparable to', 'competitor of', 'compared to' ),
+	'similar_strong'  => array( 'similar', 'alternative', 'instead', 'comparable', 'competitor' ),
+	'similar_stops'   => array( 'that', 'but', 'and', 'or', 'for', 'with', 'what', 'which', 'do', 'you', 'recommend', 'cheaper', 'under', 'in', 'of' ),
+	'similar_chips'      => array( 'Compare them', 'Cheaper', 'Monthly payments' ),
+	'similar_body_chips' => array( 'It is a pickup', 'It is an SUV', 'It is a sedan' ),
+
 	'money_words' => array(
 		'max'          => array( 'under', 'less than', 'below', 'up to', 'max', 'maximum', 'no more than', 'at most', 'not over', 'cheaper than' ),
 		'min'          => array( 'over', 'more than', 'above', 'at least', 'minimum', 'starting at' ),
@@ -274,6 +280,17 @@ return array(
 			'Our advisors can let you know when something like that comes in. Want the contact info?',
 		),
 		'budget_chip' => array( 'Up to {max}' ),
+		'similar_ref_traits' => array( 'The {ref} is {describe}; it stands out for {traits}.' ),
+		'similar_ref'        => array( 'The {ref} is {describe}.' ),
+		'similar_reco_why'   => array( 'If you want something similar, I would recommend {options}: they are also {why}.' ),
+		'similar_reco'       => array( 'If you want something similar, I would recommend {options}.' ),
+		'similar_prices'     => array( 'Prices: {prices}.' ),
+		'similar_price'      => array( '{title} from {price}' ),
+		'similar_no_price'   => array( 'price on request' ),
+		'similar_have_ref'   => array( 'And if you like the {ref}, we have it too, from {price}.' ),
+		'similar_none'       => array( 'Right now I do not have anything else similar to the {ref}.' ),
+		'similar_closing'    => array( 'Want me to compare them side by side?' ),
+		'similar_unknown'    => array( 'I do not know the “{ref}” well. What kind of vehicle is it: pickup, SUV or sedan?' ),
 		'results_budget' => array(
 			'With a budget {budget} I have {n}. The ones that make the most of your budget come first.',
 			'For a budget {budget} there are {n}; I start with the most complete within that amount.',

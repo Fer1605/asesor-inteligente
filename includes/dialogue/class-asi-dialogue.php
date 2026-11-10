@@ -22,6 +22,7 @@ class ASI_Dialogue {
 
 	use ASI_Dialogue_Products;
 	use ASI_Dialogue_Advice;
+	use ASI_Dialogue_Similar;
 
 	const MAX_MESSAGE = 300;
 	const MAX_SHOWN   = 300;
@@ -140,6 +141,12 @@ class ASI_Dialogue {
 		$learned = $this->learned_flow( $message );
 		if ( $learned ) {
 			return $learned;
+		}
+
+		// "Algo parecido al Frontier" (antes que "el más barato": "parecido pero más barato").
+		$similar = $this->similar_flow( $message, $normalized, $state );
+		if ( $similar ) {
+			return $similar;
 		}
 
 		$reference = $this->detect_reference( $normalized, $state );

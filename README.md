@@ -26,7 +26,7 @@ Un **pack** se activa solo si el sitio tiene el tipo de contenido que describe. 
 - [x] Registro de packs y conectores
 - [x] Precio por moneda: presupuestos en cualquier moneda, conversión a la moneda base, tipo de cambio en el panel
 - [x] Ficha de atributos por producto (pack autos: carrocería, plazas, tracción, combustible, transmisión, año, km)
-- [ ] Semejanza ("parecido a…")
+- [x] Semejanza ("parecido al Frontier"): describe la referencia, recomienda otras marcas parecidas con precios y ofrece compararlas
 - [x] Perfil del cliente → recomendación con el porqué, pide el presupuesto y avisa si se pasa (reglas editables en packs/autos/profiles.php)
 - [ ] Acciones desde el chat: PDF en la conversación + envío por correo + registro del lead
 

@@ -56,6 +56,12 @@ return array(
 	// Montos del cliente (ASI_Money::extract_budget). Frases sin acentos, en minúsculas.
 	'profile_chips' => array( 'Somos 4 con niños', 'Es para trabajar', 'Para la ciudad', 'Para la finca' ),
 
+	'similar_markers' => array( 'parecido a', 'parecida a', 'parecidos a', 'parecidas a', 'parecido al', 'parecida al', 'parecidos al', 'similar a', 'similar al', 'similares a', 'similares al', 'alternativa a', 'alternativa al', 'alternativas a', 'alternativas al', 'competencia del', 'competencia de la', 'competencia de', 'en vez del', 'en vez de la', 'en lugar del', 'en lugar de la', 'igual al', 'igual a la', 'algo como', 'como el', 'como la', 'tipo el', 'tipo la', 'estilo del', 'estilo de la', 'que se parezca a', 'que se parezca al', 'se parezca al', 'se parezca a' ),
+	'similar_strong'  => array( 'parecid', 'similar', 'alternativa', 'competencia', 'en vez', 'en lugar', 'parezca' ),
+	'similar_stops'   => array( 'que', 'pero', 'y', 'o', 'me', 'te', 'le', 'recomiendas', 'recomendas', 'recomienda', 'recomendarias', 'para', 'con', 'porque', 'por', 'mas', 'menos', 'sin', 'hasta', 'de', 'del', 'en', 'cual', 'algo', 'tienes', 'tienen', 'hay' ),
+	'similar_chips'      => array( 'Compáralas', 'Más barato', 'Calcular cuotas' ),
+	'similar_body_chips' => array( 'Es una pickup', 'Es una SUV', 'Es un sedán' ),
+
 	'money_words' => array(
 		'max'          => array( 'menos de', 'menor a', 'menor de', 'hasta', 'maximo', 'max', 'no mas de', 'por debajo de', 'que no pase de', 'que no pase los', 'abajo de', 'tope de', 'que no supere', 'que no supere los', 'no mayor a' ),
 		'min'          => array( 'mas de', 'mayor a', 'mayor de', 'desde', 'minimo', 'arriba de', 'por encima de', 'no menos de' ),
@@ -352,6 +358,27 @@ return array(
 			'Nuestros asesores te pueden avisar cuando ingrese algo así. ¿Te dejo el contacto?',
 		),
 		'budget_chip' => array( 'Hasta {max}' ),
+		'similar_ref_traits' => array(
+			'El {ref} es {describe}; se caracteriza por {traits}.',
+			'El {ref} se caracteriza por {traits}: es {describe}.',
+		),
+		'similar_ref' => array(
+			'El {ref} es {describe}.',
+		),
+		'similar_reco_why' => array(
+			'Si buscas algo parecido, te recomiendo {options}: también son {why}.',
+			'Parecidas a esa te recomiendo {options}, que también son {why}.',
+		),
+		'similar_reco' => array(
+			'Si buscas algo parecido, te recomiendo {options}.',
+		),
+		'similar_prices'   => array( 'Los precios: {prices}.', 'En precio: {prices}.' ),
+		'similar_price'    => array( '{title} desde {price}' ),
+		'similar_no_price' => array( 'precio a consultar' ),
+		'similar_have_ref' => array( 'Y si te interesa el {ref}, también lo tenemos desde {price}.', 'Del {ref} también tenemos, desde {price}.' ),
+		'similar_none'     => array( 'Ahora mismo no tengo otro parecido al {ref}.' ),
+		'similar_closing'  => array( '¿Quieres que te las compare lado a lado?', 'Si quieres te las comparo, o te calculo las cuotas de la que te guste.' ),
+		'similar_unknown'  => array( 'No conozco bien el “{ref}”. ¿Qué tipo de vehículo es: pickup, SUV o sedán? Así te busco algo parecido.' ),
 		'results_budget' => array(
 			'Con un presupuesto {budget} tengo {n}. Te muestro primero las que más aprovechan tu presupuesto.',
 			'Para un presupuesto {budget} hay {n}. Empiezo por las más completas dentro de ese monto.',
