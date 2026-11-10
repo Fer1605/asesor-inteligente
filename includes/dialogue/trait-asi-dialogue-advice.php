@@ -196,6 +196,7 @@ trait ASI_Dialogue_Advice {
 				'focus'   => 0,
 				'profile' => $profile,
 				'asked'   => array_values( array_unique( $asked ) ),
+				'offer'   => array( 'action' => 'quote', 'ids' => array_slice( $ids, 0, 4 ) ),
 			),
 		);
 	}

@@ -23,6 +23,7 @@ class ASI_Dialogue {
 	use ASI_Dialogue_Products;
 	use ASI_Dialogue_Advice;
 	use ASI_Dialogue_Similar;
+	use ASI_Dialogue_Actions;
 
 	const MAX_MESSAGE = 300;
 	const MAX_SHOWN   = 300;
@@ -80,6 +81,7 @@ class ASI_Dialogue {
 				'emojis'        => false,
 				'money'         => array(), // base, map, rates (ASI_Money).
 				'packs'         => array(), // ASI_Pack activos (atributos del giro).
+				'actions'       => null,    // ASI_Action_Runner: cotizar, comparar en PDF, cuotas.
 			),
 			$context
 		);
@@ -141,6 +143,12 @@ class ASI_Dialogue {
 		$learned = $this->learned_flow( $message );
 		if ( $learned ) {
 			return $learned;
+		}
+
+		// Cerrar la venta: datos del cliente, "sí", cuotas, cotización, comparación en PDF.
+		$action = $this->action_flow( $message, $normalized, $state );
+		if ( $action ) {
+			return $action;
 		}
 
 		// "Algo parecido al Frontier" (antes que "el más barato": "parecido pero más barato").
@@ -1291,6 +1299,26 @@ class ASI_Dialogue {
 		return $clean;
 	}
 
+	private static function clean_action( $action, $ints ) {
+		if ( ! is_array( $action ) || empty( $action['action'] ) || ! is_string( $action['action'] ) || ! preg_match( '/^[a-z_]{2,20}$/', $action['action'] ) ) {
+			return array();
+		}
+		return array( 'action' => $action['action'], 'ids' => $ints( isset( $action['ids'] ) ? $action['ids'] : array(), 4 ) );
+	}
+
+	private static function clean_customer_state( $customer ) {
+		$customer = is_array( $customer ) ? $customer : array();
+		$get      = static function ( $key, $max ) use ( $customer ) {
+			return isset( $customer[ $key ] ) && is_string( $customer[ $key ] ) ? trim( substr( strip_tags( $customer[ $key ] ), 0, $max ) ) : '';
+		};
+		$email = $get( 'email', 120 );
+		return array(
+			'name'  => $get( 'name', 60 ),
+			'email' => preg_match( '/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i', $email ) ? $email : '',
+			'phone' => preg_replace( '/[^0-9+ \-]/', '', $get( 'phone', 20 ) ),
+		);
+	}
+
 	private function clean_state( array $state ) {
 		$ints = function ( $list, $max ) {
 			return array_slice( array_values( array_filter( array_map( 'intval', is_array( $list ) ? $list : array() ) ) ), -$max );
@@ -1305,10 +1333,13 @@ class ASI_Dialogue {
 			'lang'    => isset( $state['lang'] ) && is_string( $state['lang'] ) ? $state['lang'] : '',
 			'profile' => self::clean_profile( isset( $state['profile'] ) ? $state['profile'] : array() ),
 			'asked'   => array_slice( array_values( array_filter( isset( $state['asked'] ) && is_array( $state['asked'] ) ? $state['asked'] : array(), 'is_string' ) ), -10 ),
+			'pending'  => self::clean_action( isset( $state['pending'] ) ? $state['pending'] : array(), $ints ),
+			'offer'    => self::clean_action( isset( $state['offer'] ) ? $state['offer'] : array(), $ints ),
+			'customer' => self::clean_customer_state( isset( $state['customer'] ) ? $state['customer'] : array() ),
 		);
 		// Otra página de idioma o país: la conversación empieza de cero.
 		if ( '' !== $clean['lang'] && $clean['lang'] !== $this->context['lang'] ) {
-			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array() );
+			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'] );
 		}
 		return $clean;
 	}

@@ -193,6 +193,19 @@ class ASI_Admin {
 				$this->save_money();
 				break;
 
+			case 'actions':
+				$mode  = isset( $_POST['actions_mode'] ) ? sanitize_key( wp_unslash( $_POST['actions_mode'] ) ) : 'test';
+				$email = isset( $_POST['test_email'] ) ? sanitize_email( wp_unslash( $_POST['test_email'] ) ) : '';
+				ASI_Settings::update(
+					array(
+						'actions_mode'     => in_array( $mode, array( 'off', 'test', 'live' ), true ) ? $mode : 'test',
+						'test_email'       => is_email( $email ) ? $email : '',
+						'finance_rate'     => isset( $_POST['finance_rate'] ) ? (string) max( 0, (float) str_replace( ',', '.', sanitize_text_field( wp_unslash( $_POST['finance_rate'] ) ) ) ) : '',
+						'finance_down_min' => isset( $_POST['finance_down_min'] ) ? max( 0, min( 90, (int) $_POST['finance_down_min'] ) ) : 20,
+					)
+				);
+				break;
+
 			case 'connection':
 				$search_mode = isset( $_POST['search_mode'] ) ? sanitize_key( wp_unslash( $_POST['search_mode'] ) ) : 'none';
 				ASI_Settings::update( array( 'search_mode' => in_array( $search_mode, ASI_Settings::SEARCH_MODES, true ) ? $search_mode : 'none' ) );
@@ -873,11 +886,49 @@ class ASI_Admin {
 
 	// ---------- Conexión ----------
 
+	/**
+	 * Tarjeta "Cotizar y comparar desde el chat" (pestaña Conexión).
+	 */
+	private function actions_card() {
+		$settings   = ASI_Settings::all();
+		$mode       = ASI_Actions::mode();
+		$connectors = ASI_Extensions::active_connectors();
+		$this->card_open( 'Cotizar y comparar desde el chat', 'dashicons-media-document', 'green', 'asi-acciones' );
+		?>
+			<p class="asi-muted">Cuando el cliente dice “me interesa” o “mándame la comparación”, el chat le pide nombre y correo, genera el PDF con la función del propio sitio, se lo muestra en la conversación y se lo envía por correo. El interesado queda guardado donde el sitio guarda los de su formulario.</p>
+			<?php if ( ! $connectors ) : ?>
+				<p><span class="asi-tag asi-tag--soft">Este sitio no tiene un conector: el chat recomienda y manda al formulario normal del sitio.</span></p>
+			<?php else : ?>
+				<ul>
+				<?php foreach ( $connectors as $connector ) : ?>
+					<li><span class="asi-tag asi-tag--ok"><?php echo esc_html( $connector->label() ); ?></span> <?php echo esc_html( implode( ', ', array_column( $connector->actions(), 'label' ) ) ); ?></li>
+				<?php endforeach; ?>
+				</ul>
+			<?php endif; ?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php $this->hidden_fields( 'actions', 'conexion' ); ?>
+				<p><strong>Modo</strong></p>
+				<p>
+					<label><input type="radio" name="actions_mode" value="off" <?php checked( $mode, 'off' ); ?>> Apagado</label><br>
+					<label><input type="radio" name="actions_mode" value="test" <?php checked( $mode, 'test' ); ?>> <strong>Prueba</strong>: el PDF le llega al correo que escriban en el chat; el aviso a ventas solo va al correo de prueba</label><br>
+					<label><input type="radio" name="actions_mode" value="live" <?php checked( $mode, 'live' ); ?>> En vivo: el aviso va a quienes avisa el formulario del sitio</label>
+				</p>
+				<p><label><strong>Correo de prueba</strong><br><input type="email" class="regular-text" name="test_email" value="<?php echo esc_attr( $settings['test_email'] ); ?>"></label></p>
+				<p><strong>Cuotas</strong> <span class="asi-muted">(solo si el sitio no trae su propia calculadora)</span><br>
+					<label>Tasa anual <input type="text" inputmode="decimal" size="5" name="finance_rate" value="<?php echo esc_attr( (string) $settings['finance_rate'] ); ?>"> %</label>
+					&nbsp; <label>Enganche mínimo <input type="number" min="0" max="90" name="finance_down_min" value="<?php echo esc_attr( (string) $settings['finance_down_min'] ); ?>"> %</label></p>
+				<p class="asi-actions"><?php submit_button( 'Guardar', 'primary', 'submit', false ); ?></p>
+			</form>
+		<?php
+		$this->card_close();
+	}
+
 	private function tab_conexion() {
 		$settings  = ASI_Settings::all();
 		$languages = $this->plugin->languages->all();
 		$missing   = 0;
 		?>
+		<?php $this->actions_card(); ?>
 		<?php $this->card_open( 'Buscador del sitio', 'dashicons-search', 'blue' ); ?>
 			<p class="asi-muted">Funciona con cualquier formulario de búsqueda de WordPress: el del tema, el widget de búsqueda de Elementor y el de WooCommerce. Solo actúa para quien puede ver el asistente según la visibilidad.</p>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">

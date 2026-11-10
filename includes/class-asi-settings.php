@@ -57,6 +57,10 @@ class ASI_Settings {
 			'currency_base'       => '',      // ISO; vacío = WooCommerce o el país del sitio.
 			'currency_map'        => array(), // valor guardado en el sitio => ISO ('1' => 'USD').
 			'currency_rates'      => array(), // ISO => unidades de la base por 1 unidad.
+			'actions_mode'        => 'test',  // Cotizar/comparar desde el chat: off, test (aviso a ventas solo al correo de prueba), live.
+			'test_email'          => '',
+			'finance_rate'        => '',      // Tasa anual en % si el sitio no trae calculadora propia.
+			'finance_down_min'    => 20,      // Enganche mínimo en %.
 		);
 	}
 

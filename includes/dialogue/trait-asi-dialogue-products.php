@@ -285,12 +285,17 @@ trait ASI_Dialogue_Products {
 				'urls'    => array( $a['card']['url'], $b['card']['url'] ),
 				'rows'    => $rows,
 			),
-			'followup'    => $this->responder->say( 'fact_followup' ),
+			'followup'    => $this->runner() && isset( $this->runner()->available()['compare'] ) ? $this->responder->say( 'compare_offer_pdf' ) : $this->responder->say( 'fact_followup' ),
 			'cards'       => $this->cards( array( $a, $b ) ),
 			'links'       => array(),
 			'suggestions' => array(),
 			'more'        => false,
-			'state'       => array( 'results' => array( (int) $a['post_id'], (int) $b['post_id'] ), 'focus' => 0 ),
+			'state'       => array(
+				'results' => array( (int) $a['post_id'], (int) $b['post_id'] ),
+				'focus'   => 0,
+				// Después de comparar se ofrece la comparación en PDF, si el sitio la tiene.
+				'offer'   => $this->runner() && isset( $this->runner()->available()['compare'] ) ? array( 'action' => 'compare', 'ids' => array( (int) $a['post_id'], (int) $b['post_id'] ) ) : array(),
+			),
 		);
 	}
 

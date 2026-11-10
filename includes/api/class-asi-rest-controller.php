@@ -211,6 +211,7 @@ class ASI_REST_Controller {
 			'emojis'         => ! empty( $settings['emojis'] ),
 			'money'          => ASI_Settings::money( $context->country ),
 			'packs'          => array_values( ASI_Extensions::active_packs() ),
+			'actions'        => new ASI_Actions(),
 		);
 	}
 

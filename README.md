@@ -28,7 +28,7 @@ Un **pack** se activa solo si el sitio tiene el tipo de contenido que describe. 
 - [x] Ficha de atributos por producto (pack autos: carrocería, plazas, tracción, combustible, transmisión, año, km)
 - [x] Semejanza ("parecido al Frontier"): describe la referencia, recomienda otras marcas parecidas con precios y ofrece compararlas
 - [x] Perfil del cliente → recomendación con el porqué, pide el presupuesto y avisa si se pasa (reglas editables en packs/autos/profiles.php)
-- [ ] Acciones desde el chat: PDF en la conversación + envío por correo + registro del lead
+- [x] Cerrar la venta en el chat: cuotas, cotización y comparación en PDF (vista en el chat, envío por correo, lead guardado, aviso a ventas; modo prueba por defecto)
 
 ## Uso
 

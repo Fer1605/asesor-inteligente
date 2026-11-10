@@ -711,3 +711,99 @@
 	outline: 2px solid var(--asi-accent, #2563eb);
 	outline-offset: 2px;
 }
+
+/* Documento generado en el chat (cotización / comparación) */
+.asi-chat .asi-file {
+	margin: 8px 0 4px;
+	border: 1px solid var(--asi-border, #e3e6ea);
+	border-radius: var(--asi-radius, 12px);
+	background: var(--asi-surface, #fff);
+	overflow: hidden;
+	max-width: 520px;
+}
+.asi-chat .asi-file__head {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 14px;
+}
+.asi-chat .asi-file__icon {
+	flex: 0 0 auto;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 42px;
+	height: 48px;
+	border-radius: 6px;
+	background: #d93025;
+	color: #fff;
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+}
+.asi-chat .asi-file__info {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+.asi-chat .asi-file__name {
+	font-size: 0.85em;
+	opacity: 0.7;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.asi-chat .asi-file__preview {
+	display: block;
+	width: 100%;
+	height: 420px;
+	border: 0;
+	border-top: 1px solid var(--asi-border, #e3e6ea);
+	background: #f5f5f5;
+}
+.asi-chat .asi-file__actions {
+	display: flex;
+	gap: 8px;
+	padding: 10px 14px 14px;
+}
+.asi-chat .asi-file__btn {
+	display: inline-flex;
+	align-items: center;
+	padding: 8px 16px;
+	border-radius: 999px;
+	border: 1px solid var(--asi-accent);
+	color: var(--asi-accent);
+	text-decoration: none;
+	font-weight: 600;
+	font-size: 0.9em;
+}
+.asi-chat .asi-file__btn--primary {
+	background: var(--asi-accent);
+	color: #fff;
+}
+
+/* Tabla de cuotas */
+.asi-chat .asi-table {
+	margin: 6px 0;
+	max-width: 420px;
+	overflow-x: auto;
+}
+.asi-chat .asi-table table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.95em;
+}
+.asi-chat .asi-table th,
+.asi-chat .asi-table td {
+	padding: 7px 10px;
+	border-bottom: 1px solid var(--asi-border, #e3e6ea);
+	text-align: left;
+}
+.asi-chat .asi-table td {
+	text-align: right;
+	font-weight: 600;
+}
+.asi-chat .asi-table thead th {
+	font-size: 0.85em;
+	opacity: 0.7;
+}

@@ -38,4 +38,34 @@ interface ASI_Connector {
 	 * @return array|WP_Error  { filename, binary, mime } o error.
 	 */
 	public function run( $action, array $item_ids, array $customer );
+
+	/**
+	 * Envía el archivo al cliente con el correo del propio sitio (su plantilla, su remitente).
+	 *
+	 * @param string $action   Acción.
+	 * @param int[]  $item_ids Productos.
+	 * @param array  $customer name, email, phone.
+	 * @param array  $file     filename, binary, mime.
+	 * @return true|WP_Error|null null = el conector no envía correos; lo hace el core.
+	 */
+	public function email_customer( $action, array $item_ids, array $customer, array $file );
+
+	/**
+	 * Registra el lead donde el sitio guarda los de su formulario (p. ej. Envíos de Elementor).
+	 *
+	 * @param string $action   Acción.
+	 * @param int[]  $item_ids Productos.
+	 * @param array  $customer name, email, phone.
+	 * @param bool   $test     Modo prueba (se marca como prueba).
+	 * @return array{saved:bool,notify:string[]} notify: a quién avisa el formulario del sitio.
+	 */
+	public function save_lead( $action, array $item_ids, array $customer, $test );
+
+	/**
+	 * Reglas de financiamiento del sitio para un producto, si las tiene.
+	 *
+	 * @param int $item_id Producto.
+	 * @return array|null { rate (anual, 0.09), down_min, down_max, down_default (fracciones), terms (meses) }
+	 */
+	public function financing( $item_id );
 }

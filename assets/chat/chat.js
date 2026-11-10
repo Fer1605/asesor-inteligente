@@ -229,6 +229,70 @@
 		}
 	}
 
+	// Documento generado en el chat (cotización, comparación): se ve aquí mismo y se descarga.
+	function file( data ) {
+		if ( ! data || ! data.url ) {
+			return;
+		}
+		const url = safeUrl( data.url );
+		const box = el( 'div', 'asi-file' );
+		const head = el( 'div', 'asi-file__head' );
+		head.appendChild( el( 'span', 'asi-file__icon', 'PDF' ) );
+		const info = el( 'div', 'asi-file__info' );
+		info.appendChild( el( 'strong', 'asi-file__label', data.label || 'PDF' ) );
+		info.appendChild( el( 'span', 'asi-file__name', data.name || '' ) );
+		head.appendChild( info );
+		box.appendChild( head );
+		if ( window.innerWidth >= 700 ) {
+			const frame = el( 'iframe', 'asi-file__preview' );
+			frame.src = url;
+			frame.title = data.label || 'PDF';
+			frame.loading = 'lazy';
+			box.appendChild( frame );
+		}
+		const actions = el( 'div', 'asi-file__actions' );
+		const open = el( 'a', 'asi-file__btn asi-file__btn--primary', data.open || 'Ver' );
+		open.href = url;
+		open.target = '_blank';
+		open.rel = 'noopener';
+		const down = el( 'a', 'asi-file__btn', data.download || 'Descargar' );
+		down.href = url + ( url.indexOf( '?' ) === -1 ? '?' : '&' ) + 'download=1';
+		down.setAttribute( 'download', data.name || 'documento.pdf' );
+		actions.appendChild( open );
+		actions.appendChild( down );
+		box.appendChild( actions );
+		log.appendChild( box );
+	}
+
+	// Tabla sencilla (cuotas).
+	function table( data ) {
+		if ( ! data || ! data.rows || ! data.rows.length ) {
+			return;
+		}
+		const wrap = el( 'div', 'asi-table' );
+		const t = el( 'table' );
+		if ( data.head ) {
+			const tr = el( 'tr' );
+			data.head.forEach( function ( cell ) {
+				tr.appendChild( el( 'th', '', cell ) );
+			} );
+			const thead = el( 'thead' );
+			thead.appendChild( tr );
+			t.appendChild( thead );
+		}
+		const body = el( 'tbody' );
+		data.rows.forEach( function ( row ) {
+			const tr = el( 'tr' );
+			row.forEach( function ( cell, index ) {
+				tr.appendChild( el( 0 === index ? 'th' : 'td', '', cell ) );
+			} );
+			body.appendChild( tr );
+		} );
+		t.appendChild( body );
+		wrap.appendChild( t );
+		log.appendChild( wrap );
+	}
+
 	function renderBot( data ) {
 		if ( data.text ) {
 			bubble( 'bot', data.text );
@@ -236,6 +300,8 @@
 		quote( data.quote );
 		places( data.places );
 		compare( data.compare );
+		table( data.table );
+		file( data.file );
 		if ( data.cards && data.cards.length ) {
 			const grid = el( 'div', 'asi-cards' );
 			data.cards.forEach( function ( item ) {

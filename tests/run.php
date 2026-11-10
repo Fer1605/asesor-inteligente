@@ -27,11 +27,13 @@ require $root . '/includes/dialogue/class-asi-responder.php';
 require $root . '/includes/dialogue/trait-asi-dialogue-products.php';
 require $root . '/includes/dialogue/trait-asi-dialogue-advice.php';
 require $root . '/includes/dialogue/trait-asi-dialogue-similar.php';
+require $root . '/includes/dialogue/trait-asi-dialogue-actions.php';
 require $root . '/includes/dialogue/class-asi-dialogue.php';
 require $root . '/includes/extend/interface-asi-connector.php';
 require $root . '/includes/extend/interface-asi-pack.php';
 require $root . '/includes/extend/interface-asi-advisor.php';
 require $root . '/includes/extend/interface-asi-similarity.php';
+require $root . '/includes/extend/interface-asi-action-runner.php';
 require $root . '/includes/extend/class-asi-extensions.php';
 require __DIR__ . '/fixtures.php';
 

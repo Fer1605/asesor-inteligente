@@ -278,6 +278,7 @@ trait ASI_Dialogue_Similar {
 				'shown'   => array_slice( array_merge( $state['shown'], $ids ), -self::MAX_SHOWN ),
 				'results' => $results ? $results : $ids,
 				'focus'   => 0,
+				'offer'   => count( $results ) >= 2 ? array( 'action' => 'compare_text', 'ids' => array_slice( $results, 0, 2 ) ) : array(),
 			),
 		);
 	}
