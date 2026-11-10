@@ -81,7 +81,7 @@ class ASI_Admin {
 	public function __construct( ASI_Plugin $plugin ) {
 		$this->plugin = $plugin;
 		add_action( 'admin_menu', array( $this, 'menu' ) );
-		add_action( 'admin_post_bi_action', array( $this, 'handle_action' ) );
+		add_action( 'admin_post_asi_action', array( $this, 'handle_action' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'assets' ) );
 	}
 
