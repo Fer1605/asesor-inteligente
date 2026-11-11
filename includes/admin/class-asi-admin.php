@@ -160,6 +160,12 @@ class ASI_Admin {
 		$tab    = isset( $_POST['asi_tab'] ) ? sanitize_key( wp_unslash( $_POST['asi_tab'] ) ) : 'inicio';
 		$notice = $action;
 		$extra  = array();
+		// Si venía de una lista completa (Ver todas), vuelve a la misma página y búsqueda.
+		foreach ( array( 'ver', 'pag', 'buscar' ) as $arg ) {
+			if ( isset( $_POST[ 'asi_' . $arg ] ) && '' !== $_POST[ 'asi_' . $arg ] ) {
+				$extra[ $arg ] = sanitize_text_field( wp_unslash( $_POST[ 'asi_' . $arg ] ) );
+			}
+		}
 
 		switch ( $action ) {
 			case 'mode':
@@ -260,6 +266,13 @@ class ASI_Admin {
 			case 'ai_test':
 				$provider = isset( $_POST['provider'] ) ? sanitize_key( wp_unslash( $_POST['provider'] ) ) : '';
 				set_transient( 'asi_ai_test_' . get_current_user_id(), array_merge( array( 'provider' => $provider ), ASI_AI::test( $provider ) ), 10 * MINUTE_IN_SECONDS );
+				break;
+
+			case 'ai_edit':
+				ASI_AI::edit(
+					isset( $_POST['key'] ) ? sanitize_text_field( wp_unslash( $_POST['key'] ) ) : '',
+					isset( $_POST['phrase'] ) ? sanitize_text_field( wp_unslash( $_POST['phrase'] ) ) : ''
+				);
 				break;
 
 			case 'ai_forget':
@@ -574,7 +587,8 @@ class ASI_Admin {
 			'forget'       => 'Respuesta enseñada eliminada.',
 			'ai_save'      => 'Ajustes de la IA guardados.',
 			'ai_test'      => 'Prueba de conexión hecha: el resultado está abajo.',
-			'ai_forget'    => 'Frase quitada: la próxima vez se vuelve a preguntar a la IA.',
+			'ai_forget'    => 'Quitado: la próxima vez que alguien lo escriba se vuelve a preguntar a la IA.',
+			'ai_edit'      => 'Guardado: desde ahora el chat lo entiende así.',
 			'ai_clear'     => 'Lista de frases interpretadas vaciada.',
 		);
 		?>
@@ -1253,8 +1267,21 @@ class ASI_Admin {
 			}
 		);
 		$learned   = ASI_Learning::learned();
-		$clicks    = ASI_Learning::top_clicks( 15 );
+		$clicks    = ASI_Learning::top_clicks( 200 );
 		$titles    = $this->titles_for( array_merge( wp_list_pluck( $clicks, 'post_id' ), $this->learned_ids( $learned ) ) );
+		$ver       = $this->list_open();
+		$q_list    = $this->list_slice( 'preguntas', $questions, function ( $row ) { return $row['q']; } );
+		$taught    = array();
+		foreach ( $learned as $lang => $entries ) {
+			foreach ( $entries as $key => $entry ) {
+				$taught[ $lang . '|' . $key ] = array( 'lang' => $lang, 'key' => $key, 'entry' => $entry );
+			}
+		}
+		$t_list    = $this->list_slice( 'ensenadas', $taught, function ( $row ) { return $row['entry']['q']; } );
+		$c_list    = $this->list_slice( 'abren', $clicks, function ( $row ) use ( $titles ) { return $row['qkey'] . ' ' . ( isset( $titles[ (int) $row['post_id'] ] ) ? $titles[ (int) $row['post_id'] ] : '' ); } );
+		if ( $ver ) {
+			echo '<style>.asi-hero,.asi-hero+p.asi-muted{display:none}</style>';
+		}
 		?>
 		<div class="asi-hero">
 			<span class="asi-hero__icon dashicons dashicons-welcome-learn-more" aria-hidden="true"></span>
@@ -1267,7 +1294,9 @@ class ASI_Admin {
 
 		<p class="asi-muted">¿Cómo enseñarle paso a paso? Está en la <a href="<?php echo esc_url( $this->tab_url( 'guia' ) . '#asi-ensenar' ); ?>">Guía</a>.</p>
 
+		<?php if ( ! $ver || 'preguntas' === $ver ) : ?>
 		<?php $this->card_open( 'Preguntas por revisar', 'dashicons-format-status', 'amber' ); ?>
+			<?php $this->list_search( 'aprendizaje', 'preguntas', $q_list, 'Buscar una pregunta…' ); ?>
 			<p class="asi-muted">
 				<span class="asi-tag asi-tag--warn">Sin respuesta</span> no encontró nada.
 				<span class="asi-tag asi-tag--soft">Aproximada</span> respondió con lo más parecido, pero no exacto.
@@ -1280,7 +1309,7 @@ class ASI_Admin {
 				<table class="asi-table asi-learning">
 					<thead><tr><th>Pregunta</th><th>Idioma</th><th>Veces</th><th>Tipo</th><th>Qué hacer</th></tr></thead>
 					<tbody>
-					<?php foreach ( array_slice( $questions, 0, 60, true ) as $id => $row ) : ?>
+					<?php foreach ( $q_list['rows'] as $id => $row ) : ?>
 						<tr>
 							<td><strong><?php echo esc_html( $row['q'] ); ?></strong><br><span class="asi-muted"><?php echo esc_html( human_time_diff( $row['at'] ) ); ?></span></td>
 							<td><span class="asi-tag asi-tag--code"><?php echo esc_html( $row['lang'] ); ?></span></td>
@@ -1322,14 +1351,22 @@ class ASI_Admin {
 					<?php endforeach; ?>
 					</tbody>
 				</table>
+				<?php $this->list_footer( 'aprendizaje', 'preguntas', $q_list ); ?>
 				<div class="asi-actions"><?php $this->action_button( 'clear_questions', 'Vaciar lista', 'aprendizaje', 'button', 'dashicons-trash' ); ?></div>
 			<?php endif; ?>
 		<?php $this->card_close(); ?>
+		<?php endif; ?>
 
-		<?php $this->synonyms_card(); ?>
+		<?php
+		if ( ! $ver ) {
+			$this->synonyms_card();
+		}
+		?>
 
-		<div class="asi-grid">
+		<div class="<?php echo $ver ? '' : 'asi-grid'; ?>">
+			<?php if ( ! $ver || 'ensenadas' === $ver ) : ?>
 			<?php $this->card_open( 'Respuestas enseñadas', 'dashicons-yes-alt', 'green' ); ?>
+				<?php $this->list_search( 'aprendizaje', 'ensenadas', $t_list, 'Buscar una pregunta enseñada…' ); ?>
 				<p class="asi-muted">Cuando alguien pregunte esto (con cualquier orden de palabras, plurales o sin acentos), el asistente responde con lo que elegiste.</p>
 				<?php if ( ! $learned ) : ?>
 					<div class="asi-empty"><span class="dashicons dashicons-lightbulb" aria-hidden="true"></span>Todavía no le has enseñado nada.</div>
@@ -1337,8 +1374,12 @@ class ASI_Admin {
 					<table class="asi-table">
 						<thead><tr><th>Pregunta</th><th>Responde con</th><th></th></tr></thead>
 						<tbody>
-						<?php foreach ( $learned as $lang => $entries ) : ?>
-							<?php foreach ( $entries as $key => $entry ) : ?>
+						<?php foreach ( $t_list['rows'] as $item ) : ?>
+							<?php
+							$lang  = $item['lang'];
+							$key   = $item['key'];
+							$entry = $item['entry'];
+							?>
 								<tr>
 									<td><strong><?php echo esc_html( $entry['q'] ); ?></strong> <span class="asi-tag asi-tag--code"><?php echo esc_html( $lang ); ?></span></td>
 									<td><?php echo esc_html( implode( ', ', array_map( function ( $id ) use ( $titles ) { return isset( $titles[ $id ] ) ? $titles[ $id ] : '#' . $id; }, (array) $entry['ids'] ) ) ); ?></td>
@@ -1351,42 +1392,68 @@ class ASI_Admin {
 										</form>
 									</td>
 								</tr>
-							<?php endforeach; ?>
 						<?php endforeach; ?>
 						</tbody>
 					</table>
+					<?php $this->list_footer( 'aprendizaje', 'ensenadas', $t_list ); ?>
 				<?php endif; ?>
 			<?php $this->card_close(); ?>
+			<?php endif; ?>
 
 			<?php
-			// Lo que la IA corrigió: se aplica solo (la próxima vez no gasta consultas) y aquí se puede quitar.
-			$ai_learned = array_filter(
-				class_exists( 'ASI_AI' ) ? ASI_AI::cache() : array(),
-				function ( $row ) {
-					return '' !== (string) $row['phrase'] && ( ! isset( $row['changed'] ) || $row['changed'] );
-				}
-			);
+			// Todo lo que la IA interpretó queda guardado y se aplica solo: si alguien vuelve a escribir lo
+			// mismo, el chat ya sabe qué hacer sin consultar a la IA. Se puede corregir o quitar.
+			$ai_rows = class_exists( 'ASI_AI' ) ? ASI_AI::cache() : array();
 			uasort(
-				$ai_learned,
+				$ai_rows,
 				function ( $a, $b ) {
 					return $b['last'] - $a['last'];
 				}
 			);
+			$ai_list = $this->list_slice( 'ia', $ai_rows, function ( $row ) { return $row['message'] . ' ' . $row['phrase'] . ' ' . ( isset( $row['context'] ) ? $row['context'] : '' ); } );
 			?>
+			<?php if ( ! $ver || 'ia' === $ver ) : ?>
 			<?php $this->card_open( 'Aprendido de la IA (automático)', 'dashicons-lightbulb', 'purple' ); ?>
-				<p class="asi-muted">Cada vez que el chat tuvo que adivinar y la IA lo corrigió, queda aquí y se aplica solo: si alguien vuelve a escribir lo mismo, el chat ya sabe qué hacer sin consultar a la IA. Si una está mal, quítala.</p>
-				<?php if ( ! $ai_learned ) : ?>
-					<div class="asi-empty"><span class="dashicons dashicons-lightbulb" aria-hidden="true"></span>Todavía nada.</div>
+				<p class="asi-muted">Cada mensaje que el chat no tenía claro y revisó la IA queda aquí y <strong>se aplica solo</strong>: si alguien vuelve a escribir lo mismo, el chat ya sabe qué hacer <strong>sin volver a consultar a la IA</strong>. Si una está mal, corrígela o quítala.</p>
+				<p class="asi-muted">
+					<span class="asi-tag asi-tag--warn">Corrigió al chat</span> el chat había entendido otra cosa y la IA lo corrigió.
+					<span class="asi-tag asi-tag--ok">Confirmó al chat</span> el chat lo tenía bien; la IA lo confirmó.
+					<strong>Veces</strong>: cuántas veces lo escribieron. Solo la primera consultó a la IA; las demás salieron de aquí, gratis.
+				</p>
+				<?php $this->list_search( 'aprendizaje', 'ia', $ai_list, 'Buscar lo que escribieron o cómo se entendió…' ); ?>
+				<?php if ( ! $ai_list['rows'] ) : ?>
+					<div class="asi-empty"><span class="dashicons dashicons-lightbulb" aria-hidden="true"></span><?php echo '' !== $ai_list['query'] ? 'Nada coincide con esa búsqueda.' : 'Todavía nada.'; ?></div>
 				<?php else : ?>
 					<table class="asi-table">
 						<thead><tr><th>Lo que escribió</th><th>Lo entendió como</th><th>Veces</th><th></th></tr></thead>
 						<tbody>
-						<?php foreach ( array_slice( $ai_learned, 0, 50, true ) as $key => $row ) : ?>
+						<?php foreach ( $ai_list['rows'] as $key => $row ) : ?>
+							<?php
+							$changed = ! isset( $row['changed'] ) ? '' !== (string) $row['phrase'] : (bool) $row['changed'];
+							?>
 							<tr>
 								<td><?php echo esc_html( $row['message'] ); ?><?php if ( ! empty( $row['context'] ) ) : ?><br><span class="asi-muted">después de: <?php echo esc_html( $row['context'] ); ?></span><?php endif; ?></td>
-								<td><strong><?php echo esc_html( $row['phrase'] ); ?></strong></td>
-								<td><?php echo (int) $row['hits'] + 1; ?></td>
 								<td>
+									<strong><?php echo esc_html( '' !== (string) $row['phrase'] ? $row['phrase'] : '(lo que entendió el chat)' ); ?></strong><br>
+									<?php if ( ! empty( $row['edited'] ) ) : ?>
+										<span class="asi-tag">Corregido a mano</span>
+									<?php else : ?>
+										<span class="asi-tag asi-tag--<?php echo $changed ? 'warn' : 'ok'; ?>"><?php echo $changed ? 'Corrigió al chat' : 'Confirmó al chat'; ?></span>
+									<?php endif; ?>
+								</td>
+								<td><strong><?php echo (int) $row['hits'] + 1; ?></strong></td>
+								<td class="asi-learning__actions">
+									<details class="asi-teach">
+										<summary class="button button-small">Editar</summary>
+										<div class="asi-teach__box">
+											<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="asi-teach__form">
+												<?php $this->hidden_fields( 'ai_edit', 'aprendizaje' ); ?>
+												<input type="hidden" name="key" value="<?php echo esc_attr( $key ); ?>">
+												<label><strong>¿Qué significa?</strong> Escríbelo como lo pediría alguien, con palabras que el chat entiende (ej.: “suv toyota hasta 300000”, “cuotas de la 2 y la 3”).</label>
+												<span class="asi-teach__row"><input type="text" name="phrase" class="regular-text" value="<?php echo esc_attr( $row['phrase'] ); ?>" required> <button class="button button-primary">Guardar</button></span>
+											</form>
+										</div>
+									</details>
 									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="asi-inline-form">
 										<?php $this->hidden_fields( 'ai_forget', 'aprendizaje' ); ?>
 										<input type="hidden" name="key" value="<?php echo esc_attr( $key ); ?>">
@@ -1397,18 +1464,25 @@ class ASI_Admin {
 						<?php endforeach; ?>
 						</tbody>
 					</table>
+					<?php $this->list_footer( 'aprendizaje', 'ia', $ai_list ); ?>
+					<?php if ( $ai_list['full'] ) : ?>
+						<div class="asi-actions"><?php $this->action_button( 'ai_clear', 'Vaciar todo lo aprendido de la IA', 'aprendizaje', 'button', 'dashicons-trash' ); ?></div>
+					<?php endif; ?>
 				<?php endif; ?>
 			<?php $this->card_close(); ?>
+			<?php endif; ?>
 
+			<?php if ( ! $ver || 'abren' === $ver ) : ?>
 			<?php $this->card_open( 'Lo que más abren', 'dashicons-chart-bar', 'blue' ); ?>
 				<p class="asi-muted">Qué resultado abre la gente después de cada búsqueda. Desde 3 visitas distintas, ese resultado sube un poco cuando alguien vuelve a buscar lo mismo. Cada visitante cuenta una vez al día.</p>
-				<?php if ( ! $clicks ) : ?>
+				<?php $this->list_search( 'aprendizaje', 'abren', $c_list, 'Buscar una búsqueda o un resultado…' ); ?>
+				<?php if ( ! $c_list['rows'] ) : ?>
 					<div class="asi-empty"><span class="dashicons dashicons-chart-bar" aria-hidden="true"></span>Todavía no hay clics registrados.</div>
 				<?php else : ?>
 					<table class="asi-table">
 						<thead><tr><th>Búsqueda</th><th>Resultado abierto</th><th>Visitas</th></tr></thead>
 						<tbody>
-						<?php foreach ( $clicks as $click ) : ?>
+						<?php foreach ( $c_list['rows'] as $click ) : ?>
 							<tr>
 								<td><?php echo esc_html( $click['qkey'] ); ?> <span class="asi-tag asi-tag--code"><?php echo esc_html( $click['lang'] ); ?></span></td>
 								<td><?php echo esc_html( isset( $titles[ (int) $click['post_id'] ] ) ? $titles[ (int) $click['post_id'] ] : '#' . (int) $click['post_id'] ); ?></td>
@@ -1417,8 +1491,10 @@ class ASI_Admin {
 						<?php endforeach; ?>
 						</tbody>
 					</table>
+					<?php $this->list_footer( 'aprendizaje', 'abren', $c_list ); ?>
 				<?php endif; ?>
 			<?php $this->card_close(); ?>
+			<?php endif; ?>
 		</div>
 		<?php
 	}
@@ -1603,6 +1679,21 @@ class ASI_Admin {
 							<?php if ( $hint ) : ?><label><input type="checkbox" name="ai_drop[<?php echo esc_attr( $provider ); ?>]" value="1"> Borrar la clave</label><?php endif; ?></p>
 						<p><label>Modelos, en orden <span class="asi-muted">(si uno llega a su límite del día se usa el siguiente)</span><br>
 							<input type="text" class="large-text" name="ai_models[<?php echo esc_attr( $provider ); ?>]" value="<?php echo esc_attr( implode( ', ', ASI_AI::models_for( $provider ) ) ); ?>"></label></p>
+						<?php if ( ! empty( ASI_AI::RECOMMENDED[ $provider ] ) ) : ?>
+							<details class="asi-models-help">
+								<summary>¿Cuáles puedo usar?</summary>
+								<p class="asi-muted">Para esto basta un modelo pequeño: la IA solo interpreta el mensaje y responde unas pocas palabras. Escribe los nombres separados por comas, en el orden en que quieres que se usen. En el plan gratis cada modelo tiene su propio límite diario, así que poner varios da más consultas.</p>
+								<table class="asi-table">
+									<thead><tr><th>Modelo</th><th>Para qué</th><th>Precio por millón de tokens</th><th>Por cada 1,000 consultas</th></tr></thead>
+									<tbody>
+									<?php foreach ( ASI_AI::RECOMMENDED[ $provider ] as $model ) : ?>
+										<tr><td><code><?php echo esc_html( $model[0] ); ?></code></td><td><?php echo esc_html( $model[1] ); ?></td><td><?php echo esc_html( $model[2] ); ?></td><td><?php echo esc_html( $model[3] ); ?></td></tr>
+									<?php endforeach; ?>
+									</tbody>
+								</table>
+								<p class="asi-muted">Precios del plan de pago al 11 nov 2026 (en el plan gratis no se cobra). Para ver todos los modelos que tiene tu cuenta, usa <strong>Probar la conexión</strong> aquí abajo; la lista completa del proveedor está en <a href="<?php echo esc_url( ASI_AI::MODELS_PAGE[ $provider ] ); ?>" target="_blank" rel="noopener">su página de modelos</a>.</p>
+							</details>
+						<?php endif; ?>
 					</fieldset>
 				<?php endforeach; ?>
 				<p><strong>Primero probar con</strong>
@@ -1654,43 +1745,8 @@ class ASI_Admin {
 			<?php endif; ?>
 		<?php $this->card_close(); ?>
 
-		<?php $this->card_open( 'Frases que interpretó la IA', 'dashicons-list-view', 'amber' ); ?>
-			<p class="asi-muted">Cada frase se le pregunta a la IA una sola vez: si alguien la vuelve a escribir, el chat ya sabe qué hacer y no gasta consultas. Si una está mal, quítala.</p>
-			<?php if ( ! $cache ) : ?>
-				<p class="asi-muted">Todavía ninguna.</p>
-			<?php else : ?>
-				<?php
-				uasort(
-					$cache,
-					function ( $a, $b ) {
-						return $b['last'] - $a['last'];
-					}
-				);
-				?>
-				<table class="asi-table">
-					<thead><tr><th>Lo que escribió</th><th>Lo que entendió</th><th>Modelo</th><th>Veces</th><th></th></tr></thead>
-					<tbody>
-					<?php foreach ( array_slice( $cache, 0, 100, true ) as $key => $row ) : ?>
-						<tr>
-							<td><span class="asi-tag asi-tag--code"><?php echo esc_html( $row['lang'] ); ?></span> <?php echo esc_html( $row['message'] ); ?>
-								<?php if ( ! empty( $row['context'] ) ) : ?><br><span class="asi-muted">después de: <?php echo esc_html( $row['context'] ); ?></span><?php endif; ?></td>
-							<td><?php echo esc_html( '' !== (string) $row['phrase'] ? $row['phrase'] : '—' ); ?>
-								<?php if ( isset( $row['changed'] ) ) : ?><br><span class="asi-tag"><?php echo $row['changed'] ? 'Corrigió al chat' : 'El chat ya lo había entendido'; ?></span><?php endif; ?></td>
-							<td><code><?php echo esc_html( $row['model'] ); ?></code></td>
-							<td><?php echo (int) $row['hits'] + 1; ?></td>
-							<td>
-								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="asi-inline-form">
-									<?php $this->hidden_fields( 'ai_forget', 'ia' ); ?>
-									<input type="hidden" name="key" value="<?php echo esc_attr( $key ); ?>">
-									<button class="button-link">Quitar</button>
-								</form>
-							</td>
-						</tr>
-					<?php endforeach; ?>
-					</tbody>
-				</table>
-				<div class="asi-actions"><?php $this->action_button( 'ai_clear', 'Vaciar la lista', 'ia' ); ?></div>
-			<?php endif; ?>
+		<?php $this->card_open( 'Lo que aprendió la IA', 'dashicons-lightbulb', 'amber' ); ?>
+			<p class="asi-muted">Todo lo que la IA interpretó queda guardado y se aplica solo (la próxima vez no gasta consultas). Se revisa, corrige o quita en <a href="<?php echo esc_url( $this->tab_url( 'aprendizaje', array( 'ver' => 'ia' ) ) ); ?>">Aprendizaje → Aprendido de la IA</a> (<?php echo (int) count( ASI_AI::cache() ); ?> en total).</p>
 		<?php $this->card_close(); ?>
 		<?php
 	}
@@ -1740,6 +1796,90 @@ class ASI_Admin {
 		echo '<input type="hidden" name="action" value="asi_action">';
 		echo '<input type="hidden" name="asi_do" value="' . esc_attr( $action ) . '">';
 		echo '<input type="hidden" name="asi_tab" value="' . esc_attr( $tab ) . '">';
+		foreach ( array( 'ver', 'pag', 'buscar' ) as $arg ) {
+			if ( isset( $_GET[ $arg ] ) && '' !== $_GET[ $arg ] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				echo '<input type="hidden" name="asi_' . esc_attr( $arg ) . '" value="' . esc_attr( sanitize_text_field( wp_unslash( $_GET[ $arg ] ) ) ) . '">'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			}
+		}
+	}
+
+	// ---------- Listas largas: 5 a la vista y "Ver todas" con páginas y buscador ----------
+
+	const LIST_PREVIEW  = 5;
+	const LIST_PER_PAGE = 20;
+
+	/** ¿Se está viendo esta lista completa? */
+	private function list_open() {
+		return isset( $_GET['ver'] ) ? sanitize_key( wp_unslash( $_GET['ver'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	}
+
+	/**
+	 * Las filas a mostrar: 5 en la pestaña; en "Ver todas", filtradas por el buscador y de 20 en 20.
+	 *
+	 * @param string   $key      Lista.
+	 * @param array    $rows     Todas las filas.
+	 * @param callable $haystack function( $row ): string — texto en el que busca el buscador.
+	 * @return array { rows, total, page, pages, query, full }
+	 */
+	private function list_slice( $key, array $rows, callable $haystack ) {
+		$full = $this->list_open() === $key;
+		if ( ! $full ) {
+			return array( 'rows' => array_slice( $rows, 0, self::LIST_PREVIEW, true ), 'total' => count( $rows ), 'page' => 1, 'pages' => 1, 'query' => '', 'full' => false );
+		}
+		$query = isset( $_GET['buscar'] ) ? trim( sanitize_text_field( wp_unslash( $_GET['buscar'] ) ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( '' !== $query ) {
+			$needle = ASI_Normalizer::normalize( $query );
+			$rows   = array_filter(
+				$rows,
+				function ( $row ) use ( $haystack, $needle ) {
+					return false !== strpos( ASI_Normalizer::normalize( (string) call_user_func( $haystack, $row ) ), $needle );
+				}
+			);
+		}
+		$total = count( $rows );
+		$pages = max( 1, (int) ceil( $total / self::LIST_PER_PAGE ) );
+		$page  = isset( $_GET['pag'] ) ? min( $pages, max( 1, (int) $_GET['pag'] ) ) : 1; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		return array( 'rows' => array_slice( $rows, ( $page - 1 ) * self::LIST_PER_PAGE, self::LIST_PER_PAGE, true ), 'total' => $total, 'page' => $page, 'pages' => $pages, 'query' => $query, 'full' => true );
+	}
+
+	/** Buscador de una lista completa. */
+	private function list_search( $tab, $key, array $list, $placeholder ) {
+		if ( ! $list['full'] ) {
+			return;
+		}
+		?>
+		<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" class="asi-list-search">
+			<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE ); ?>">
+			<input type="hidden" name="tab" value="<?php echo esc_attr( $tab ); ?>">
+			<input type="hidden" name="ver" value="<?php echo esc_attr( $key ); ?>">
+			<input type="search" name="buscar" class="regular-text" value="<?php echo esc_attr( $list['query'] ); ?>" placeholder="<?php echo esc_attr( $placeholder ); ?>">
+			<button class="button">Buscar</button>
+			<?php if ( '' !== $list['query'] ) : ?>
+				<a href="<?php echo esc_url( $this->tab_url( $tab, array( 'ver' => $key ) ) ); ?>">Quitar búsqueda</a>
+			<?php endif; ?>
+			<a class="asi-list-back" href="<?php echo esc_url( $this->tab_url( $tab ) ); ?>">← Volver a <?php echo esc_html( self::TABS[ $tab ] ?? $tab ); ?></a>
+		</form>
+		<?php
+	}
+
+	/** "Ver todas (N)" en la pestaña, o las páginas en la lista completa. */
+	private function list_footer( $tab, $key, array $list ) {
+		if ( ! $list['full'] ) {
+			if ( $list['total'] > self::LIST_PREVIEW ) {
+				echo '<p class="asi-actions"><a class="button" href="' . esc_url( $this->tab_url( $tab, array( 'ver' => $key ) ) ) . '">Ver todas (' . (int) $list['total'] . ')</a></p>';
+			}
+			return;
+		}
+		echo '<p class="asi-pager">';
+		$args = array( 'ver' => $key, 'buscar' => $list['query'] );
+		if ( $list['page'] > 1 ) {
+			echo '<a class="button" href="' . esc_url( $this->tab_url( $tab, array_merge( $args, array( 'pag' => $list['page'] - 1 ) ) ) ) . '">← Anterior</a> ';
+		}
+		echo '<span class="asi-muted">Página ' . (int) $list['page'] . ' de ' . (int) $list['pages'] . ' · ' . (int) $list['total'] . ' en total</span>';
+		if ( $list['page'] < $list['pages'] ) {
+			echo ' <a class="button" href="' . esc_url( $this->tab_url( $tab, array_merge( $args, array( 'pag' => $list['page'] + 1 ) ) ) ) . '">Siguiente →</a>';
+		}
+		echo '</p>';
 	}
 
 	private function action_button( $action, $label, $tab, $class = 'button', $icon = '' ) {

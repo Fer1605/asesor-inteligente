@@ -1069,3 +1069,10 @@
 	margin: 0 0 8px;
 	line-height: 1.55;
 }
+
+/* Listas largas: buscador y páginas. */
+.asi-list-search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+.asi-list-search .asi-list-back { margin-left: auto; }
+.asi-pager { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+.asi-models-help { margin: 4px 0 12px; }
+.asi-models-help summary { cursor: pointer; color: #2271b1; }

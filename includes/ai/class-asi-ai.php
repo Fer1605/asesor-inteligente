@@ -42,6 +42,28 @@ class ASI_AI {
 		),
 	);
 
+	/**
+	 * Modelos recomendados para esta tarea (solo interpretar, respuestas cortas), del más barato al más
+	 * caro. Precios por millón de tokens (entrada / salida) al 11 nov 2026; una consulta usa ~700 tokens.
+	 * Cualquier otro modelo del proveedor también sirve: se escribe su nombre tal cual en la lista.
+	 */
+	const RECOMMENDED = array(
+		'groq'   => array(
+			array( 'openai/gpt-oss-20b', 'El más barato que funciona bien para esto.', '$0.075 / $0.30', '≈ $0.09' ),
+			array( 'openai/gpt-oss-120b', 'Más preciso con frases enredadas; el doble de precio.', '$0.15 / $0.60', '≈ $0.18' ),
+			array( 'qwen/qwen3.8-27b', 'Sirve de respaldo en el plan gratis; en el de pago es caro.', '$0.80 / $4.00', '≈ $1.10' ),
+		),
+		'google' => array(
+			array( 'gemma-3-27b-it', 'Gratis, pero en el plan gratis Google usa los mensajes para mejorar sus productos.', 'gratis', '$0' ),
+			array( 'gemma-3-12b-it', 'Más pequeño, igual de gratis.', 'gratis', '$0' ),
+		),
+	);
+
+	const MODELS_PAGE = array(
+		'groq'   => 'https://console.groq.com/docs/models',
+		'google' => 'https://ai.google.dev/gemma/docs',
+	);
+
 	// ------------------------------------------------------------------
 	// Ajustes
 	// ------------------------------------------------------------------
@@ -466,6 +488,22 @@ class ASI_AI {
 			);
 			$cache = array_slice( $cache, 0, self::CACHE_MAX, true );
 		}
+		update_option( self::CACHE_OPTION, $cache, false );
+	}
+
+	/**
+	 * Corrección a mano de lo aprendido: desde ahora ese mensaje se entiende con esta frase.
+	 */
+	public static function edit( $key, $phrase ) {
+		$cache  = self::cache();
+		$phrase = trim( (string) $phrase );
+		if ( ! isset( $cache[ $key ] ) || '' === $phrase ) {
+			return;
+		}
+		$cache[ $key ]['phrase']  = $phrase;
+		$cache[ $key ]['changed'] = true;
+		$cache[ $key ]['edited']  = true;
+		$cache[ $key ]['last']    = time();
 		update_option( self::CACHE_OPTION, $cache, false );
 	}
 
