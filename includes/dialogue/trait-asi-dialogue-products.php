@@ -339,6 +339,8 @@ trait ASI_Dialogue_Products {
 				'focus'    => 0,
 				'selected' => array( (int) $a['post_id'], (int) $b['post_id'] ),
 				'last'     => 'compare',
+				// Qué PDF ya está a la vista: si después lo pide por correo, no se vuelve a mostrar.
+				'previewed' => $file ? array( 'action' => 'compare', 'ids' => array( (int) $a['post_id'], (int) $b['post_id'] ) ) : array(),
 				// Después de comparar se ofrece la comparación en PDF, si el sitio la tiene.
 				'offer'   => $this->runner() && isset( $this->runner()->available()['compare'] ) ? array( 'action' => 'compare', 'ids' => array( (int) $a['post_id'], (int) $b['post_id'] ) ) : array(),
 			),

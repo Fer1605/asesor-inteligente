@@ -272,3 +272,11 @@ $s19 = array( 'customer' => array( 'name' => 'Fer', 'email' => 'f@example.com', 
 $calls_before = count( $runner->calls );
 $r = $say( 'de los que me acabas de cotizar', $s19 );
 check( 'real: "de los que me acabas de cotizar" compara (no vuelve a cotizar)', array( 'compare', $calls_before ), array( $r['kind'], count( $runner->calls ) ) );
+// Si la comparativa ya se mostró en el chat, al enviarla por correo solo se confirma (no se muestra otra vez).
+$s20 = array( 'customer' => array( 'name' => 'Fer', 'email' => 'f@example.com', 'phone' => '' ), 'results' => array( 21, 20, 22, 23 ), 'shown' => array( 21, 20, 22, 23 ) );
+$r = $say( 'compara la 1 con la 2', $s20 );
+check( 'una vez: la comparativa se muestra al comparar', true, ! empty( $r['file']['url'] ) );
+$r = $say( 'sí', $s20 );
+check( 'una vez: al enviarla no se muestra otra vez', null, $r['file'] ?? null );
+check( 'una vez: solo confirma el envío', true, false !== strpos( $r['text'], 'Ya te envié la comparación' ) || false !== strpos( $r['text'], 'ya va en camino' ) );
+check( 'una vez: y sigue ofreciendo ayuda', true, '' !== $r['followup'] );

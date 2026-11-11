@@ -392,8 +392,16 @@ trait ASI_Dialogue_Actions {
 			return $reply;
 		}
 		$vars['email'] = $customer['email'];
-		$text          = array( $this->responder->say( 'compare' === $action ? 'action_done_compare' : ( count( $rows ) > 1 ? 'action_done_quote_many' : 'action_done_quote' ), $vars ) );
-		$text[]        = $this->responder->say( $result['emailed'] ? 'action_emailed' : 'action_not_emailed', $vars );
+		$seen          = ! empty( $state['previewed']['action'] ) && $action === $state['previewed']['action']
+			&& ! array_diff( $ids, (array) $state['previewed']['ids'] ) && ! array_diff( (array) $state['previewed']['ids'], $ids );
+		if ( $seen && $result['emailed'] ) {
+			// El PDF ya está arriba en el chat: solo se confirma que se envió.
+			$text = array( $this->responder->say( 'compare' === $action ? 'action_sent_compare' : 'action_sent_quote', $vars ) );
+		} else {
+			$text   = array( $this->responder->say( 'compare' === $action ? 'action_done_compare' : ( count( $rows ) > 1 ? 'action_done_quote_many' : 'action_done_quote' ), $vars ) );
+			$text[] = $this->responder->say( $result['emailed'] ? 'action_emailed' : 'action_not_emailed', $vars );
+			$seen   = false;
+		}
 		if ( ! empty( $result['test'] ) ) {
 			$text[] = $this->responder->say( 'action_test_note' );
 		}
@@ -413,7 +421,7 @@ trait ASI_Dialogue_Actions {
 		return array(
 			'kind'        => 'file',
 			'text'        => $this->sentences( $text ),
-			'file'        => array(
+			'file'        => $seen ? null : array(
 				'url'      => (string) $result['url'],
 				'name'     => (string) $result['filename'],
 				'label'    => $this->responder->say( 'compare' === $action ? 'file_label_compare' : 'file_label_quote' ),
@@ -434,6 +442,7 @@ trait ASI_Dialogue_Actions {
 					'selected' => $ids,
 					'last'     => $with ? 'finance' : $action,
 					'quoted'   => array_values( array_unique( array_merge( $state['quoted'], 'quote' === $action ? $ids : array() ) ) ),
+					'previewed' => array( 'action' => $action, 'ids' => $ids ),
 				)
 			),
 		);

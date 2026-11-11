@@ -459,6 +459,8 @@ return array(
 		'closing_door'     => array( 'Si necesitas algo más, aquí estaré. ¡Que tengas un excelente día!', 'Cuando quieras retomarlo, escríbeme por aquí. ¡Buen día!' ),
 		'compare_full_pdf'    => array( 'Aquí abajo tienes la comparativa completa en PDF, con toda la ficha técnica, seguridad y equipamiento de los dos.', 'La comparativa completa (motor, seguridad, equipamiento y más) está en el PDF de abajo.' ),
 		'compare_offer_email' => array( '¿Quieres que te envíe esta comparativa a tu correo?', '¿Te la mando a tu correo para que la tengas a mano?' ),
+		'action_sent_compare' => array( '¡Listo, {name}! Ya te envié la comparación de {titles} a tu correo ({email}).', '¡Hecho, {name}! La comparación de {titles} ya va en camino a {email}.' ),
+		'action_sent_quote'   => array( '¡Listo, {name}! Ya te envié la cotización de {titles} a tu correo ({email}).' ),
 		'results_budget' => array(
 			'Con un presupuesto {budget} tengo {n}. Te muestro primero las que más aprovechan tu presupuesto.',
 			'Para un presupuesto {budget} hay {n}. Empiezo por las más completas dentro de ese monto.',

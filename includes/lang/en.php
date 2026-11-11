@@ -366,6 +366,8 @@ return array(
 		'closing_door'     => array( 'If you need anything else, I am here. Have a great day!' ),
 		'compare_full_pdf'    => array( 'Below is the full comparison as a PDF, with all the specs, safety and features of both.' ),
 		'compare_offer_email' => array( 'Want me to email you this comparison?' ),
+		'action_sent_compare' => array( 'Done, {name}! I sent the comparison of {titles} to your email ({email}).' ),
+		'action_sent_quote'   => array( 'Done, {name}! I sent the quote for {titles} to your email ({email}).' ),
 		'results_budget' => array(
 			'With a budget {budget} I have {n}. The ones that make the most of your budget come first.',
 			'For a budget {budget} there are {n}; I start with the most complete within that amount.',
