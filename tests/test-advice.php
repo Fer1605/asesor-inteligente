@@ -342,3 +342,40 @@ foreach ( $links as $l ) {
 	$scores[ $l['number'] ] = ( isset( $scores[ $l['number'] ] ) ? $scores[ $l['number'] ] : 0 ) + ( $l['fixed'] ? 100 : 1 );
 }
 check( 'wa: el botón flotante gana aunque otro se repita', '+50232699880', ASI_WhatsApp::best( $scores ) );
+
+// Lo que el sitio no tiene, y lo que está en otros sitios del negocio (menú).
+$shop = new ASI_Test_Repository();
+$shop->add( 70, 'es', 'catalog', 'Toyota 4Runner', array( 'category' => array( 'SUV' ) ), 'Equipo: estribo, llanta de repuesto, aire acondicionado.' );
+$shop->add( 71, 'es', 'catalog', 'Nissan Frontier', array( 'category' => array( 'Pick up' ) ), 'Equipo: llanta de repuesto, duraliner.' );
+$shop->add( 72, 'es', 'info', 'Contáctanos', array(), 'Escríbenos. Atención al cliente.', array(), array( 'url' => 'https://x.test/contactanos/' ) );
+$shop->add( 73, 'es', 'info', 'Seguros', array(), 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.', array(), array( 'url' => 'https://x.test/seguros/' ) );
+$menu = array(
+	array( 'title' => 'CARRETONES', 'url' => 'https://carretones.test/', 'external' => true, 'status' => 'ok' ),
+	array( 'title' => 'NEGOCIOS SOBRE RUEDAS', 'url' => 'https://negocios.test/', 'external' => true, 'status' => 'ok' ),
+	array( 'title' => 'ACCESORIOS', 'url' => 'https://x.test/accesorios/', 'external' => false, 'status' => 'construction' ),
+);
+$nb = new ASI_Dialogue( $shop, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'site_links' => $menu, 'whatsapp' => '+50211112222' ), function () {
+	return 0;
+} );
+$r = $nb->handle( 'venden repuestos?', array() );
+check( 'no lo tenemos: "venden repuestos?" no muestra vehículos', array(), $r['cards'] );
+check( 'no lo tenemos: lo dice claro', true, false !== strpos( $r['text'], 'no contamos con' ) || false !== strpos( $r['text'], 'no tenemos' ) );
+$r = $nb->handle( 'tienen motos?', array() );
+check( 'no lo tenemos: "tienen motos?"', true, false !== strpos( $r['text'], 'motos' ) && ( false !== strpos( $r['text'], 'no contamos' ) || false !== strpos( $r['text'], 'no tenemos' ) ) );
+$r = $nb->handle( 'carros con aire acondicionado', array() );
+check( 'característica pedida sí busca', true, (bool) $r['cards'] );
+$r = $nb->handle( 'que es negocios sobre ruedas', array() );
+check( 'menú: otro sitio del negocio', array( 'https://negocios.test/' ), array_column( $r['links'], 'url' ) );
+check( 'menú: se abre aparte', true, ! empty( $r['links'][0]['external'] ) );
+check( 'menú: nombre bonito', true, false !== strpos( $r['text'], 'Negocios Sobre Ruedas' ) );
+$r = $nb->handle( 'carretones', array() );
+check( 'menú: "carretones"', array( 'https://carretones.test/' ), array_column( $r['links'], 'url' ) );
+$r = $nb->handle( 'tienen accesorios?', array() );
+check( 'menú: sección en construcción = no contamos', true, false !== strpos( $r['text'], 'Accesorios' ) && ! $r['cards'] );
+$r = $nb->handle( 'venden seguros?', array() );
+check( 'página de relleno no se ofrece', false, in_array( 'https://x.test/seguros/', array_column( $r['links'], 'url' ), true ) );
+$adv_menu = new ASI_Dialogue( $yard, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'packs' => array( $adv ), 'site_links' => $menu ), function () {
+	return 0;
+} );
+$r = $adv_menu->handle( 'que es negocios sobre ruedas', array() );
+check( 'menú: va antes que el asesor por perfil ("negocio" no es trabajo aquí)', array( 'https://negocios.test/' ), array_column( $r['links'], 'url' ) );

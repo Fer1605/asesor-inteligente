@@ -36,6 +36,14 @@
 		return /^https?:\/\//i.test( url || '' ) ? url : '#';
 	}
 
+	function isExternal( url ) {
+		try {
+			return new URL( url, window.location.href ).host !== window.location.host;
+		} catch ( e ) {
+			return false;
+		}
+	}
+
 	function load() {
 		try {
 			const saved = JSON.parse( window.localStorage.getItem( config.storageKey ) || 'null' );
@@ -336,6 +344,11 @@
 			data.links.forEach( function ( item ) {
 				const a = el( 'a', 'asi-link' );
 				a.href = safeUrl( item.url );
+				// Otros sitios (y WhatsApp) se abren en otra pestaña: el cliente no pierde la conversación.
+				if ( item.external || isExternal( a.href ) ) {
+					a.target = '_blank';
+					a.rel = 'noopener';
+				}
 				if ( item.id ) {
 					a.dataset.asiId = item.id;
 				}

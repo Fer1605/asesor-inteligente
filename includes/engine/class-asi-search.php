@@ -142,7 +142,7 @@ class ASI_Search {
 			$options
 		);
 
-		$empty = array( 'items' => array(), 'total' => 0, 'quality' => 'none', 'facets' => array(), 'brands' => array(), 'ids' => array(), 'similar' => array(), 'named' => false );
+		$empty = array( 'items' => array(), 'total' => 0, 'quality' => 'none', 'facets' => array(), 'brands' => array(), 'ids' => array(), 'similar' => array(), 'named' => false, 'body_only' => false );
 		// Sin palabras obligatorias pero con presupuesto o atributos ("camioneta del 2024", "7
 		// pasajeros 4x4"): se recorre el catálogo por atributos; el texto solo ordena.
 		$soft_only = ! empty( $query['groups'] ) && ! empty( $query['attrs'] ) && count( array_filter( array_column( $query['groups'], 'soft' ) ) ) === count( $query['groups'] );
@@ -251,6 +251,9 @@ class ASI_Search {
 			'ids'     => $ids,
 			'similar' => array_slice( $similar, 0, 4 ), // Filas con nombre parecido (si hubo nombre exacto).
 			'named'   => $named, // Lo que escribió es exactamente el nombre de un resultado.
+			// Lo pedido solo aparece dentro del texto de las fichas ("llanta de repuesto"), nunca en un
+			// nombre, categoría o marca: no es algo que el sitio venda.
+			'body_only' => ! array_filter( array_column( $pool, 'strong' ) ),
 		);
 	}
 
@@ -405,6 +408,7 @@ class ASI_Search {
 		$body  = ' ' . $row['body_norm'] . ' ';
 
 		$docs      = max( 1, isset( $vocab['docs'] ) ? (int) $vocab['docs'] : 1 );
+		$strongs   = 0;
 		$total     = 0.0;
 		$matched   = array();
 		$critical  = 0;
@@ -424,7 +428,8 @@ class ASI_Search {
 			}
 			// Un término del sitio (categoría, marca, código) solo se cumple en el título o en los términos:
 			// "filtro para tractores" en la descripción no hace que un filtro sea un tractor.
-			$strong = $best > self::BODY_POINTS;
+			$strong   = $best > self::BODY_POINTS;
+			$strongs += $strong ? 1 : 0;
 			if ( ! $group['critical'] || $strong ) {
 				$matched[] = $index;
 			}
@@ -458,6 +463,7 @@ class ASI_Search {
 			'coverage'    => $coverage,
 			'critical_ok' => $crit_hits === $critical,
 			'matched'     => $matched,
+			'strong'      => $strongs, // Grupos que aparecen en el nombre o los términos (no solo en el texto).
 		);
 	}
 

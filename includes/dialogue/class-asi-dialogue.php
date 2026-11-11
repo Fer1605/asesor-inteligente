@@ -266,6 +266,13 @@ class ASI_Dialogue {
 			return $special;
 		}
 
+		// Lo que el menú del sitio ofrece fuera del buscador: otros sitios del negocio ("Carretones",
+		// "Negocios sobre ruedas") o secciones todavía en construcción ("Accesorios").
+		$site_link = $this->site_link_flow( $normalized );
+		if ( $site_link ) {
+			return $site_link;
+		}
+
 		// Asesor: el cliente cuenta su situación ("somos 4 con un niño") o pide consejo.
 		$advice = $this->advice_flow( $message, $state );
 		if ( $advice ) {
@@ -399,8 +406,18 @@ class ASI_Dialogue {
 			return $this->unclear( $state );
 		}
 
+		// Páginas sin contenido real (relleno, agradecimientos) no son respuesta.
+		$pages['items'] = array_values( array_filter( $pages['items'], function ( $row ) {
+			return ! $this->is_utility_page( $row );
+		} ) );
+		// "¿Venden repuestos?": solo aparece dentro de las fichas ("llanta de repuesto"), nunca como
+		// nombre, categoría o marca. No es algo que el sitio venda: se dice que no lo tenemos.
+		if ( $catalog['items'] && ! empty( $catalog['body_only'] ) && 1 === count( $query['groups'] ) && ! ASI_Search::has_hard_filter( $query ) && empty( $query['attrs'] ) && ! $this->asks_feature( $text ) ) {
+			$catalog['items'] = array();
+		}
+
 		if ( ! $catalog['items'] && ! $pages['items'] ) {
-			return $this->none( $text, $intro );
+			return $this->none( $text, $intro, $query );
 		}
 
 		// Sin productos pero con páginas que hablan de eso: se responde con la página
@@ -916,11 +933,22 @@ class ASI_Dialogue {
 		);
 	}
 
-	private function none( $text, array $intro ) {
-		$intro[]  = $this->responder->say( 'none', array( 'query' => $this->short( $text ) ) );
-		$followup = array( $this->responder->say( 'none_followup' ) );
-		$links    = array();
-		$contact  = $this->info_page( 'contact' );
+	private function none( $text, array $intro, array $query = array() ) {
+		$label = isset( $query['label'] ) ? trim( (string) $query['label'] ) : '';
+		$links = array();
+		// "¿Tienen motos?", "¿venden repuestos?": la respuesta honesta es que no lo tenemos.
+		if ( '' !== $label && $this->asks_existence( $text ) ) {
+			$intro[]  = $this->responder->say( 'none_missing', array( 'label' => $label ) );
+			$followup = array( $this->responder->say( 'none_missing_followup' ) );
+			$whatsapp = $this->whatsapp_link();
+			if ( $whatsapp ) {
+				$links[] = $whatsapp;
+			}
+		} else {
+			$intro[]  = $this->responder->say( 'none', array( 'query' => $this->short( $text ) ) );
+			$followup = array( $this->responder->say( 'none_followup' ) );
+		}
+		$contact = $this->info_page( 'contact' );
 		if ( $contact ) {
 			$links[] = $contact;
 		}
@@ -1509,11 +1537,87 @@ class ASI_Dialogue {
 	}
 
 	/**
-	 * Páginas que no responden nada: agradecimientos de formularios, confirmaciones, login, favoritos.
+	 * Páginas que no responden nada: agradecimientos de formularios, confirmaciones, login, favoritos,
+	 * o con texto de relleno ("lorem ipsum").
 	 */
 	private function is_utility_page( array $row ) {
 		$text = ASI_Normalizer::normalize( ( isset( $row['card']['title'] ) ? $row['card']['title'] : '' ) . ' ' . ( isset( $row['card']['url'] ) ? preg_replace( '#[/_-]+#', ' ', (string) wp_parse_url_path( $row['card']['url'] ) ) : '' ) );
-		return '' !== ASI_Lexicon::find_phrase( $text, (array) $this->lexicon->get_list( 'utility_pages' ) );
+		if ( '' !== ASI_Lexicon::find_phrase( $text, (array) $this->lexicon->get_list( 'utility_pages' ) ) ) {
+			return true;
+		}
+		$body = isset( $row['body_norm'] ) ? ' ' . $row['body_norm'] . ' ' : '';
+		return '' !== $body && '' !== ASI_Lexicon::find_phrase( $body, (array) $this->lexicon->get_list( 'placeholder_markers' ) );
+	}
+
+	/** ¿Pregunta si tienen algo? "¿Venden repuestos?", "¿tienen motos?", "¿hay seguros?". */
+	private function asks_existence( $text ) {
+		return '' !== ASI_Lexicon::find_phrase( ASI_Normalizer::normalize( $text ), (array) $this->lexicon->get_list( 'existence_words' ) );
+	}
+
+	/** ¿Pide una característica de un vehículo? "con aire acondicionado", "que tenga cámara". */
+	private function asks_feature( $text ) {
+		return '' !== ASI_Lexicon::find_phrase( ASI_Normalizer::normalize( $text ), (array) $this->lexicon->get_list( 'feature_words' ) );
+	}
+
+	/**
+	 * Enlaces del menú que el buscador no resuelve: otros sitios del negocio o secciones sin contenido.
+	 * "¿Qué es Negocios sobre ruedas?" → su sitio; "¿tienen accesorios?" → todavía no.
+	 */
+	private function site_link_flow( $normalized ) {
+		$links = isset( $this->context['site_links'] ) ? (array) $this->context['site_links'] : array();
+		$words = preg_split( '/\s+/', trim( $normalized ), -1, PREG_SPLIT_NO_EMPTY );
+		if ( ! $links || count( $words ) > 8 ) {
+			return null;
+		}
+		$said = ' ' . ASI_Lexicon::normal_form( $normalized ) . ' ';
+		$best = null;
+		$size = 0;
+		foreach ( $links as $link ) {
+			$title = ASI_Lexicon::normal_form( ASI_Normalizer::normalize( isset( $link['title'] ) ? $link['title'] : '' ) );
+			if ( strlen( $title ) >= 4 && false !== strpos( $said, ' ' . $title . ' ' ) && strlen( $title ) > $size ) {
+				$best = $link;
+				$size = strlen( $title );
+			}
+		}
+		if ( ! $best ) {
+			return null;
+		}
+		$title = trim( (string) $best['title'] );
+		if ( function_exists( 'mb_strtoupper' ) && mb_strtoupper( $title, 'UTF-8' ) === $title ) {
+			$title = mb_convert_case( mb_strtolower( $title, 'UTF-8' ), MB_CASE_TITLE, 'UTF-8' );
+		}
+		if ( ! empty( $best['external'] ) ) {
+			$host = parse_url( (string) $best['url'], PHP_URL_HOST );
+			return array(
+				'kind'        => 'info',
+				'text'        => $this->responder->say( 'site_link_external', array( 'title' => $title ) ),
+				'followup'    => '',
+				'cards'       => array(),
+				'links'       => array( array( 'id' => 0, 'title' => $title, 'url' => (string) $best['url'], 'summary' => $host ? preg_replace( '/^www\./', '', $host ) : '', 'external' => true ) ),
+				'suggestions' => array(),
+				'more'        => false,
+				'state'       => array(),
+			);
+		}
+		$links    = array();
+		$whatsapp = $this->whatsapp_link();
+		if ( $whatsapp ) {
+			$links[] = $whatsapp;
+		}
+		$contact = $this->info_page( 'contact' );
+		if ( $contact ) {
+			$links[] = $contact;
+		}
+		return array(
+			'kind'        => 'info',
+			'text'        => $this->responder->say( 'site_link_missing', array( 'title' => $title ) ),
+			'followup'    => $this->responder->say( 'site_link_missing_followup' ),
+			'cards'       => array(),
+			'links'       => $links,
+			'suggestions' => array(),
+			'more'        => false,
+			'state'       => array(),
+		);
 	}
 
 	/** Enlace al WhatsApp de ventas (ajuste del panel), o null. */
@@ -1524,7 +1628,8 @@ class ASI_Dialogue {
 		}
 		$url = preg_match( '#^https?://#', $value ) ? $value : 'https://wa.me/' . preg_replace( '/[^0-9]/', '', $value );
 		return array(
-			'id'      => 0,
+			'id'       => 0,
+			'external' => true,
 			'title'   => 'WhatsApp',
 			'url'     => $url,
 			'summary' => preg_match( '#^https?://#', $value ) ? $this->responder->say( 'whatsapp_summary' ) : $value,

@@ -197,6 +197,10 @@ return array(
 	'about_site_words' => array( 'what', 'who', 'is', 'are', 'was', 'tell', 'me', 'us', 'about', 'info', 'information', 'more', 'know', 'little', 'bit', 'history' ),
 	'company_words'    => array( 'group', 'grupo', 'store', 'stores', 'company', 'corporation', 'corp', 'inc', 'llc', 'ltd', 'co', 'and' ),
 
+	'placeholder_markers'  => array( 'lorem ipsum', 'dolor sit amet' ),
+	'construction_markers' => array( 'under construction', 'coming soon', 'site under construction' ),
+	'existence_words' => array( 'do you sell', 'do you have', 'is there', 'are there', 'you sell', 'you have', 'do you offer', 'can i buy' ),
+	'feature_words' => array( 'with', 'that has', 'that have', 'including', 'equipped' ),
 	'utility_pages' => array( 'thank you', 'thanks', 'confirmation', 'success', 'message sent', 'login', 'my account', 'cart', 'checkout', 'favorites', 'filters', 'page not found' ),
 
 	'intents' => array(
@@ -524,6 +528,11 @@ return array(
 			'page'      => array( 'Here is what our site says about that:', 'I found this:' ),
 		),
 		'whatsapp_summary' => array( 'Message us directly on WhatsApp' ),
+		'site_link_external' => array( 'For more information about {title}, go here:' ),
+		'site_link_missing' => array( "We don't have {title} available yet; we're working on that section." ),
+		'site_link_missing_followup' => array( 'If you want more information, an advisor can help you:' ),
+		'none_missing' => array( "We don't carry {label}{en_pais} right now." ),
+		'none_missing_followup' => array( "If you're looking for a vehicle, tell me which one and I'll show you options; or message us and an advisor will help:" ),
 		'info_quote_more' => array( 'More details here:', 'You can see all the information here:' ),
 		'price_note' => array(
 			'Prices may vary; for an exact quote you can contact us here:',

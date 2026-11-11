@@ -77,7 +77,8 @@ class ASI_Indexer {
 	 * Empieza (o reinicia) el reindexado completo desde el primer post.
 	 */
 	public function start_full_reindex() {
-		ASI_WhatsApp::forget(); // El WhatsApp del sitio se vuelve a buscar.
+		ASI_WhatsApp::forget(); // El WhatsApp y los enlaces del menú se vuelven a leer.
+		ASI_Site_Links::forget();
 		update_option(
 			self::STATE_OPTION,
 			array(
@@ -186,6 +187,10 @@ class ASI_Indexer {
 		// Si cambian el pie o el botón de WhatsApp, el chat usa el número nuevo.
 		if ( isset( $post->post_type ) && 'elementor_library' === $post->post_type ) {
 			ASI_WhatsApp::forget();
+		}
+		// Un menú o una página cambió: "Accesorios" pudo dejar de estar en construcción.
+		if ( isset( $post->post_type ) && in_array( $post->post_type, array( 'nav_menu_item', 'page' ), true ) ) {
+			ASI_Site_Links::forget();
 		}
 		$schema = ASI_Schema_Discovery::get_schema();
 		if ( empty( $schema['post_types'][ $post->post_type ] ) ) {

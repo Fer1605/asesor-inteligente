@@ -232,6 +232,7 @@ class ASI_REST_Controller {
 			'actions'        => new ASI_Actions(),
 			'card_flags'     => ASI_Settings::card_flags( $context->lang ),
 			'whatsapp'       => ASI_WhatsApp::get()['value'],
+			'site_links'     => ASI_Site_Links::all( $context->language ),
 		);
 	}
 

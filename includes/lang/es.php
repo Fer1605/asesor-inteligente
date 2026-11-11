@@ -329,6 +329,14 @@ return array(
 	// (en Guatemala, las sedes de la ciudad se nombran por zona).
 	'place_aliases' => array( 'capital' => 'zona', 'la capital' => 'zona', 'guate' => 'zona', 'ciudad' => 'zona' ),
 
+	// Páginas sin contenido real: texto de relleno o en construcción.
+	'placeholder_markers'  => array( 'lorem ipsum', 'dolor sit amet' ),
+	'construction_markers' => array( 'sitio en construccion', 'pagina en construccion', 'seccion en construccion', 'en construccion', 'proximamente', 'muy pronto', 'coming soon', 'under construction' ),
+	// "¿Venden / tienen / hay …?": pregunta si el negocio tiene algo.
+	'existence_words' => array( 'venden', 'vende', 'tienen', 'tiene', 'hay', 'manejan', 'ofrecen', 'cuentan con', 'trabajan', 'venta de', 'distribuyen', 'consigo', 'puedo comprar' ),
+	// Pide una característica del vehículo, no un producto aparte.
+	'feature_words' => array( 'con', 'que tenga', 'que tengan', 'que traiga', 'que traigan', 'incluye', 'incluya', 'equipado', 'equipada' ),
+
 	// Páginas que nunca se ofrecen como respuesta (agradecimientos y confirmaciones de formularios, etc.).
 	'utility_pages' => array( 'gracias', 'thank you', 'thanks', 'confirmacion', 'enviado', 'mensaje enviado', 'exito', 'success', 'login', 'mis favoritos', 'mi cuenta', 'carrito', 'checkout', 'filters', 'pagina no encontrada' ),
 
@@ -648,6 +656,11 @@ return array(
 			'page'      => array( 'Esto dice nuestra página sobre eso:', 'Encontré esto:', 'Te comparto lo que dice el sitio:' ),
 		),
 		'whatsapp_summary' => array( 'Escríbenos directo por WhatsApp' ),
+		'site_link_external' => array( 'Para más información de {title}, ingresa aquí:', 'Todo sobre {title} lo encuentras en su sitio:' ),
+		'site_link_missing' => array( 'Por ahora no contamos con {title}; estamos trabajando en esa sección.', 'En este momento no tenemos {title} disponible; estamos trabajando en ello.' ),
+		'site_link_missing_followup' => array( 'Si quieres más información, un asesor te ayuda:' ),
+		'none_missing' => array( 'Por ahora no contamos con {label}{en_pais}.', 'En este momento no tenemos {label}{en_pais}.' ),
+		'none_missing_followup' => array( 'Si buscas un vehículo, cuéntame cuál y te muestro opciones; o escríbenos y un asesor te ayuda:' ),
 		'info_quote_more' => array( 'Más detalles aquí:', 'Aquí puedes ver toda la información:', 'La página completa está aquí:' ),
 		'price_note' => array(
 			'Los precios pueden variar; si quieres una cotización exacta, escríbenos aquí:',
