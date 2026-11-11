@@ -434,3 +434,32 @@ check( "errores de dedo: los $typo_total casos se leen igual que bien escritos",
 foreach ( array( 'quiero algo para la familia', 'es para trabajar en la finca', 'precio en quetzales', 'que no pasen de 300 mil', 'tienen sede en la capital', 'busco algo comodo' ) as $m ) {
 	check( "no corrige palabras reales: \"$m\"", array(), $an->analyze( $m )['corrections'] );
 }
+
+// La IA lee cuando el chat tuvo que adivinar o no quedó claro; no saludos ni información del sitio.
+$s = array();
+$r = $chat( 'quiero una camioneeta automatica', $s );
+check( 'adivinó (error de dedo) → lee la IA', true, ASI_AI_Interpreter::reviewable( $r, array(), 'quiero una camioneeta automatica', $sig ) );
+$s = array();
+$r = $chat( 'quiero una camioneta automatica', $s );
+check( 'todo reconocido → no gasta', false, ASI_AI_Interpreter::reviewable( $r, array(), 'quiero una camioneta automatica', $sig ) );
+$s = array();
+$r = $chat( 'una suv bonita y elegante', $s );
+check( 'palabras que no son del sitio → lee la IA', true, 'results' !== $r['kind'] || ASI_AI_Interpreter::reviewable( $r, array(), 'una suv bonita y elegante', $sig ) );
+check( 'saludo: no', false, ASI_AI_Interpreter::reviewable( array( 'kind' => 'smalltalk' ), array(), 'hola buenos dias', $sig ) );
+check( 'ubicaciones: no', false, ASI_AI_Interpreter::reviewable( array( 'kind' => 'info' ), array(), 'cuales son sus ubicaciones', $sig ) );
+
+// Preguntas al chat mal escritas: las contesta el chat, sin IA.
+foreach ( array(
+	'cuales son sus ubicaicnoes' => 'https://x.test/ubicaciones/',
+	'que sedes tienen'           => 'https://x.test/ubicaciones/',
+	'quiero ablar con un asesro' => 'https://x.test/contactanos/',
+	'como los contacot'          => 'https://x.test/contactanos/',
+) as $m => $url ) {
+	$r = $sb->handle( $m, array() );
+	check( "mal escrita, la contesta el chat: \"$m\"", array( 'info', true ), array( $r['kind'], in_array( $url, array_column( $r['links'], 'url' ), true ) ) );
+}
+$tt = array();
+check( 'mal escrita: "ruedas" no se vuelve "buenas"', 'que es negocios sobre ruedas', $an->fix_typos( 'que es negocios sobre ruedas', $tt ) );
+check( 'mal escrita: "cuatro" no se vuelve "cuanto"', 'somos cuatro', $an->fix_typos( 'somos cuatro', $tt ) );
+$r = $sb->handle( 'orario de atencion', array() );
+check( 'horario: "atención" no es un lugar', false, false !== mb_strpos( $r['text'], 'Atencion' ) || false !== mb_strpos( $r['text'], 'Atención' ) );

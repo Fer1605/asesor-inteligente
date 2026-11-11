@@ -431,7 +431,7 @@ class ASI_AI_Interpreter {
 		if ( ! isset( $response['kind'] ) || ! in_array( $response['kind'], self::REVIEW_KINDS, true ) ) {
 			return false;
 		}
-		// Búsquedas: solo con señales de riesgo.
+		// Búsquedas: la IA lee cuando el chat tuvo que adivinar o hay riesgo de malinterpretar.
 		if ( 'results' === $response['kind'] && ! self::worth_asking( $message, $response, $signals ) ) {
 			return false;
 		}
@@ -464,7 +464,8 @@ class ASI_AI_Interpreter {
 	 * @param string[] $signals  Palabras de riesgo del idioma ('ai_signals'). Vacío = siempre revisar.
 	 */
 	public static function worth_asking( $message, array $response, array $signals ) {
-		if ( ! $signals || ! empty( $response['learn'] ) ) {
+		// Las reglas tuvieron que adivinar (error de dedo, palabras que no son del sitio): lee la IA.
+		if ( ! $signals || ! empty( $response['learn'] ) || ! empty( $response['guessed'] ) ) {
 			return true;
 		}
 		$normal = ASI_Normalizer::normalize( (string) $message );

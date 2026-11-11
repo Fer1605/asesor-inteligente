@@ -200,6 +200,14 @@ class ASI_Query_Analyzer {
 			unset( $group );
 		}
 		unset( $result['attr_soft'] );
+		// Lo que tuvo que adivinar: palabras corregidas o que no son nombre, marca, categoría ni
+		// palabra del giro. Con alguna, en modo "lee todo" interpreta la IA.
+		$result['guessed'] = array_keys( $result['corrections'] );
+		foreach ( $result['groups'] as $group ) {
+			if ( '' === (string) $group['term_kind'] && 'code' !== $group['kind'] && ! isset( $this->pack_words[ $group['text'] ] ) && ! isset( $this->pack_words[ ASI_Lexicon::normal_form( $group['text'] ) ] ) ) {
+				$result['guessed'][] = $group['text'];
+			}
+		}
 		return $result;
 	}
 
@@ -436,12 +444,16 @@ class ASI_Query_Analyzer {
 	 * @param array  $typos   escrita => corregida.
 	 * @return string
 	 */
-	private function fix_typos( $message, array &$typos ) {
+	public function fix_typos( $message, array &$typos ) {
 		return preg_replace_callback(
 			'/\p{L}{5,}/u',
 			function ( $m ) use ( &$typos ) {
 				$word = ASI_Normalizer::normalize( $m[0] );
 				$base = ASI_Lexicon::normal_form( $word );
+				// Los números en letras no se corrigen ("cuatro" no es "cuanto").
+				if ( in_array( $word, (array) $this->lexicon->get_list( 'number_words' ), true ) ) {
+					return $m[0];
+				}
 				if ( '' === $word || ! preg_match( '/^[a-z]+$/', $word ) || isset( $this->vocab['tokens'][ $base ] ) || isset( $this->phrase_index[ $base ] ) || isset( $this->pack_words[ $word ] ) || isset( $this->pack_words[ $base ] ) || $this->lexicon->is_stopword( $word ) || $this->lexicon->is_known_word( $word ) || $this->lexicon->is_known_word( $base ) ) {
 					return $m[0];
 				}
@@ -454,6 +466,40 @@ class ASI_Query_Analyzer {
 			},
 			(string) $message
 		);
+	}
+
+	/**
+	 * Distancia de errores de dedo: letras de más, de menos, cambiadas o dos vecinas al revés
+	 * (cada caso cuenta 1). Se corta al pasar el máximo.
+	 */
+	private static function typo_distance( $a, $b, $max ) {
+		if ( abs( strlen( $a ) - strlen( $b ) ) > $max ) {
+			return $max + 1;
+		}
+		$n = strlen( $a );
+		$m = strlen( $b );
+		$d = array();
+		for ( $i = 0; $i <= $n; $i++ ) {
+			$d[ $i ][0] = $i;
+		}
+		for ( $j = 0; $j <= $m; $j++ ) {
+			$d[0][ $j ] = $j;
+		}
+		for ( $i = 1; $i <= $n; $i++ ) {
+			$row_min = PHP_INT_MAX;
+			for ( $j = 1; $j <= $m; $j++ ) {
+				$cost        = $a[ $i - 1 ] === $b[ $j - 1 ] ? 0 : 1;
+				$d[ $i ][ $j ] = min( $d[ $i - 1 ][ $j ] + 1, $d[ $i ][ $j - 1 ] + 1, $d[ $i - 1 ][ $j - 1 ] + $cost );
+				if ( $i > 1 && $j > 1 && $a[ $i - 1 ] === $b[ $j - 2 ] && $a[ $i - 2 ] === $b[ $j - 1 ] ) {
+					$d[ $i ][ $j ] = min( $d[ $i ][ $j ], $d[ $i - 2 ][ $j - 2 ] + 1 );
+				}
+				$row_min = min( $row_min, $d[ $i ][ $j ] );
+			}
+			if ( $row_min > $max ) {
+				return $max + 1;
+			}
+		}
+		return $d[ $n ][ $m ];
 	}
 
 	/** ¿Dos palabras iguales salvo dos letras vecinas cambiadas de lugar? ("sedna" / "sedan"). */
@@ -478,16 +524,33 @@ class ASI_Query_Analyzer {
 		if ( $this->lexicon->synonyms( $word ) ) {
 			return $word;
 		}
+		// Singular o plural de una palabra conocida no es un error ("sede" / "sedes").
+		$base = ASI_Lexicon::normal_form( $word );
+		if ( $base !== $word && ( isset( $this->vocab['tokens'][ $base ] ) || isset( $this->pack_words[ $base ] ) ) ) {
+			return $word;
+		}
+		if ( in_array( $word . 's', $this->lexicon->known_words(), true ) || in_array( $base, $this->lexicon->known_words(), true ) ) {
+			return $word;
+		}
 
 		$max_distance = $length <= 5 ? 1 : 2;
 		$best         = $word;
 		$best_score   = PHP_INT_MAX;
 
-		// Candidatas: el vocabulario del sitio y las palabras de los packs (con peso medio).
+		// Candidatas: el vocabulario del sitio, las palabras de los packs y las del propio chat
+		// ("ubicaciones", "horario", "asesor", "hablar"…), para que una pregunta mal escrita la
+		// conteste el chat sin consultar a la IA.
 		$candidates = $this->vocab['tokens'];
 		foreach ( $this->pack_words as $pack_word => $true ) {
 			if ( ! isset( $candidates[ $pack_word ] ) ) {
 				$candidates[ $pack_word ] = 500;
+			}
+		}
+		$command = array();
+		foreach ( $length >= 5 ? $this->lexicon->known_words() : array() as $lex_word ) {
+			if ( strlen( $lex_word ) >= 4 && ! isset( $candidates[ $lex_word ] ) ) {
+				$candidates[ $lex_word ] = 400;
+				$command[ $lex_word ]    = true;
 			}
 		}
 		foreach ( $candidates as $candidate => $df ) {
@@ -495,9 +558,12 @@ class ASI_Query_Analyzer {
 			if ( abs( strlen( $candidate ) - $length ) > $max_distance || strlen( $candidate ) < 4 ) {
 				continue;
 			}
-			$distance = levenshtein( $word, $candidate );
-			if ( 2 === $distance && self::is_swap( $word, $candidate ) ) {
-				$distance = 1; // Dos letras al revés cuentan como un solo error.
+			// Dos letras al revés cuentan como un solo error ("asesro", "ubicaicnoes").
+			$distance = self::typo_distance( $word, $candidate, $max_distance );
+			// Hacia una palabra del chat, más estricto: un solo error (dos en palabras largas), para no
+			// cambiar palabras normales ("ruedas" no es "buenas").
+			if ( isset( $command[ $candidate ] ) && $distance > ( $length >= 9 ? 2 : 1 ) ) {
+				continue;
 			}
 			if ( $distance > $max_distance ) {
 				continue;

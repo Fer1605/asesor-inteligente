@@ -1358,6 +1358,48 @@ class ASI_Admin {
 				<?php endif; ?>
 			<?php $this->card_close(); ?>
 
+			<?php
+			// Lo que la IA corrigió: se aplica solo (la próxima vez no gasta consultas) y aquí se puede quitar.
+			$ai_learned = array_filter(
+				class_exists( 'ASI_AI' ) ? ASI_AI::cache() : array(),
+				function ( $row ) {
+					return '' !== (string) $row['phrase'] && ( ! isset( $row['changed'] ) || $row['changed'] );
+				}
+			);
+			uasort(
+				$ai_learned,
+				function ( $a, $b ) {
+					return $b['last'] - $a['last'];
+				}
+			);
+			?>
+			<?php $this->card_open( 'Aprendido de la IA (automático)', 'dashicons-lightbulb', 'purple' ); ?>
+				<p class="asi-muted">Cada vez que el chat tuvo que adivinar y la IA lo corrigió, queda aquí y se aplica solo: si alguien vuelve a escribir lo mismo, el chat ya sabe qué hacer sin consultar a la IA. Si una está mal, quítala.</p>
+				<?php if ( ! $ai_learned ) : ?>
+					<div class="asi-empty"><span class="dashicons dashicons-lightbulb" aria-hidden="true"></span>Todavía nada.</div>
+				<?php else : ?>
+					<table class="asi-table">
+						<thead><tr><th>Lo que escribió</th><th>Lo entendió como</th><th>Veces</th><th></th></tr></thead>
+						<tbody>
+						<?php foreach ( array_slice( $ai_learned, 0, 50, true ) as $key => $row ) : ?>
+							<tr>
+								<td><?php echo esc_html( $row['message'] ); ?><?php if ( ! empty( $row['context'] ) ) : ?><br><span class="asi-muted">después de: <?php echo esc_html( $row['context'] ); ?></span><?php endif; ?></td>
+								<td><strong><?php echo esc_html( $row['phrase'] ); ?></strong></td>
+								<td><?php echo (int) $row['hits'] + 1; ?></td>
+								<td>
+									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="asi-inline-form">
+										<?php $this->hidden_fields( 'ai_forget', 'aprendizaje' ); ?>
+										<input type="hidden" name="key" value="<?php echo esc_attr( $key ); ?>">
+										<button class="button-link asi-link-danger">Quitar</button>
+									</form>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+						</tbody>
+					</table>
+				<?php endif; ?>
+			<?php $this->card_close(); ?>
+
 			<?php $this->card_open( 'Lo que más abren', 'dashicons-chart-bar', 'blue' ); ?>
 				<p class="asi-muted">Qué resultado abre la gente después de cada búsqueda. Desde 3 visitas distintas, ese resultado sube un poco cuando alguien vuelve a buscar lo mismo. Cada visitante cuenta una vez al día.</p>
 				<?php if ( ! $clicks ) : ?>

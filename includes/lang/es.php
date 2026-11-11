@@ -189,7 +189,7 @@ return array(
 	'list_words' => array( 'todas', 'todos', 'lista', 'listado', 'cuales', 'cuantas', 'cuantos', 'zonas', 'que zonas', 'todas las' ),
 
 	// Palabras genéricas de lugar: no nombran una sucursal concreta.
-	'place_words' => array( 'tienda', 'tiendas', 'sucursal', 'sucursales', 'agencia', 'agencias', 'local', 'locales', 'ubicacion', 'ubicaciones', 'oficina', 'oficinas', 'punto', 'puntos', 'entrega', 'direccion', 'zona', 'zonas', 'horario', 'horarios', 'abierto', 'abren', 'cierran', 'fisica', 'cerca', 'mapa', 'estan', 'queda', 'quedan', 'ubicados' ),
+	'place_words' => array( 'tienda', 'tiendas', 'sucursal', 'sucursales', 'agencia', 'agencias', 'local', 'locales', 'ubicacion', 'ubicaciones', 'oficina', 'oficinas', 'punto', 'puntos', 'entrega', 'direccion', 'zona', 'zonas', 'horario', 'horarios', 'abierto', 'abren', 'cierran', 'fisica', 'cerca', 'mapa', 'estan', 'queda', 'quedan', 'ubicados', 'atencion', 'atienden', 'servicio', 'cliente', 'clientes', 'dias', 'semana', 'sabado', 'sabados', 'domingo', 'domingos', 'feriado', 'feriados', 'hora', 'horas' ),
 
 	// Palabras que marcan que el mensaje refina la búsqueda anterior.
 	'refine_markers' => array( 'y', 'solo', 'solamente', 'nada mas', 'pero', 'que sea', 'que sean', 'mejor', 'y en', 'de marca', 'en color', 'con', 'sin' ),
@@ -335,6 +335,8 @@ return array(
 	// "¿Venden / tienen / hay …?": pregunta si el negocio tiene algo.
 	// "Las demás", "las que faltan": pide el resto de lo que quedó pendiente.
 	'rest_words' => array( 'la que falta', 'el que falta', 'la otra', 'el otro', 'las demas', 'los demas', 'las otras', 'los otros', 'el resto', 'las que faltan', 'los que faltan', 'las restantes', 'ver las otras', 'faltan' ),
+	// Números en letras: nunca se "corrigen".
+	'number_words' => array( 'cero', 'uno', 'una', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa', 'cien', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos', 'mil', 'millon', 'millones' ),
 	'existence_words' => array( 'venden', 'vende', 'tienen', 'tiene', 'hay', 'manejan', 'ofrecen', 'cuentan con', 'trabajan', 'venta de', 'distribuyen', 'consigo', 'puedo comprar' ),
 	// Pide una característica del vehículo, no un producto aparte.
 	'feature_words' => array( 'con', 'que tenga', 'que tengan', 'que traiga', 'que traigan', 'incluye', 'incluya', 'equipado', 'equipada' ),

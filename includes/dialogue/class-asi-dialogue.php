@@ -104,6 +104,9 @@ class ASI_Dialogue {
 		$this->random = $random;
 	}
 
+	/** @var array<string,string> Errores de dedo corregidos en este mensaje (escrita => corregida). */
+	private $typos = array();
+
 	/**
 	 * Responde un mensaje.
 	 *
@@ -123,6 +126,12 @@ class ASI_Dialogue {
 		$this->search    = new ASI_Search( $this->repository, $this->vocab, (array) $this->context['money'] );
 		$this->responder = new ASI_Responder( $this->lexicon, $this->context, $state['recent'], $this->random );
 
+		// Errores de dedo primero, antes de decidir qué pide: "cuales son sus ubicaicnoes" o "quiero
+		// ablar con un asesro" las contesta el chat sin IA. No mientras pide datos (nombres, correos).
+		$this->typos = array();
+		if ( empty( $state['pending']['action'] ) ) {
+			$message = $this->analyzer->fix_typos( $message, $this->typos );
+		}
 		$normalized = ASI_Normalizer::normalize( $message );
 		// Errores de dedo en las palabras de acción ("cuoa", "cotisacion"), antes de buscar.
 		list( $message, $normalized ) = $this->fix_action_typos( $message, $normalized );
@@ -389,6 +398,10 @@ class ASI_Dialogue {
 			return $state['results'] && ! $options ? $this->unclear( $state ) : $this->smalltalk( 'help' );
 		}
 
+		// Lo que se corrigió antes de leer el mensaje también se dice ("Lo busqué como …").
+		if ( $this->typos ) {
+			$query['corrections'] = array_merge( $this->typos, (array) $query['corrections'] );
+		}
 		$boosts  = $this->repository->boosts( $this->context['lang'], self::content_key( $this->analyzer, $this->lexicon, $text ) );
 		$catalog = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'catalog' ), 'boosts' => $boosts ) );
 		$pages   = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'info', 'article' ), 'limit' => 3 ) );
@@ -552,6 +565,9 @@ class ASI_Dialogue {
 			'suggestions' => $suggestions,
 			'more'        => $total > count( $shown ),
 			'learn'       => 'exact' === $catalog['quality'] ? '' : 'weak',
+			// Las reglas tuvieron que adivinar (corrigieron un error de dedo o quedaron palabras que no son
+			// del sitio): en modo "lee todo", la IA interpreta. No se envía al navegador.
+			'guessed'     => $this->had_to_guess( $query ),
 			'state'       => array(
 				'q'       => $this->short( $text, 200 ),
 				'focus'   => $single ? $shown[0] : 0,
@@ -1547,6 +1563,11 @@ class ASI_Dialogue {
 		}
 		$body = isset( $row['body_norm'] ) ? ' ' . $row['body_norm'] . ' ' : '';
 		return '' !== $body && '' !== ASI_Lexicon::find_phrase( $body, (array) $this->lexicon->get_list( 'placeholder_markers' ) );
+	}
+
+	/** ¿La lectura fue adivinada? (corrigió un error de dedo o quedaron palabras que no son del sitio). */
+	private function had_to_guess( array $query ) {
+		return ! empty( $query['guessed'] ) || ! empty( $this->typos );
 	}
 
 	/** ¿Pregunta si tienen algo? "¿Venden repuestos?", "¿tienen motos?", "¿hay seguros?". */

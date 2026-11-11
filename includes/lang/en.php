@@ -200,6 +200,7 @@ return array(
 	'placeholder_markers'  => array( 'lorem ipsum', 'dolor sit amet' ),
 	'construction_markers' => array( 'under construction', 'coming soon', 'site under construction' ),
 	'rest_words' => array( 'the remaining one', 'the rest', 'the others', 'the other ones', 'remaining', 'see the other' ),
+	'number_words' => array( 'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety', 'hundred', 'thousand', 'million' ),
 	'existence_words' => array( 'do you sell', 'do you have', 'is there', 'are there', 'you sell', 'you have', 'do you offer', 'can i buy' ),
 	'feature_words' => array( 'with', 'that has', 'that have', 'including', 'equipped' ),
 	'utility_pages' => array( 'thank you', 'thanks', 'confirmation', 'success', 'message sent', 'login', 'my account', 'cart', 'checkout', 'favorites', 'filters', 'page not found' ),

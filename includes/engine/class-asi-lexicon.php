@@ -146,6 +146,47 @@ class ASI_Lexicon {
 	 * Las respuestas del chat no cuentan.
 	 */
 	public function is_known_word( $word ) {
+		return isset( $this->known_words_map()[ $word ] );
+	}
+
+	/** @var string[]|null */
+	private $commands = null;
+
+	/**
+	 * Palabras de "orden" del chat: las de las intenciones (ubicaciones, horario, asesor, contacto…) y
+	 * las de acciones (cuotas, cotizar, comparar). Son las candidatas para corregir un error de dedo
+	 * en una pregunta al chat; el resto del idioma no (corregiría palabras normales).
+	 *
+	 * @return string[]
+	 */
+	public function known_words() {
+		if ( null === $this->commands ) {
+			$words = array();
+			$add   = function ( $phrase ) use ( &$words ) {
+				foreach ( explode( ' ', ASI_Normalizer::normalize( (string) $phrase ) ) as $w ) {
+					if ( strlen( $w ) >= 5 ) {
+						$words[ $w ] = true;
+					}
+				}
+			};
+			foreach ( $this->intents() as $intent ) {
+				foreach ( array( 'anchors', 'keywords' ) as $key ) {
+					foreach ( isset( $intent[ $key ] ) ? (array) $intent[ $key ] : array() as $phrase ) {
+						$add( $phrase );
+					}
+				}
+			}
+			foreach ( array( 'action_vocab', 'finance_words', 'quote_words', 'place_words' ) as $list ) {
+				foreach ( (array) $this->get_list( $list ) as $phrase ) {
+					$add( $phrase );
+				}
+			}
+			$this->commands = array_keys( $words );
+		}
+		return $this->commands;
+	}
+
+	private function known_words_map() {
 		if ( null === $this->known ) {
 			$this->known = array();
 			$skip        = array( 'responses', 'ai_phrases', 'synonyms' );
@@ -171,7 +212,7 @@ class ASI_Lexicon {
 				}
 			}
 		}
-		return isset( $this->known[ $word ] );
+		return $this->known;
 	}
 
 	/**
