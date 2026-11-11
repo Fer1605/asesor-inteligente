@@ -171,8 +171,14 @@ class ASI_REST_Controller {
 		// Modo "lee todo": además revisa cada búsqueda y corrige solo si entendió otra cosa.
 		if ( ASI_AI::enabled() ) {
 			$fin_unread = ! empty( $response['fin_unread'] );
-			$review     = 'review' === ASI_AI::settings()['mode'] && ! $fin_unread && ASI_AI_Interpreter::reviewable( $response, $state, $message, (array) ASI_Lexicon::get( $dcontext['language'] )->get_list( 'ai_signals' ) );
+			$lexicon    = ASI_Lexicon::get( $dcontext['language'] );
+			$reads_all  = 'review' === ASI_AI::settings()['mode'] && ! $fin_unread;
+			$review     = $reads_all && ASI_AI_Interpreter::reviewable( $response, $state, $message, (array) $lexicon->get_list( 'ai_signals' ) );
 			$fixed      = $review ? ASI_AI::review( $dialogue, $message, $state, $dcontext, $response ) : null;
+			// Acciones con vehículos (cuotas, cotizar, comparar): la IA revisa las opciones cuando hay riesgo.
+			if ( ! $fixed && $reads_all && ASI_AI_Interpreter::action_worth_asking( $message, $response, is_array( $state ) ? $state : array(), (array) $lexicon->get_list( 'quote_words' ), (array) $lexicon->get_list( 'ordinals' ) ) ) {
+				$fixed = ASI_AI::review_action( $dialogue, $message, $state, $dcontext, $response );
+			}
 			if ( ! $fixed && ( $fin_unread || ASI_AI_Interpreter::needs_help( $response ) ) ) {
 				$fixed = ASI_AI::rescue( $dialogue, $message, $state, $dcontext, $fin_unread );
 			}

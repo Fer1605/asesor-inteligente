@@ -98,7 +98,8 @@ trait ASI_Dialogue_Actions {
 					return $this->start_action( 'quote', $picked, $state );
 				}
 			}
-			if ( ! $comparing && $this->words_in( $normalized, 'yes_words' ) && str_word_count( $normalized ) <= 5 ) {
+			$rest_asked = 'finance' === $state['offer']['action'] && $this->words_in( $normalized, 'rest_words' ) && str_word_count( $normalized ) <= 6;
+			if ( ! $comparing && ( $rest_asked || ( $this->words_in( $normalized, 'yes_words' ) && str_word_count( $normalized ) <= 5 ) ) ) {
 				if ( 'finance' === $state['offer']['action'] ) {
 					$finance = $this->finance_flow( $state['offer']['ids'], $message, $normalized, $state );
 					if ( $finance ) {
@@ -245,6 +246,16 @@ trait ASI_Dialogue_Actions {
 		$tokens   = explode( ' ', $normalized );
 		$by_order = array();
 		$in_list  = -2; // Posición del último número aceptado: "la 2, 6 y 1" sigue la lista.
+		// Una lista puede empezar justo después de la acción: "cuotas 1, 2 y 3", "cotízame 4 y 5".
+		$heads = array();
+		foreach ( array( 'finance_words', 'quote_words', 'action_vocab' ) as $list ) {
+			foreach ( (array) $this->lexicon->get_list( $list ) as $phrase ) {
+				$phrase = ASI_Normalizer::normalize( $phrase );
+				if ( false === strpos( $phrase, ' ' ) ) {
+					$heads[ $phrase ] = true;
+				}
+			}
+		}
 		foreach ( $tokens as $position => $token ) {
 			if ( ! isset( $ordinals[ $token ] ) || ! $state['results'] ) {
 				continue;
@@ -253,7 +264,7 @@ trait ASI_Dialogue_Actions {
 			// Un número suelto es una tarjeta si va con "la/el/y", si sigue a otro número de la lista
 			// ("la 2, 6 y 1") o si el mensaje es para cotizar ("cotízame 1 y 3"), y solo hasta la
 			// cantidad de tarjetas mostradas.
-			$listed = $in_list === $position - 1;
+			$listed = $in_list === $position - 1 || isset( $heads[ $previous ] );
 			// "Cuotas de 1, 2 y 3" sí; "de 2 años" o "de 5 mil" no.
 			$next   = isset( $tokens[ $position + 1 ] ) ? $tokens[ $position + 1 ] : '';
 			$of     = 'de' === $previous && ! preg_match( '/^(anos?|meses?|mil|k|millones?|years?|months?|por|%)$/', $next );
@@ -511,7 +522,10 @@ trait ASI_Dialogue_Actions {
 			return null;
 		}
 		$left = max( 0, count( $block['ids'] ) - self::FINANCE_COLUMNS );
+		$rest = array();
 		if ( $left ) {
+			// Pidió más de 4: van las primeras 4 y las demás quedan listas para "sí" / "las demás".
+			$rest  = array_slice( $block['ids'], self::FINANCE_COLUMNS );
 			$block = $this->finance_block( array_slice( $block['ids'], 0, self::FINANCE_COLUMNS ), $message, $normalized );
 		}
 		// "¿Cómo es el financiamiento?": además de las cuotas, la página del sitio.
@@ -528,15 +542,15 @@ trait ASI_Dialogue_Actions {
 			'text'        => $block['text'],
 			'table'       => $block['table'],
 			'cards'       => $this->cards( $block['rows'] ),
-			'followup'    => $this->sentences( array( $left ? $this->responder->say( 'finance_more_columns', array( 'n' => $left ) ) : '', $this->responder->say( 'finance_other_down', $block['vars'] ), $this->currency_hint(), $offer ? $this->responder->say( 'finance_offer_quote_short' ) : '' ) ),
+			'followup'    => $this->sentences( array( $left ? $this->responder->say( 1 === $left ? 'finance_more_columns_one' : 'finance_more_columns', array( 'n' => $left ) ) : '', $this->responder->say( 'finance_other_down', $block['vars'] ), $this->currency_hint(), $offer ? $this->responder->say( 'finance_offer_quote_short' ) : '' ) ),
 			'links'       => $links,
-			'suggestions' => array_merge( $offer ? array( $this->responder->say( 'finance_quote_chip' ) ) : array(), $block['chips'] ),
+			'suggestions' => array_merge( $rest ? array( $this->responder->say( 1 === count( $rest ) ? 'finance_rest_chip_one' : 'finance_rest_chip', array( 'n' => count( $rest ) ) ) ) : array(), $offer ? array( $this->responder->say( 'finance_quote_chip' ) ) : array(), $block['chips'] ),
 			'more'        => false,
 			// Se conservan los resultados: después se puede seguir con "compara el primero y el segundo".
 			'state'       => array(
 				'focus'    => $block['ids'][0],
 				'fin_ids'  => $block['ids'],
-				'offer'    => $offer ? array( 'action' => 'quote', 'ids' => $block['ids'] ) : array(),
+				'offer'    => $rest ? array( 'action' => 'finance', 'ids' => $rest ) : ( $offer ? array( 'action' => 'quote', 'ids' => $block['ids'] ) : array() ),
 				'selected' => count( $block['ids'] ) > 1 ? $block['ids'] : ( $state['selected'] ? $state['selected'] : $block['ids'] ),
 				'last'     => 'finance',
 			),

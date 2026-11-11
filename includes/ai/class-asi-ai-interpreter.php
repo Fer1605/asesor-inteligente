@@ -700,6 +700,127 @@ class ASI_AI_Interpreter {
 		return $out;
 	}
 
+	// ------------------------------------------------------------------
+	// Modo "lee todo": acciones con vehículos (cuotas, cotizar, comparar)
+	// ------------------------------------------------------------------
+
+	/**
+	 * Qué hicieron las reglas con las opciones: acción y vehículos.
+	 *
+	 * @return array|null { action: finance|quote|compare, ids: int[] }
+	 */
+	public static function rules_action( array $response ) {
+		$state = isset( $response['state'] ) && is_array( $response['state'] ) ? $response['state'] : array();
+		if ( ! empty( $state['pending']['action'] ) && 'quote' === $state['pending']['action'] ) {
+			return array( 'action' => 'quote', 'ids' => array_map( 'intval', (array) $state['pending']['ids'] ) );
+		}
+		$kind = isset( $response['kind'] ) ? $response['kind'] : '';
+		if ( 'finance' === $kind && ! empty( $state['fin_ids'] ) ) {
+			// Más de 4: las que quedaron pendientes para "sí" también cuentan como leídas.
+			$rest = ! empty( $state['offer']['action'] ) && 'finance' === $state['offer']['action'] ? (array) $state['offer']['ids'] : array();
+			return array( 'action' => 'finance', 'ids' => array_map( 'intval', array_merge( (array) $state['fin_ids'], $rest ) ) );
+		}
+		if ( 'compare' === $kind && ! empty( $state['selected'] ) ) {
+			return array( 'action' => 'compare', 'ids' => array_map( 'intval', (array) $state['selected'] ) );
+		}
+		return null;
+	}
+
+	/**
+	 * ¿Vale la pena que la IA revise esta acción? Solo con riesgo de haber tomado mal las opciones:
+	 * - nombra dos o más opciones ("la 2, 6 y 1", "la primera y la quinta"),
+	 * - o las reglas empezaron una cotización sin que dijera "cotizar" ("¿y la 6?").
+	 *
+	 * @param string[]       $quote_words Palabras de cotizar del idioma.
+	 * @param array<string,int> $ordinals Ordinales del idioma ("tercera" => 3).
+	 */
+	public static function action_worth_asking( $message, array $response, array $state, array $quote_words, array $ordinals ) {
+		$done    = self::rules_action( $response );
+		$visible = isset( $state['results'] ) ? count( (array) $state['results'] ) : 0;
+		if ( ! $done || $visible < 2 || '' === self::scrub( $message ) ) {
+			return false;
+		}
+		$normal = ASI_Normalizer::normalize( (string) $message );
+		$refs   = 0;
+		foreach ( preg_split( '/\s+/', $normal, -1, PREG_SPLIT_NO_EMPTY ) as $token ) {
+			if ( ( ctype_digit( $token ) && (int) $token >= 1 && (int) $token <= $visible ) || ( ! ctype_digit( $token ) && isset( $ordinals[ $token ] ) ) ) {
+				$refs++;
+			}
+		}
+		if ( $refs >= 2 ) {
+			return true;
+		}
+		if ( 'quote' === $done['action'] ) {
+			foreach ( $quote_words as $word ) {
+				$word = ASI_Normalizer::normalize( (string) $word );
+				if ( '' !== $word && false !== strpos( ' ' . $normal . ' ', ' ' . $word . ' ' ) ) {
+					return false;
+				}
+			}
+			return ! preg_match( '/(^|\s)cotiz/', $normal );
+		}
+		return false;
+	}
+
+	/**
+	 * ¿Se corrige a las reglas con lo que entendió la IA? Solo en dos casos claros:
+	 * - misma acción, pero la IA vio más opciones y las de las reglas están todas incluidas
+	 *   ("cuotas de la 2, 6 y 1": las reglas vieron 2 y 1, la IA 2, 6 y 1);
+	 * - las reglas empezaron una cotización y la IA ve cuotas o detalle ("¿y la 6?").
+	 *
+	 * @param array $done    rules_action().
+	 * @param array $intent  parse() de la IA.
+	 * @param int[] $visible Ids a la vista, en orden.
+	 */
+	public static function action_override( array $done, array $intent, array $visible ) {
+		$ai_ids = array();
+		if ( 'all' === $intent['items'] ) {
+			$ai_ids = array_map( 'intval', $visible );
+		} else {
+			foreach ( (array) $intent['items'] as $n ) {
+				if ( isset( $visible[ $n - 1 ] ) ) {
+					$ai_ids[] = (int) $visible[ $n - 1 ];
+				}
+			}
+		}
+		if ( $intent['action'] === $done['action'] ) {
+			return count( $ai_ids ) > count( $done['ids'] ) && ! array_diff( $done['ids'], $ai_ids );
+		}
+		return 'quote' === $done['action'] && in_array( $intent['action'], array( 'finance', 'detail' ), true );
+	}
+
+	/**
+	 * Revisión completa de una acción ya contestada por las reglas.
+	 *
+	 * @return array { response|null, phrase, model, asked }
+	 */
+	public static function review_action( ASI_Dialogue $dialogue, $message, array $state, array $response, array $titles, array $actions, array $phrases, callable $ask, $site = '', $cached = null ) {
+		$out     = array( 'response' => null, 'phrase' => '', 'model' => '', 'asked' => false );
+		$done    = self::rules_action( $response );
+		$visible = array_map( 'intval', isset( $state['results'] ) ? (array) $state['results'] : array() );
+		if ( ! $done || ! $titles ) {
+			return $out;
+		}
+		if ( null !== $cached ) {
+			$phrase = (string) $cached;
+		} else {
+			$answer = call_user_func( $ask, self::prompt( self::scrub( $message ), $titles, $actions, $site, 'Contexto: el cliente acaba de ver una lista numerada; si nombra varias opciones (por número u ordinal), pon TODAS en "items". "¿Y la 6?" justo después de ver cuotas es pedir las cuotas de la 6, no cotizar.' ) );
+			if ( ! is_array( $answer ) || empty( $answer['text'] ) ) {
+				return $out;
+			}
+			$out['asked'] = true;
+			$out['model'] = isset( $answer['model'] ) ? $answer['model'] : '';
+			$intent       = self::parse( $answer['text'], count( $titles ), $actions, self::scrub( $message ) );
+			$phrase       = $intent && self::action_override( $done, $intent, array_slice( $visible, 0, count( $titles ) ) ) ? self::phrase( $intent, $phrases ) : '';
+		}
+		$out['phrase'] = $phrase;
+		if ( '' === $phrase ) {
+			return $out;
+		}
+		$out['response'] = self::try_phrase( $dialogue, $message, $phrase, $state );
+		return $out;
+	}
+
 	/**
 	 * Pasa una frase (de la IA o de la caché) por las reglas. Null si tampoco la entienden.
 	 */

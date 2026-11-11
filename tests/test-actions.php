@@ -295,7 +295,7 @@ check( 'jefe: "cuots de estas" también', 'finance', $r['kind'] );
 $sj = array( 'results' => array( 21, 20, 22, 23, 1, 2 ), 'shown' => array( 21, 20, 22, 23, 1, 2 ) );
 $r = $say( 'las cuotas de todas', $sj );
 check( 'jefe: con más de 4, las 4 primeras', 5, isset( $r['table']['head'] ) ? count( $r['table']['head'] ) : 0 );
-check( 'jefe: y dice que pida las otras', true, false !== strpos( $r['followup'], 'cuáles otras' ) );
+check( 'jefe: y ofrece las otras', true, false !== strpos( $r['followup'], 'las otras' ) );
 $sj = $four;
 $r = $say( 'como es el financiamiento', $sj );
 check( 'jefe: "cómo es el financiamiento" con opciones a la vista = cuotas', 'finance', $r['kind'] );
@@ -520,3 +520,51 @@ foreach ( array( 'cuotas de la 1, 3, 5', 'cuotas de 1, 2 y 3', 'cuotas de la pri
 	$r = $say8( $m, $s );
 	check( "lista: \"$m\" = tres", 3, count( $s['fin_ids'] ) );
 }
+
+// Listas: todas las combinaciones de 2 a 4 opciones de 8, en 8 formas de escribirlas (1,232 casos).
+require __DIR__ . '/lists-sweep.inc';
+
+// Más de 4 (lo que pidió el jefe): "1, 2, 5, 6 y 8" = las primeras 4 y la 8 lista para "sí" / "las demás".
+$s = array();
+$say8( 'pick up', $s );
+$r = $say8( 'cuotas de la 1, 2, 5, 6 y 8', $s );
+check( 'cinco: tabla con las primeras 4', array( $vis[0], $vis[1], $vis[4], $vis[5] ), $s['fin_ids'] );
+check( 'cinco: avisa que falta una', true, false !== strpos( $r['followup'], 'la que falta' ) );
+check( 'cinco: botón para verla', 'Ver la que falta', $r['suggestions'][0] );
+check( 'cinco: la IA no la cuenta como olvidada', array( $vis[0], $vis[1], $vis[4], $vis[5], $vis[7] ), ASI_AI_Interpreter::rules_action( $r )['ids'] );
+$r = $say8( 'Ver la que falta', $s );
+check( 'cinco: "ver las otras" = la 8', array( $vis[7] ), $s['fin_ids'] );
+$s = array();
+$say8( 'pick up', $s );
+$say8( 'cuotas 1, 3, 4, 5, 6 y 8', $s );
+$r = $say8( 'si', $s );
+check( 'seis: "sí" = las 2 que faltaban', array( $vis[6 - 1], $vis[7] ), $s['fin_ids'] );
+
+// La IA revisa acciones con vehículos (IA simulada).
+$ord   = ASI_Lexicon::get( 'es' )->get_list( 'ordinals' );
+$qw    = ASI_Lexicon::get( 'es' )->get_list( 'quote_words' );
+$ph    = ASI_Lexicon::get( 'es' )->get_list( 'ai_phrases' );
+$seen  = array( 'results' => $vis );
+$fin2  = array( 'kind' => 'finance', 'state' => array( 'fin_ids' => array( $vis[1], $vis[0] ) ) );
+$quo   = array( 'kind' => 'smalltalk', 'state' => array( 'pending' => array( 'action' => 'quote', 'ids' => array( $vis[5] ) ) ) );
+check( 'acciones: lista de opciones se revisa', true, ASI_AI_Interpreter::action_worth_asking( 'cuotas de la 2, 6 y 1', $fin2, $seen, $qw, $ord ) );
+check( 'acciones: una sola opción no gasta', false, ASI_AI_Interpreter::action_worth_asking( 'cuotas de la 2', $fin2, $seen, $qw, $ord ) );
+check( 'acciones: cotización que no pidió se revisa', true, ASI_AI_Interpreter::action_worth_asking( 'y la 6?', $quo, $seen, $qw, $ord ) );
+check( 'acciones: cotización pedida no gasta', false, ASI_AI_Interpreter::action_worth_asking( 'cotizame la 6', $quo, $seen, $qw, $ord ) );
+check( 'acciones: la IA vio más opciones = corrige', true, ASI_AI_Interpreter::action_override( ASI_AI_Interpreter::rules_action( $fin2 ), array( 'action' => 'finance', 'items' => array( 2, 6, 1 ) ), $vis ) );
+check( 'acciones: la IA vio menos = no corrige', false, ASI_AI_Interpreter::action_override( ASI_AI_Interpreter::rules_action( $fin2 ), array( 'action' => 'finance', 'items' => array( 2 ) ), $vis ) );
+check( 'acciones: la IA vio otras = no corrige', false, ASI_AI_Interpreter::action_override( ASI_AI_Interpreter::rules_action( $fin2 ), array( 'action' => 'finance', 'items' => array( 3, 4, 5 ) ), $vis ) );
+check( 'acciones: cotización por error → cuotas', true, ASI_AI_Interpreter::action_override( ASI_AI_Interpreter::rules_action( $quo ), array( 'action' => 'finance', 'items' => array( 6 ) ), $vis ) );
+// Completo: las reglas (simuladas) vieron 2 y 1; la IA, 2, 6 y 1 → tabla con tres.
+$s = array();
+$say8( 'pick up', $s );
+$titles8 = array();
+foreach ( $shop8->rows( 'es', $vis ) as $row ) {
+	$titles8[ array_search( (int) $row['post_id'], $vis, true ) ] = $row['title'];
+}
+ksort( $titles8 );
+$ask = function () {
+	return array( 'text' => '{"action":"finance","items":[2,6,1]}', 'model' => 'fake' );
+};
+$out = ASI_AI_Interpreter::review_action( $bot8, 'cuotas de la 2, 6 y 1', $s, $fin2, array_values( $titles8 ), array( 'finance', 'quote', 'compare', 'detail' ), $ph, $ask );
+check( 'acciones: corregida con la IA = tres columnas', 4, count( $out['response']['table']['head'] ) );

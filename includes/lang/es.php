@@ -333,6 +333,8 @@ return array(
 	'placeholder_markers'  => array( 'lorem ipsum', 'dolor sit amet' ),
 	'construction_markers' => array( 'sitio en construccion', 'pagina en construccion', 'seccion en construccion', 'en construccion', 'proximamente', 'muy pronto', 'coming soon', 'under construction' ),
 	// "¿Venden / tienen / hay …?": pregunta si el negocio tiene algo.
+	// "Las demás", "las que faltan": pide el resto de lo que quedó pendiente.
+	'rest_words' => array( 'la que falta', 'el que falta', 'la otra', 'el otro', 'las demas', 'los demas', 'las otras', 'los otros', 'el resto', 'las que faltan', 'los que faltan', 'las restantes', 'ver las otras', 'faltan' ),
 	'existence_words' => array( 'venden', 'vende', 'tienen', 'tiene', 'hay', 'manejan', 'ofrecen', 'cuentan con', 'trabajan', 'venta de', 'distribuyen', 'consigo', 'puedo comprar' ),
 	// Pide una característica del vehículo, no un producto aparte.
 	'feature_words' => array( 'con', 'que tenga', 'que tengan', 'que traiga', 'que traigan', 'incluye', 'incluya', 'equipado', 'equipada' ),
@@ -506,7 +508,10 @@ return array(
 		'finance_row_down'     => array( 'Enganche' ),
 		'finance_down_chip'    => array( 'Enganche de {pct}' ),
 		'finance_quote_chip'   => array( 'Envíame la cotización' ),
-		'finance_more_columns' => array( 'Te muestro las primeras 4 para que se lean bien; dime cuáles otras quieres y te las calculo.' ),
+		'finance_more_columns' => array( 'Te muestro las primeras 4 para que se lean bien; las otras {n} te las calculo enseguida si me dices “sí”.' ),
+		'finance_rest_chip'    => array( 'Ver las otras {n}' ),
+		'finance_more_columns_one' => array( 'Te muestro las primeras 4 para que se lean bien; la que falta te la calculo enseguida si me dices “sí”.' ),
+		'finance_rest_chip_one'    => array( 'Ver la que falta' ),
 		'unclear_visible'      => array( 'No estoy seguro de haberte entendido. ¿Quieres las cuotas de estas opciones, cotizarlas, compararlas o buscar otra cosa?' ),
 		'unclear_chip_finance' => array( 'Cuotas de cada una' ),
 		'unclear_chip_quote'   => array( 'Cotizar todas' ),

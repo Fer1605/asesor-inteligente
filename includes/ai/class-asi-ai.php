@@ -204,6 +204,47 @@ class ASI_AI {
 		return self::mark( $result['response'], $result['phrase'], $model, null !== $cached );
 	}
 
+	/**
+	 * Modo "lee todo", acciones: la IA revisa qué opciones y qué acción tomaron las reglas.
+	 *
+	 * @return array|null Respuesta corregida, o null si se queda la de las reglas.
+	 */
+	public static function review_action( ASI_Dialogue $dialogue, $message, array $state, array $context, array $response ) {
+		$ids     = isset( $state['results'] ) && is_array( $state['results'] ) ? array_slice( array_values( array_filter( array_map( 'intval', $state['results'] ) ) ), 0, ASI_AI_Interpreter::MAX_VISIBLE ) : array();
+		$titles  = self::titles( $context['lang'], $ids );
+		$phrases = (array) ASI_Lexicon::get( $context['language'] )->get_list( 'ai_phrases' );
+		$key     = 'a|' . $context['lang'] . '|' . md5( implode( ',', $ids ) . '|' . ( isset( $state['last'] ) ? $state['last'] : '' ) ) . '|' . ASI_Normalizer::normalize( ASI_AI_Interpreter::scrub( $message ) );
+		$actions = array( 'finance', 'detail' );
+		$runner  = isset( $context['actions'] ) && $context['actions'] instanceof ASI_Action_Runner ? $context['actions'] : null;
+		foreach ( array_keys( $runner ? (array) $runner->available() : array() ) as $action ) {
+			if ( in_array( $action, array( 'quote', 'compare' ), true ) ) {
+				$actions[] = $action;
+			}
+		}
+		$cache  = self::cache();
+		$cached = isset( $cache[ $key ] ) ? (string) $cache[ $key ]['phrase'] : null;
+		$result = ASI_AI_Interpreter::review_action( $dialogue, $message, $state, $response, $titles, $actions, $phrases, array( __CLASS__, 'ask' ), isset( $context['site_name'] ) ? $context['site_name'] : '', $cached );
+		if ( null !== $cached ) {
+			$cache[ $key ]['hits'] = (int) $cache[ $key ]['hits'] + 1;
+			$cache[ $key ]['last'] = time();
+			update_option( self::CACHE_OPTION, $cache, false );
+		} elseif ( $result['asked'] ) {
+			$cache[ $key ] = array(
+				'lang'    => $context['lang'],
+				'message' => ASI_AI_Interpreter::scrub( $message ),
+				'context' => 'opciones a la vista',
+				'phrase'  => $result['phrase'],
+				'changed' => null !== $result['response'],
+				'model'   => $result['model'],
+				'hits'    => 0,
+				'time'    => time(),
+				'last'    => time(),
+			);
+			self::save_cache( $cache );
+		}
+		return $result['response'] ? self::mark( $result['response'], $result['phrase'], null !== $cached ? $cache[ $key ]['model'] : $result['model'], null !== $cached ) : null;
+	}
+
 	/** Nota técnica en la respuesta (solo la ve un administrador en la pestaña Probar). */
 	private static function mark( array $response, $phrase, $model, $cached ) {
 		if ( function_exists( 'current_user_can' ) && current_user_can( 'manage_options' ) ) {
