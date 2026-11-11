@@ -92,6 +92,7 @@ trait ASI_Dialogue_Actions {
 				$picked = $this->action_targets( $message, $normalized, $state, false );
 				if ( $picked ) {
 					$state['with_finance'] = $this->words_in( $normalized, 'finance_words' );
+				$state['finance_text'] = $this->finance_terms_text( $message );
 					return $this->start_action( 'quote', $picked, $state );
 				}
 			}
@@ -155,6 +156,7 @@ trait ASI_Dialogue_Actions {
 			$targets = array_slice( $this->action_targets( $message, $normalized, $state ), 0, max( 1, $max ) );
 			if ( $targets ) {
 				$state['with_finance'] = $this->words_in( $normalized, 'finance_words' );
+				$state['finance_text'] = $this->finance_terms_text( $message );
 				return $this->start_action( 'quote', $targets, $state );
 			}
 			if ( count( $state['results'] ) > 1 ) {
@@ -370,7 +372,8 @@ trait ASI_Dialogue_Actions {
 	 */
 	private function start_action( $action, array $ids, array $state ) {
 		if ( ! empty( $state['with_finance'] ) ) {
-			$state['pending'] = array( 'action' => $action, 'ids' => $ids, 'with' => 'finance' );
+			// El enganche y el plazo que pidió ("a un 45 % de enganche") viajan con la cotización.
+			$state['pending'] = array( 'action' => $action, 'ids' => $ids, 'with' => 'finance', 'fin' => isset( $state['finance_text'] ) ? (string) $state['finance_text'] : '' );
 		}
 		return $this->continue_action( $action, $ids, $state['customer'], $state );
 	}
@@ -384,7 +387,7 @@ trait ASI_Dialogue_Actions {
 			},
 			$rows
 		);
-		$pending = array( 'action' => $action, 'ids' => $ids, 'with' => isset( $state['pending']['with'] ) ? $state['pending']['with'] : '' );
+		$pending = array( 'action' => $action, 'ids' => $ids, 'with' => isset( $state['pending']['with'] ) ? $state['pending']['with'] : '', 'fin' => isset( $state['pending']['fin'] ) ? (string) $state['pending']['fin'] : '' );
 		$vars    = array(
 			'title'  => $titles ? $titles[0] : '',
 			'titles' => $this->responder->join_list( $titles, 'and' ),
@@ -437,7 +440,7 @@ trait ASI_Dialogue_Actions {
 		$chips  = array();
 		$with   = isset( $state['pending']['with'] ) && 'finance' === $state['pending']['with'];
 		if ( $with ) {
-			$block = $this->finance_block( $ids, '', '' );
+			$block = $this->finance_block( $ids, isset( $state['pending']['fin'] ) ? (string) $state['pending']['fin'] : '', '' );
 			if ( $block ) {
 				$text[] = $block['text'];
 				$table  = $block['table'];
@@ -526,6 +529,27 @@ trait ASI_Dialogue_Actions {
 	 *
 	 * @return array|null { text, table, rows, ids, vars }
 	 */
+	/**
+	 * Solo la parte del mensaje con el enganche y el plazo ("45 %", "100 mil de enganche",
+	 * "48 meses"), para recordarla mientras el chat pide los datos de la cotización. Lo calcula igual
+	 * el servidor con el precio del sitio y respeta el enganche mínimo.
+	 */
+	private function finance_terms_text( $message ) {
+		$text  = ASI_Money::fold( (string) $message );
+		$parts = array();
+		$patterns = array(
+			'/[0-9]{1,2}(?:[.,][0-9])?\s*%/',
+			'/(?:enganche|prima|inicial|down payment)\D{0,12}?(?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?|(?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?\s*(?:de\s+)?(?:enganche|prima|inicial)/',
+			'/[0-9]{2}\s*(?:meses|months)|[1-9]\s*(?:anos|ano|years?)/',
+		);
+		foreach ( $patterns as $pattern ) {
+			if ( preg_match( $pattern, $text, $m ) ) {
+				$parts[] = trim( $m[0] );
+			}
+		}
+		return substr( preg_replace( '/[^a-z0-9 %.,$]/', '', implode( ' ', $parts ) ), 0, 60 );
+	}
+
 	private function finance_block( array $ids, $message, $normalized ) {
 		$money = ASI_Money::config( (array) $this->context['money'] );
 		$text  = ASI_Money::fold( (string) $message );

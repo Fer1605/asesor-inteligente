@@ -359,3 +359,13 @@ check( 'mini chat: "cotízame la 3" sigue cotizando', array( 22 ), $sm['pending'
 $sm = array_merge( $four, array( 'pending' => array( 'action' => 'quote', 'ids' => array( 22 ), 'with' => '' ) ) );
 $r = $say( 'dije cuoas', $sm );
 check( 'mini chat: "dije cuotas" con la cotización a medias = cuotas de ese vehículo', array( 'finance', 2 ), array( $r['kind'], count( $r['table']['head'] ?? array() ) ) );
+
+// Mini chat 2 (11-nov): "la cotización del 4 con sus cuotas a un 45 % de enganche" → cuotas al 45 %, no al 20 %.
+$sm = $four;
+$r = $say( 'madname la cotización del 4 con sus cuotas a un 45% de enganche', $sm );
+check( 'mini chat 2: pide los datos para cotizar el 4', array( 23 ), $sm['pending']['ids'] ?? array() );
+$r = $say( 'fer f@example.com', $sm );
+check( 'mini chat 2: con los datos, cotiza y las cuotas van al 45 %', array( 'file', 'Enganche (45 %)' ), array( $r['kind'], $r['table']['rows'][1][0] ?? '' ) );
+$sm = array_merge( $four, array( 'customer' => array( 'name' => 'Fer', 'email' => 'f@example.com', 'phone' => '' ) ) );
+$r = $say( 'cotizame la 2 con cuotas a 48 meses con 100 mil de enganche', $sm );
+check( 'mini chat 2: con datos ya dados, enganche y plazo que pidió', array( 'Q 100,000', '48 meses' ), array( $r['table']['rows'][1][1] ?? '', $r['table']['rows'][2][0] ?? '' ) );

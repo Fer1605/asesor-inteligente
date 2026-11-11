@@ -1489,6 +1489,7 @@ class ASI_Dialogue {
 			'action' => $action['action'],
 			'ids'    => $ints( isset( $action['ids'] ) ? $action['ids'] : array(), 8 ),
 			'with'   => isset( $action['with'] ) && 'finance' === $action['with'] ? 'finance' : '',
+			'fin'    => isset( $action['fin'] ) && is_string( $action['fin'] ) ? substr( preg_replace( '/[^a-z0-9 %.,$]/', '', strtolower( $action['fin'] ) ), 0, 60 ) : '',
 		);
 	}
 
