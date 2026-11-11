@@ -129,6 +129,10 @@ trait ASI_Dialogue_Actions {
 			if ( ! $targets && ! empty( $state['was_pending'] ) ) {
 				$targets = array_map( 'intval', $state['was_pending'] );
 			}
+			// "Con 100 mil de enganche", "a 48 meses" sin nombrar vehículos: la última tabla que vio.
+			if ( ! $targets && in_array( $state['last'], array( 'finance', 'quote' ), true ) && $state['fin_ids'] ) {
+				$targets = $state['fin_ids'];
+			}
 			if ( ! $targets && count( $state['selected'] ) > 1 ) {
 				$targets = $state['selected'];
 			}
@@ -476,6 +480,7 @@ trait ASI_Dialogue_Actions {
 					'offer'    => $offer,
 					'selected' => $ids,
 					'last'     => $with ? 'finance' : $action,
+					'fin_ids'  => $table ? $ids : $state['fin_ids'],
 					'quoted'   => array_values( array_unique( array_merge( $state['quoted'], 'quote' === $action ? $ids : array() ) ) ),
 					'previewed' => array( 'action' => $action, 'ids' => $ids ),
 				)
@@ -521,6 +526,7 @@ trait ASI_Dialogue_Actions {
 			// Se conservan los resultados: después se puede seguir con "compara el primero y el segundo".
 			'state'       => array(
 				'focus'    => $block['ids'][0],
+				'fin_ids'  => $block['ids'],
 				'offer'    => $offer ? array( 'action' => 'quote', 'ids' => $block['ids'] ) : array(),
 				'selected' => count( $block['ids'] ) > 1 ? $block['ids'] : ( $state['selected'] ? $state['selected'] : $block['ids'] ),
 				'last'     => 'finance',

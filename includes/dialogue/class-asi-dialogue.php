@@ -1553,10 +1553,11 @@ class ASI_Dialogue {
 			'awaiting' => isset( $state['awaiting'] ) && 'compare' === $state['awaiting'] ? 'compare' : '',
 			'previewed' => self::clean_action( isset( $state['previewed'] ) ? $state['previewed'] : array(), $ints ),
 			'fin'       => self::clean_fin( isset( $state['fin'] ) ? $state['fin'] : array() ),
+			'fin_ids'   => $ints( isset( $state['fin_ids'] ) ? $state['fin_ids'] : array(), 8 ),
 		);
 		// Otra página de idioma o país: la conversación empieza de cero.
 		if ( '' !== $clean['lang'] && $clean['lang'] !== $this->context['lang'] ) {
-			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'], 'selected' => array(), 'quoted' => array(), 'last' => '', 'awaiting' => '', 'previewed' => array(), 'fin' => array() );
+			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'], 'selected' => array(), 'quoted' => array(), 'last' => '', 'awaiting' => '', 'previewed' => array(), 'fin' => array(), 'fin_ids' => array() );
 		}
 		return $clean;
 	}
