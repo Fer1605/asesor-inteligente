@@ -431,9 +431,13 @@ class ASI_AI_Interpreter {
 		if ( ! isset( $response['kind'] ) || ! in_array( $response['kind'], self::REVIEW_KINDS, true ) ) {
 			return false;
 		}
-		// Búsquedas y respuestas de información ("pide tu cotización aquí") solo con señales de riesgo:
-		// "camionetas con presupuesto no mayor a 500 mil" no es pedir una cotización.
-		if ( in_array( $response['kind'], array( 'results', 'info' ), true ) && ! self::worth_asking( $message, $response, $signals ) ) {
+		// Búsquedas: solo con señales de riesgo.
+		if ( 'results' === $response['kind'] && ! self::worth_asking( $message, $response, $signals ) ) {
+			return false;
+		}
+		// Información (ubicaciones, horarios, contacto, quiénes somos): la contesta el sitio, sin IA.
+		// Solo si trae un monto: "camionetas con presupuesto no mayor a 500 mil" no es pedir una cotización.
+		if ( 'info' === $response['kind'] && ! self::has_amount( $message ) ) {
 			return false;
 		}
 		if ( ! empty( $state['pending'] ) ) {
@@ -480,6 +484,20 @@ class ASI_AI_Interpreter {
 		foreach ( $signals as $signal ) {
 			$signal = ASI_Normalizer::normalize( (string) $signal );
 			if ( '' !== $signal && false !== strpos( $padded, ' ' . $signal . ' ' ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** ¿El mensaje trae un número que podría ser un monto ("500 mil", "cien mil")? "4x4" no cuenta. */
+	public static function has_amount( $message ) {
+		$plain = preg_replace( '/\b[0-9]+x[0-9]+\b/', ' ', ASI_Normalizer::normalize( (string) $message ) );
+		if ( preg_match( '/[0-9]/', $plain ) ) {
+			return true;
+		}
+		foreach ( self::word_numbers( $plain ) as $n ) {
+			if ( $n >= 10 ) {
 				return true;
 			}
 		}

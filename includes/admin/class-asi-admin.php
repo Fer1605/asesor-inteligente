@@ -305,6 +305,7 @@ class ASI_Admin {
 				'assistant_name'   => isset( $_POST['assistant_name'] ) ? sanitize_text_field( wp_unslash( $_POST['assistant_name'] ) ) : '',
 				'assistant_avatar' => isset( $_POST['assistant_avatar'] ) ? absint( $_POST['assistant_avatar'] ) : 0,
 				'welcome'          => $welcome,
+				'whatsapp'         => isset( $_POST['whatsapp'] ) ? self::clean_whatsapp( sanitize_text_field( wp_unslash( $_POST['whatsapp'] ) ) ) : '',
 			)
 		);
 	}
@@ -887,6 +888,7 @@ class ASI_Admin {
 								</label>
 							<?php endforeach; ?>
 						</div>
+						<p><label><strong>WhatsApp de ventas</strong><br><input type="text" class="regular-text" name="whatsapp" placeholder="+502 0000 0000 o https://wa.me/…" value="<?php echo esc_attr( isset( $settings['whatsapp'] ) ? $settings['whatsapp'] : '' ); ?>"></label><br><span class="asi-muted">El chat lo ofrece cuando piden contacto, un asesor o una cotización. Vacío = solo la página de contacto.</span></p>
 						<p><label><input type="checkbox" name="emojis" value="1" <?php checked( ! empty( $settings['emojis'] ) ); ?>> <strong>Usar algunos emojis</strong> <span class="asi-muted">— pocos y en su lugar: 👋 al saludar, 📍 en ubicaciones, 🕒 en horarios, 📞 en contacto.</span></label></p>
 					<?php $this->card_close(); ?>
 					<p class="asi-actions"><?php submit_button( 'Guardar apariencia', 'primary', 'submit', false ); ?></p>
@@ -1651,6 +1653,16 @@ class ASI_Admin {
 			<?php endif; ?>
 		<?php $this->card_close(); ?>
 		<?php
+	}
+
+	/** "+502 3269-9880" → "+50232699880"; un enlace wa.me o api.whatsapp.com se deja tal cual. */
+	private static function clean_whatsapp( $value ) {
+		$value = trim( (string) $value );
+		if ( preg_match( '#^https://(wa\.me|api\.whatsapp\.com)/#i', $value ) ) {
+			return esc_url_raw( $value );
+		}
+		$digits = preg_replace( '/[^0-9]/', '', $value );
+		return strlen( $digits ) >= 8 ? '+' . $digits : '';
 	}
 
 	private function tab_probar() {

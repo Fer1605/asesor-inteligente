@@ -197,6 +197,8 @@ return array(
 	'about_site_words' => array( 'what', 'who', 'is', 'are', 'was', 'tell', 'me', 'us', 'about', 'info', 'information', 'more', 'know', 'little', 'bit', 'history' ),
 	'company_words'    => array( 'group', 'grupo', 'store', 'stores', 'company', 'corporation', 'corp', 'inc', 'llc', 'ltd', 'co', 'and' ),
 
+	'utility_pages' => array( 'thank you', 'thanks', 'confirmation', 'success', 'message sent', 'login', 'my account', 'cart', 'checkout', 'favorites', 'filters', 'page not found' ),
+
 	'intents' => array(
 		'greeting' => array(
 			'anchors'  => array( 'hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening', 'greetings', 'howdy' ),
@@ -521,6 +523,7 @@ return array(
 			'human'     => array( 'An advisor can help you directly:' ),
 			'page'      => array( 'Here is what our site says about that:', 'I found this:' ),
 		),
+		'whatsapp_summary' => array( 'Message us directly on WhatsApp' ),
 		'info_quote_more' => array( 'More details here:', 'You can see all the information here:' ),
 		'price_note' => array(
 			'Prices may vary; for an exact quote you can contact us here:',

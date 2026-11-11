@@ -286,3 +286,39 @@ $fake_info = array( 'kind' => 'info', 'state' => array( 'q' => '' ), 'cards' => 
 list( $ask ) = $said( '{"search":true,"type":"suv","brands":[],"words":"","exclude":[],"min":null,"max":300000,"around":null}' );
 $out = ASI_AI_Interpreter::review( $bot, $an, 'quiero camionetas con un presupuesto no mayor a 300 mil', $s, $fake_info, $es_ai, $ask );
 check( 'lee todo: de "pide tu cotización" a opciones', 'results', $out['response']['kind'] );
+check( 'filtro: información con "pero" no gasta', false, ASI_AI_Interpreter::reviewable( array( 'kind' => 'info' ), array(), 'donde estan ubicados pero en la capital', $sig ) );
+check( 'filtro: "hablar con alguien" no gasta', false, ASI_AI_Interpreter::reviewable( array( 'kind' => 'info' ), array(), 'quiero hablar con alguien de la empresa', $sig ) );
+
+// Información: nunca la página de "gracias"; contacto y asesor con WhatsApp.
+$site = new ASI_Test_Repository();
+$site->add( 50, 'es', 'info', 'Gracias contacto', array(), 'Gracias por contactarnos, nos comunicaremos contigo.', array(), array( 'url' => 'https://x.test/gracias-contacto/' ) );
+$site->add( 51, 'es', 'info', 'Contáctanos', array(), 'Escríbenos o llámanos. Atención al cliente.', array(), array( 'url' => 'https://x.test/contactanos/' ) );
+$site->add( 52, 'es', 'info', 'Ubicaciones', array(), 'Nuestras sedes y sucursales.', array(), array( 'url' => 'https://x.test/ubicaciones/' ) );
+$mk = function ( $wa ) use ( $site ) {
+	return new ASI_Dialogue( $site, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'whatsapp' => $wa ), function () {
+		return 0;
+	} );
+};
+$urls = function ( $r ) {
+	return array_column( $r['links'], 'url' );
+};
+$sb = $mk( '+50211112222' );
+foreach ( array( 'quiero hablar con un asesor', 'quiero hablar con alguien de la empresa', 'tienen whatsapp?', 'como los contacto' ) as $m ) {
+	$r = $sb->handle( $m, array() );
+	check( "info: \"$m\" → WhatsApp y Contáctanos", array( 'https://wa.me/50211112222', 'https://x.test/contactanos/' ), $urls( $r ) );
+}
+$r = $mk( '' )->handle( 'quiero hablar con un asesor', array() );
+check( 'info: sin WhatsApp configurado, solo Contáctanos', array( 'https://x.test/contactanos/' ), $urls( $r ) );
+$r = $sb->handle( 'que sedes tienen', array() );
+check( 'info: "sedes" = ubicaciones', array( 'https://x.test/ubicaciones/' ), $urls( $r ) );
+// Lugares: sin corrector ortográfico y con alias ("la capital" → sedes por zona).
+$places = new ASI_Test_Repository();
+$places->add( 60, 'es', 'info', 'Zona 10', array(), 'Sede zona 10.', array(), array( 'url' => 'https://x.test/z10/' ) );
+$places->add( 61, 'es', 'info', 'Cobán', array(), 'Sede Cobán.', array(), array( 'url' => 'https://x.test/coban/' ) );
+$places->add( 62, 'es', 'catalog', 'Jeep con capota', array( 'category' => array( 'SUV' ) ), 'Capota de lona.' );
+$pb = new ASI_Dialogue( $places, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'location_types' => array( 'page' ) ), function () {
+	return 0;
+} );
+$r = $pb->handle( 'donde estan ubicados en la capital', array() );
+check( 'lugares: "la capital" no se corrige a "capota"', false, false !== stripos( $r['text'], 'capota' ) );
+check( 'lugares: "la capital" = las sedes por zona', array( 'https://x.test/z10/' ), array_values( array_filter( array_column( isset( $r['places'] ) ? $r['places'] : $r['links'], 'url' ), function ( $u ) { return false !== strpos( $u, 'x.test/z' ) || false !== strpos( $u, 'coban' ); } ) ) );

@@ -18,6 +18,12 @@ if ( ! defined( 'ABSPATH' ) && ! defined( 'ASI_CLI_TESTS' ) ) {
 	exit;
 }
 
+/** Ruta de una URL sin depender de WordPress (las pruebas corren sin él). */
+function wp_parse_url_path( $url ) {
+	$path = parse_url( (string) $url, PHP_URL_PATH );
+	return is_string( $path ) ? $path : '';
+}
+
 class ASI_Dialogue {
 
 	use ASI_Dialogue_Products;
@@ -783,6 +789,23 @@ class ASI_Dialogue {
 		}
 
 		$links = $page ? array( $page ) : array();
+		// Contacto, asesor y cotización: el WhatsApp de ventas primero, si el sitio lo configuró.
+		$whatsapp = in_array( $intent, array( 'contact', 'human', 'quote' ), true ) ? $this->whatsapp_link() : null;
+		if ( $whatsapp ) {
+			array_unshift( $links, $whatsapp );
+			if ( ! $page ) {
+				return array(
+					'kind'        => 'info',
+					'text'        => $this->responder->say( 'info.' . $intent ),
+					'followup'    => '',
+					'cards'       => array(),
+					'links'       => $links,
+					'suggestions' => array(),
+					'more'        => false,
+					'state'       => array(),
+				);
+			}
+		}
 
 		if ( $links ) {
 			// La frase de la página que responde ("Atendemos de lunes a sábado…"), además del enlace.
@@ -982,7 +1005,7 @@ class ASI_Dialogue {
 			$result = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'info' ), 'limit' => 30 ) );
 			foreach ( $result['items'] as $row ) {
 				// Tiene que coincidir en el título o en los términos, no solo en el texto.
-				if ( $row['score'] < 6 ) {
+				if ( $row['score'] < 6 || $this->is_utility_page( $row ) ) {
 					continue;
 				}
 				$links = $this->links( array( $row ) );
@@ -1111,12 +1134,22 @@ class ASI_Dialogue {
 		foreach ( (array) $this->lexicon->get_list( 'place_words' ) as $word ) {
 			$generic[ ASI_Lexicon::normal_form( $word ) ] = true;
 		}
-		$words = array();
+		// Un lugar se busca como lo escribió: el corrector ortográfico lo cambiaría por una palabra del
+		// catálogo ("capital" → "capota").
+		$raw = array();
+		foreach ( isset( $query['corrections'] ) ? (array) $query['corrections'] : array() as $typed => $fixed ) {
+			$raw[ $fixed ] = ASI_Lexicon::normal_form( $typed );
+		}
+		// Formas de nombrar un lugar que el sitio escribe distinto ("la capital" → sedes por zona).
+		$aliases = (array) $this->lexicon->get_list( 'place_aliases' );
+		$words   = array();
 		foreach ( $query['groups'] as $group ) {
 			foreach ( explode( ' ', $group['text'] ) as $word ) {
-				if ( '' !== $word && ! isset( $generic[ $word ] ) ) {
-					$words[] = $word;
+				$word = isset( $raw[ $word ] ) ? $raw[ $word ] : $word;
+				if ( '' === $word || isset( $generic[ $word ] ) ) {
+					continue;
 				}
+				$words[] = isset( $aliases[ $word ] ) ? ASI_Lexicon::normal_form( $aliases[ $word ] ) : $word;
 			}
 		}
 		return array_values( array_unique( $words ) );
@@ -1127,8 +1160,11 @@ class ASI_Dialogue {
 	 */
 	private function place_label( array $query, array $place ) {
 		$labels = array();
+		$typed  = array_flip( isset( $query['corrections'] ) ? (array) $query['corrections'] : array() );
 		foreach ( $query['groups'] as $group ) {
-			if ( array_intersect( explode( ' ', $group['text'] ), $place ) ) {
+			if ( isset( $typed[ $group['text'] ] ) ) {
+				$labels[] = $typed[ $group['text'] ];
+			} elseif ( array_intersect( explode( ' ', $group['text'] ), $place ) ) {
 				$labels[] = $group['label'];
 			}
 		}
@@ -1470,6 +1506,29 @@ class ASI_Dialogue {
 	private function base_price( array $row ) {
 		$price = ASI_Money::card_price( isset( $row['card'] ) ? (array) $row['card'] : array(), (array) $this->context['money'] );
 		return null === $price['base'] ? 0.0 : (float) $price['base'];
+	}
+
+	/**
+	 * Páginas que no responden nada: agradecimientos de formularios, confirmaciones, login, favoritos.
+	 */
+	private function is_utility_page( array $row ) {
+		$text = ASI_Normalizer::normalize( ( isset( $row['card']['title'] ) ? $row['card']['title'] : '' ) . ' ' . ( isset( $row['card']['url'] ) ? preg_replace( '#[/_-]+#', ' ', (string) wp_parse_url_path( $row['card']['url'] ) ) : '' ) );
+		return '' !== ASI_Lexicon::find_phrase( $text, (array) $this->lexicon->get_list( 'utility_pages' ) );
+	}
+
+	/** Enlace al WhatsApp de ventas (ajuste del panel), o null. */
+	private function whatsapp_link() {
+		$value = isset( $this->context['whatsapp'] ) ? trim( (string) $this->context['whatsapp'] ) : '';
+		if ( '' === $value ) {
+			return null;
+		}
+		$url = preg_match( '#^https?://#', $value ) ? $value : 'https://wa.me/' . preg_replace( '/[^0-9]/', '', $value );
+		return array(
+			'id'      => 0,
+			'title'   => 'WhatsApp',
+			'url'     => $url,
+			'summary' => preg_match( '#^https?://#', $value ) ? $this->responder->say( 'whatsapp_summary' ) : $value,
+		);
 	}
 
 	private function links( array $rows ) {

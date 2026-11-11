@@ -289,7 +289,7 @@ return array(
 			'training' => array( 'como los contacto', 'cual es su telefono', 'numero de whatsapp', 'quiero comunicarme con ustedes', 'correo de contacto', 'donde les puedo llamar' ),
 		),
 		'location' => array(
-			'anchors'  => array( 'donde estan', 'donde quedan', 'donde se ubican', 'ubicacion', 'ubicaciones', 'direccion', 'direcciones', 'sucursal', 'sucursales', 'agencia', 'agencias', 'tienda fisica', 'tiendas', 'tienda en', 'tienen tienda', 'oficina', 'oficinas', 'mapa', 'como llego', 'cerca de mi', 'zona', 'zonas', 'punto de entrega', 'puntos de entrega' ),
+			'anchors'  => array( 'donde estan', 'donde quedan', 'donde se ubican', 'ubicacion', 'ubicaciones', 'direccion', 'direcciones', 'sucursal', 'sucursales', 'agencia', 'agencias', 'tienda fisica', 'tiendas', 'sede', 'sedes', 'tienda en', 'tienen tienda', 'oficina', 'oficinas', 'mapa', 'como llego', 'cerca de mi', 'zona', 'zonas', 'punto de entrega', 'puntos de entrega' ),
 			'keywords' => array( 'sucursales', 'ubicaciones', 'agencias', 'tiendas', 'oficinas', 'donde estamos', 'contacto' ),
 			'training' => array( 'donde estan ubicados', 'donde quedan sus sucursales', 'direccion de la tienda', 'tienen agencias', 'como llego a sus oficinas', 'ubicacion' ),
 		),
@@ -319,11 +319,18 @@ return array(
 			'training' => array( 'tienen vacantes', 'quiero trabajar con ustedes', 'bolsa de trabajo', 'donde mando mi cv' ),
 		),
 		'human' => array(
-			'anchors'  => array( 'asesor', 'asesora', 'vendedor', 'vendedora', 'agente', 'una persona', 'un humano', 'ejecutivo', 'ejecutiva', 'representante' ),
+			'anchors'  => array( 'asesor', 'asesora', 'vendedor', 'vendedora', 'agente', 'una persona', 'un humano', 'ejecutivo', 'ejecutiva', 'representante', 'hablar con alguien', 'hablar con una persona', 'que me llamen', 'que me contacten', 'que me atienda', 'atencion personalizada' ),
 			'keywords' => array( 'contacto', 'contactenos', 'asesor' ),
 			'training' => array( 'quiero hablar con un asesor', 'me comunica con un vendedor', 'hablar con una persona', 'necesito un agente' ),
 		),
 	),
+
+	// Formas de nombrar un lugar que los sitios escriben distinto: "en la capital" → sedes por zona
+	// (en Guatemala, las sedes de la ciudad se nombran por zona).
+	'place_aliases' => array( 'capital' => 'zona', 'la capital' => 'zona', 'guate' => 'zona', 'ciudad' => 'zona' ),
+
+	// Páginas que nunca se ofrecen como respuesta (agradecimientos y confirmaciones de formularios, etc.).
+	'utility_pages' => array( 'gracias', 'thank you', 'thanks', 'confirmacion', 'enviado', 'mensaje enviado', 'exito', 'success', 'login', 'mis favoritos', 'mi cuenta', 'carrito', 'checkout', 'filters', 'pagina no encontrada' ),
 
 	// Plurales y palabras de apoyo para las respuestas.
 	'words' => array(
@@ -640,6 +647,7 @@ return array(
 			'human'     => array( 'Con gusto te comunicamos con un asesor:', 'Un asesor puede ayudarte directamente:' ),
 			'page'      => array( 'Esto dice nuestra página sobre eso:', 'Encontré esto:', 'Te comparto lo que dice el sitio:' ),
 		),
+		'whatsapp_summary' => array( 'Escríbenos directo por WhatsApp' ),
 		'info_quote_more' => array( 'Más detalles aquí:', 'Aquí puedes ver toda la información:', 'La página completa está aquí:' ),
 		'price_note' => array(
 			'Los precios pueden variar; si quieres una cotización exacta, escríbenos aquí:',

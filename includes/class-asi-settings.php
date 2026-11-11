@@ -49,6 +49,7 @@ class ASI_Settings {
 			'assistant_name'      => '',
 			'assistant_avatar'    => 0,
 			'assistant_site_name' => '',
+			'whatsapp'            => '', // Número o enlace de WhatsApp de ventas: el chat lo ofrece al pedir contacto o un asesor.
 			'welcome'             => array(),
 			'tone'                => 'tu',   // Tratamiento en español: 'tu' o 'usted'.
 			'emojis'              => false,
