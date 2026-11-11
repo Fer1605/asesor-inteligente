@@ -77,7 +77,7 @@ class ASI_AI_Interpreter {
 	 * @param string[] $actions   Acciones permitidas en este sitio.
 	 * @param string   $site      Nombre del sitio.
 	 */
-	public static function prompt( $message, array $titles, array $actions, $site = '' ) {
+	public static function prompt( $message, array $titles, array $actions, $site = '', $note = '' ) {
 		$titles = array_slice( array_values( $titles ), 0, self::MAX_VISIBLE );
 		$lines  = array();
 		$lines[] = 'Eres el intérprete de un chat de ventas' . ( '' !== $site ? ' del sitio "' . $site . '"' : '' ) . '. NO le respondes al cliente: solo traduces su mensaje a una orden para el sistema.';
@@ -114,6 +114,9 @@ class ASI_AI_Interpreter {
 		}
 		$lines[] = 'Si dudas, usa "none". No inventes opciones que no están en la lista.';
 		$lines[] = 'Responde SOLO con JSON en una línea, sin explicación: {"action":"finance","items":"all","query":"","topic":"","down_pct":null,"down_amount":null,"currency":"","term_months":null}';
+		if ( '' !== $note ) {
+			$lines[] = $note;
+		}
 		$lines[] = '';
 		$lines[] = 'Mensaje del cliente: """' . str_replace( '"""', '"', $message ) . '"""';
 		return implode( "\n", $lines );
@@ -390,18 +393,19 @@ class ASI_AI_Interpreter {
 		if ( '' === $clean ) {
 			return null;
 		}
-		$answer = call_user_func( $ask, self::prompt( $clean, $titles, $actions, $site ) );
+		$note   = $need_fin ? 'Contexto: el cliente está viendo una tabla de cuotas y su mensaje habla de cuánto da de enganche o en cuánto tiempo paga; usa "finance" y llena down_amount / down_pct / term_months.' : '';
+		$answer = call_user_func( $ask, self::prompt( $clean, $titles, $actions, $site, $note ) );
 		if ( ! is_array( $answer ) || empty( $answer['text'] ) ) {
 			return null;
 		}
-		$intent = self::parse( $answer['text'], count( $titles ), $actions, $clean );
-		// Si las reglas ya entendieron todo menos el enganche o el plazo, solo sirve si la IA los leyó.
-		if ( $intent && $need_fin && ! $intent['fin'] ) {
-			$intent = null;
-		}
-		// Ahí las reglas ya sabían de qué vehículos hablaba: de la IA solo se toman los números.
-		if ( $intent && $need_fin ) {
-			$intent = array_merge( $intent, array( 'action' => 'finance', 'items' => array() ) );
+		if ( $need_fin ) {
+			// Las reglas ya sabían que eran cuotas y de qué vehículos: de la IA solo se toman los números
+			// (validados contra el mensaje), diga la acción que diga.
+			$data   = preg_match( '/\{[^{}]*\}/s', (string) $answer['text'], $m ) ? json_decode( $m[0], true ) : null;
+			$fin    = is_array( $data ) ? self::fin( $data, $clean ) : array();
+			$intent = $fin ? array( 'action' => 'finance', 'items' => array(), 'query' => '', 'topic' => '', 'fin' => $fin ) : null;
+		} else {
+			$intent = self::parse( $answer['text'], count( $titles ), $actions, $clean );
 		}
 		if ( ! $intent ) {
 			return array( 'response' => null, 'phrase' => '', 'intent' => null, 'model' => isset( $answer['model'] ) ? $answer['model'] : '' );

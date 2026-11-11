@@ -129,3 +129,7 @@ check( 'ia fin: el 25 % sí, si lo dijo con %', array( 'pct' => 25.0 ), ASI_AI_I
 list( $ask ) = $fake( '{"action":"finance","items":"all","down_amount":160000}' );
 $res = ASI_AI_Interpreter::rescue( $abot, 'para el enganche le pongo como 160 nomas', $sa, $titles4, $acts, $es_phrases, $ask, '', true );
 check( 'ia fin e2e: aunque la IA diga "todas", se queda en el vehículo que veía', 2, count( $res['response']['table']['head'] ?? array() ) );
+list( $ask, $asked ) = $fake( '{"action":"none","down_amount":160}' );
+$res = ASI_AI_Interpreter::rescue( $abot, 'para el enganche le pongo como 160 nomas', $sa, $titles4, $acts, $es_phrases, $ask, '', true );
+check( 'ia fin e2e: aunque la IA diga "none", si trae el número se usa', 'Q 160,000', substr( $res['response']['table']['rows'][1][1] ?? '', 0, 9 ) );
+check( 'ia fin e2e: a la IA se le dice que está viendo cuotas', true, false !== strpos( $asked->prompt, 'tabla de cuotas' ) );
