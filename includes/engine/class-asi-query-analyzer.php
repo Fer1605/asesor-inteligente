@@ -48,12 +48,23 @@ class ASI_Query_Analyzer {
 	/** @var string[] Palabras de pedido que se ignoran siempre. */
 	private $request_words = array();
 
+	/** @var array<string,bool> Palabras que entienden los packs. */
+	private $pack_words = array();
+
 	public function __construct( ASI_Lexicon $lexicon, array $vocab, array $money = array(), array $packs = array() ) {
 		$this->lexicon = $lexicon;
 		$this->money   = ASI_Money::config( $money );
 		$this->packs   = $packs;
 		$this->request_words = array_map( array( 'ASI_Normalizer', 'normalize' ), (array) $lexicon->get_list( 'request_words' ) );
 		$this->vocab   = array_merge( array( 'docs' => 0, 'tokens' => array(), 'phrases' => array() ), $vocab );
+		// Palabras de los packs (tipos de vehículo, transmisión, combustible…): el corrector también las conoce.
+		foreach ( $packs as $pack ) {
+			if ( is_object( $pack ) && method_exists( $pack, 'query_words' ) ) {
+				foreach ( (array) $pack->query_words() as $word ) {
+					$this->pack_words[ ASI_Normalizer::normalize( $word ) ] = true;
+				}
+			}
+		}
 
 		foreach ( $this->vocab['phrases'] as $normal => $info ) {
 			$tokens = $this->content_tokens_of( $normal );
@@ -79,6 +90,10 @@ class ASI_Query_Analyzer {
 	 * }
 	 */
 	public function analyze( $message ) {
+		// Errores de dedo primero, antes de leer tipo de vehículo, atributos y montos:
+		// "camioneeta automatica" se lee igual que "camioneta automatica".
+		$typos   = array();
+		$message = $this->fix_typos( $message, $typos );
 		$normalized = ASI_Normalizer::normalize( $message );
 		$display    = $this->display_words( $message );
 
@@ -94,7 +109,7 @@ class ASI_Query_Analyzer {
 			'attrs'       => array(), // Restricciones del giro (ASI_Attributes): plazas, tracción, año…
 			'attr_labels' => array(), // Cómo nombrarlas ("de 7 pasajeros", "4x4").
 			'asks_price'  => '' !== ASI_Lexicon::find_phrase( $normalized, $this->lexicon->get_list( 'price_words' ) ),
-			'corrections' => array(),
+			'corrections' => $typos,
 			'exclude'     => array(),
 			'exclude_label' => '',
 		);
@@ -413,6 +428,48 @@ class ASI_Query_Analyzer {
 	 * @param string $word Forma normal.
 	 * @return string
 	 */
+	/**
+	 * Corrige en el mensaje original las palabras desconocidas (5+ letras) contra el vocabulario del
+	 * sitio. Las que el idioma ya conoce (montos, acciones, negaciones, conectores) no se tocan.
+	 *
+	 * @param string $message Mensaje original.
+	 * @param array  $typos   escrita => corregida.
+	 * @return string
+	 */
+	private function fix_typos( $message, array &$typos ) {
+		return preg_replace_callback(
+			'/\p{L}{5,}/u',
+			function ( $m ) use ( &$typos ) {
+				$word = ASI_Normalizer::normalize( $m[0] );
+				$base = ASI_Lexicon::normal_form( $word );
+				if ( '' === $word || ! preg_match( '/^[a-z]+$/', $word ) || isset( $this->vocab['tokens'][ $base ] ) || isset( $this->phrase_index[ $base ] ) || isset( $this->pack_words[ $word ] ) || isset( $this->pack_words[ $base ] ) || $this->lexicon->is_stopword( $word ) || $this->lexicon->is_known_word( $word ) || $this->lexicon->is_known_word( $base ) ) {
+					return $m[0];
+				}
+				$fixed = $this->correct( $word );
+				if ( $fixed === $word ) {
+					return $m[0];
+				}
+				$typos[ $m[0] ] = $fixed;
+				return $fixed;
+			},
+			(string) $message
+		);
+	}
+
+	/** ¿Dos palabras iguales salvo dos letras vecinas cambiadas de lugar? ("sedna" / "sedan"). */
+	private static function is_swap( $a, $b ) {
+		$n = strlen( $a );
+		if ( $n !== strlen( $b ) ) {
+			return false;
+		}
+		for ( $i = 0; $i < $n - 1; $i++ ) {
+			if ( $a[ $i ] !== $b[ $i ] ) {
+				return $a[ $i ] === $b[ $i + 1 ] && $a[ $i + 1 ] === $b[ $i ] && substr( $a, $i + 2 ) === substr( $b, $i + 2 );
+			}
+		}
+		return false;
+	}
+
 	private function correct( $word ) {
 		$length = strlen( $word );
 		if ( $length < 4 || isset( $this->vocab['tokens'][ $word ] ) || isset( $this->phrase_index[ $word ] ) || ctype_digit( $word ) ) {
@@ -426,12 +483,22 @@ class ASI_Query_Analyzer {
 		$best         = $word;
 		$best_score   = PHP_INT_MAX;
 
-		foreach ( $this->vocab['tokens'] as $candidate => $df ) {
+		// Candidatas: el vocabulario del sitio y las palabras de los packs (con peso medio).
+		$candidates = $this->vocab['tokens'];
+		foreach ( $this->pack_words as $pack_word => $true ) {
+			if ( ! isset( $candidates[ $pack_word ] ) ) {
+				$candidates[ $pack_word ] = 500;
+			}
+		}
+		foreach ( $candidates as $candidate => $df ) {
 			$candidate = (string) $candidate;
 			if ( abs( strlen( $candidate ) - $length ) > $max_distance || strlen( $candidate ) < 4 ) {
 				continue;
 			}
 			$distance = levenshtein( $word, $candidate );
+			if ( 2 === $distance && self::is_swap( $word, $candidate ) ) {
+				$distance = 1; // Dos letras al revés cuentan como un solo error.
+			}
 			if ( $distance > $max_distance ) {
 				continue;
 			}

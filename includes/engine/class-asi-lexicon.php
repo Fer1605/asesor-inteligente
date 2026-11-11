@@ -138,6 +138,42 @@ class ASI_Lexicon {
 		return isset( $this->data[ $key ] ) ? $this->data[ $key ] : array();
 	}
 
+	/** @var array<string,bool>|null Palabras que el idioma ya conoce (no se corrigen). */
+	private $known = null;
+
+	/**
+	 * ¿Es una palabra que el idioma ya conoce (de cualquier lista: montos, negaciones, acciones…)?
+	 * Las respuestas del chat no cuentan.
+	 */
+	public function is_known_word( $word ) {
+		if ( null === $this->known ) {
+			$this->known = array();
+			$skip        = array( 'responses', 'ai_phrases', 'synonyms' );
+			$walk        = function ( $value ) use ( &$walk ) {
+				if ( is_array( $value ) ) {
+					foreach ( $value as $key => $item ) {
+						if ( is_string( $key ) && ! is_numeric( $key ) ) {
+							$walk( $key );
+						}
+						$walk( $item );
+					}
+				} elseif ( is_string( $value ) ) {
+					foreach ( explode( ' ', ASI_Normalizer::normalize( $value ) ) as $w ) {
+						if ( '' !== $w ) {
+							$this->known[ $w ] = true;
+						}
+					}
+				}
+			};
+			foreach ( $this->data as $key => $value ) {
+				if ( ! in_array( $key, $skip, true ) ) {
+					$walk( $value );
+				}
+			}
+		}
+		return isset( $this->known[ $word ] );
+	}
+
 	/**
 	 * Definición de las intenciones.
 	 *

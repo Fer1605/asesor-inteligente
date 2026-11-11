@@ -379,3 +379,58 @@ $adv_menu = new ASI_Dialogue( $yard, array( 'lang' => 'es', 'language' => 'es', 
 } );
 $r = $adv_menu->handle( 'que es negocios sobre ruedas', array() );
 check( 'menú: va antes que el asesor por perfil ("negocio" no es trabajo aquí)', array( 'https://negocios.test/' ), array_column( $r['links'], 'url' ) );
+
+// Errores de dedo antes de leer el tipo de vehículo (lo que probó el jefe).
+foreach ( array( 'quiero una camioneeta automatica', 'quiero una camioneta automatica', 'camionetas', 'una camionta', 'quiero una camioneta' ) as $m ) {
+	$s = array();
+	$r = $chat( $m, $s );
+	$bodies = array();
+	foreach ( $yard->rows( 'es', asi_card_ids( $r ) ) as $row ) {
+		$bodies[] = $row['card']['attrs']['body'];
+	}
+	check( "camioneta no es camión: \"$m\"", array(), array_values( array_diff( array_unique( $bodies ), array( 'suv', 'pickup', 'van' ) ) ) );
+	check( "camioneta trae resultados: \"$m\"", true, (bool) $bodies );
+}
+$q = $an->analyze( 'quiero una camioneeta automatica' );
+check( 'typo: se lee el tipo aunque esté mal escrito', array( 'suv', 'pickup', 'van' ), $q['attrs']['body']['in'] );
+check( 'typo: y la transmisión', array( 'auto' ), $q['attrs']['transmission']['in'] );
+check( 'typo: "picup 4x4"', array( '4x4' ), $an->analyze( 'picup 4x4' )['attrs']['traction']['in'] );
+check( 'typo: no corrige montos ni negaciones', array( null, 300000.0 ), array( $an->analyze( 'que no pasen de 300 mil quetzales' )['price_min'], $an->analyze( 'que no pasen de 300 mil quetzales' )['price_max'] ) );
+
+// Barrido de errores de dedo: cada palabra del giro con una letra repetida, una que falta o dos al
+// revés debe leerse igual que bien escrita (mismos atributos).
+$typo_words = array( 'camioneta', 'pickup', 'automatica', 'automatico', 'mecanica', 'diesel', 'gasolina', 'hibrido', 'electrico', 'sedan', 'hatchback', 'microbus', 'todoterreno', 'crossover', 'pasajeros' );
+$variants   = function ( $w ) {
+	$out = array();
+	for ( $i = 1; $i < strlen( $w ); $i++ ) {
+		$out[] = substr( $w, 0, $i ) . $w[ $i ] . substr( $w, $i );               // letra repetida
+		if ( $i < strlen( $w ) - 1 ) {
+			$out[] = substr( $w, 0, $i ) . substr( $w, $i + 1 );                  // letra que falta
+			$out[] = substr( $w, 0, $i ) . $w[ $i + 1 ] . $w[ $i ] . substr( $w, $i + 2 ); // dos al revés
+		}
+	}
+	return array_values( array_unique( array_diff( $out, array( $w ) ) ) );
+};
+$typo_total = 0;
+$typo_ok    = 0;
+$typo_bad   = array();
+foreach ( $typo_words as $w ) {
+	$suffix = 'pasajeros' === $w ? '7 ' : '';
+	$want   = $an->analyze( 'quiero ' . $suffix . $w )['attrs'];
+	foreach ( $variants( $w ) as $typo ) {
+		if ( strlen( $typo ) < 5 ) {
+			continue;
+		}
+		$typo_total++;
+		if ( $an->analyze( 'quiero ' . $suffix . $typo )['attrs'] === $want ) {
+			$typo_ok++;
+		} elseif ( count( $typo_bad ) < 12 ) {
+			$typo_bad[] = $typo;
+		}
+	}
+}
+check( "errores de dedo: los $typo_total casos se leen igual que bien escritos", array( $typo_total, array() ), array( $typo_ok, $typo_bad ) );
+// Y no se "corrigen" palabras reales que no son del catálogo.
+foreach ( array( 'quiero algo para la familia', 'es para trabajar en la finca', 'precio en quetzales', 'que no pasen de 300 mil', 'tienen sede en la capital', 'busco algo comodo' ) as $m ) {
+	check( "no corrige palabras reales: \"$m\"", array(), $an->analyze( $m )['corrections'] );
+}

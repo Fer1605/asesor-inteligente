@@ -300,6 +300,26 @@ final class ASI_Pack_Autos implements ASI_Pack, ASI_Advisor, ASI_Similarity {
 		return $card;
 	}
 
+	/**
+	 * Palabras que este pack entiende en una búsqueda: el corrector de errores de dedo las usa
+	 * aunque el sitio no las escriba así ("camioneeta" → camioneta, "automatca" → automática).
+	 *
+	 * @return string[]
+	 */
+	public function query_words() {
+		$words = array( 'automatica', 'automatico', 'mecanica', 'mecanico', 'manual', 'estandar', 'diesel', 'gasolina', 'hibrido', 'hibrida', 'electrico', 'electrica', 'pasajeros', 'puertas', 'traccion', 'usado', 'usada', 'seminuevo', 'nuevo', 'nueva', 'pickup', 'camioneta', 'sedan', 'hatchback', 'microbus', 'camion', 'panel', 'motocicleta' );
+		// Solo los tipos de una palabra: "camioneta familiar" no hace de "familia" un error de dedo.
+		foreach ( self::BODIES as $list ) {
+			foreach ( (array) $list as $phrase ) {
+				$phrase = self::fold( $phrase );
+				if ( strlen( $phrase ) >= 4 && false === strpos( $phrase, ' ' ) ) {
+					$words[] = $phrase;
+				}
+			}
+		}
+		return array_values( array_unique( $words ) );
+	}
+
 	public function parse_query( $message, $language ) {
 		$text   = ' ' . self::fold( $message ) . ' ';
 		$out    = array( 'constraints' => array(), 'spans' => array(), 'labels' => array(), 'soft' => array() );

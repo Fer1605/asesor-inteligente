@@ -138,7 +138,7 @@ return array(
 	'synonyms' => array(
 		array( 'repuesto', 'refaccion', 'pieza', 'parte', 'recambio' ),
 		array( 'usado', 'seminuevo', 'segunda mano' ),
-		array( 'camion', 'troca', 'camioneta' ),
+		array( 'camion', 'troca' ), // "Camioneta" no es camión: en Centroamérica es SUV o pickup (lo resuelve el pack).
 		array( 'pickup', 'pick up', 'picop', 'palangana' ),
 		array( 'carro', 'auto', 'automovil', 'vehiculo', 'coche' ),
 		array( 'montacarga', 'montacargas', 'carretilla elevadora', 'elevador de carga' ),
