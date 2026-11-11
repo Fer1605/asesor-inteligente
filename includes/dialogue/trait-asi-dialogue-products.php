@@ -291,8 +291,10 @@ trait ASI_Dialogue_Products {
 			'suggestions' => array(),
 			'more'        => false,
 			'state'       => array(
-				'results' => array( (int) $a['post_id'], (int) $b['post_id'] ),
-				'focus'   => 0,
+				'results'  => array( (int) $a['post_id'], (int) $b['post_id'] ),
+				'focus'    => 0,
+				'selected' => array( (int) $a['post_id'], (int) $b['post_id'] ),
+				'last'     => 'compare',
 				// Después de comparar se ofrece la comparación en PDF, si el sitio la tiene.
 				'offer'   => $this->runner() && isset( $this->runner()->available()['compare'] ) ? array( 'action' => 'compare', 'ids' => array( (int) $a['post_id'], (int) $b['post_id'] ) ) : array(),
 			),

@@ -811,7 +811,7 @@
 /* Tabla de cuotas */
 .asi-chat .asi-table {
 	margin: 6px 0;
-	max-width: 420px;
+	max-width: 640px;
 	overflow-x: auto;
 }
 .asi-chat .asi-table table {

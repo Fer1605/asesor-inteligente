@@ -197,3 +197,27 @@ check( 'número suelto con cotizar: "1 y 3"', array( 20, 22 ), $try( 'cotizame 1
 check( 'por precio: "la de 169 mil y la de 199,990"', array( 20, 23 ), $try( 'quiero cotizar la de 169 mil y la de 199,990' ) );
 check( 'por año: "la outlander 2023" (no la 2024)', array( 20 ), $try( 'cotízame la outlander 2023' ) );
 check( 'error de dedo: "outlader"', array( 20 ), $try( 'cotizame la outlader' ) );
+// Conversación real: cuotas de los dos, "la otra" y "el del pickup".
+$runner->calls = array();
+$s13 = array( 'customer' => array( 'name' => 'Fernanda', 'email' => 'f@example.com', 'phone' => '' ), 'results' => array( 21, 20, 22, 23 ), 'shown' => array( 21, 20, 22, 23 ) );
+$r = $say( 'cotizame con cuotas la suv mitsubishi outlander glx y el pickup gwm poer', $s13 );
+check( 'real: cotiza los dos', array( 20, 22 ), isset( $runner->calls[0] ) ? $runner->calls[0][1] : array() );
+check( 'real: "con cuotas" trae la tabla de los dos en la misma respuesta', 3, isset( $r['table']['head'] ) ? count( $r['table']['head'] ) : 0 );
+check( 'real: recuerda la selección', array( 20, 22 ), $s13['selected'] );
+$r = $say( 'Calcular cuotas', $s13 );
+check( 'real: "Calcular cuotas" calcula los dos', 3, isset( $r['table']['head'] ) ? count( $r['table']['head'] ) : 0 );
+$s13['focus'] = 20;
+$r = $say( 'y las cuotas de la otra', $s13 );
+check( 'real: "y las cuotas de la otra" es la GWM', 22, $r['cards'][0]['id'] ?? 0 );
+$s13['focus'] = 20;
+$r = $say( 'y el del pickup??', $s13 );
+check( 'real: "y el del pickup??" es la GWM de la selección (no 72 pickups)', array( 'finance', 22 ), array( $r['kind'], $r['cards'][0]['id'] ?? 0 ) );
+$r = $say( 'y la de la suv', $s13 );
+check( 'real: "y la de la suv" es la Outlander', 20, $r['cards'][0]['id'] ?? 0 );
+// "Con cuotas" después de una recomendación (que deja oferta de cotizar) y pidiendo datos primero.
+$s14 = array( 'results' => array( 21, 20, 22, 23 ), 'shown' => array( 21, 20, 22, 23 ), 'offer' => array( 'action' => 'quote', 'ids' => array( 21, 20, 22, 23 ) ) );
+$say( 'cotizame con cuotas la suv mitsubishi outlander glx y el pickup gwm poer', $s14 );
+$r = $say( 'fernanda f@example.com', $s14 );
+check( 'real: "con cuotas" tras una oferta y pidiendo datos, igual trae la tabla', 3, isset( $r['table']['head'] ) ? count( $r['table']['head'] ) : 0 );
+$r = $say( 'Calcular cuotas', $s14 );
+check( 'real: ya cotizados, no vuelve a ofrecer el PDF', array(), $s14['offer'] );

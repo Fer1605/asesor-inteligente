@@ -434,6 +434,11 @@ return array(
 		'action_ask_quote_many' => array( '¡Con gusto te preparo la cotización de {titles}! Solo necesito tu nombre y tu correo (y un teléfono si quieres que un asesor te llame).' ),
 		'action_done_quote_many' => array( '¡Listo, {name}! Aquí tienes la cotización de {titles}.' ),
 		'advice_more' => array( 'Claro, aquí van otras opciones para {summary}: {options}.', 'Te muestro más: para {summary} también te pueden servir {options}.' ),
+		'finance_part'         => array( '{title} ({price}, enganche de {down}, {pct})' ),
+		'finance_table_part'   => array( 'Para el {part}, estas serían las cuotas aproximadas:' ),
+		'finance_single_part'  => array( 'Para el {part}, la cuota aproximada a {term} sería de {payment}.' ),
+		'finance_table_many'   => array( 'Estas serían las cuotas aproximadas de {parts}:' ),
+		'action_after_quote_finance' => array( 'Tasa de referencia; el valor final lo confirma un asesor. ¿Te ayudo con otro enganche o plazo, o te muestro otras opciones?' ),
 		'results_budget' => array(
 			'Con un presupuesto {budget} tengo {n}. Te muestro primero las que más aprovechan tu presupuesto.',
 			'Para un presupuesto {budget} hay {n}. Empiezo por las más completas dentro de ese monto.',

@@ -64,12 +64,13 @@ trait ASI_Dialogue_Actions {
 			if ( 'quote' === $state['offer']['action'] && count( $state['offer']['ids'] ) > 1 && ( str_word_count( $normalized ) <= 8 || $this->words_in( $normalized, 'quote_words' ) ) && ! $this->words_in( $normalized, 'not_data_words' ) ) {
 				$picked = $this->action_targets( $message, $normalized, $state );
 				if ( $picked ) {
+					$state['with_finance'] = $this->words_in( $normalized, 'finance_words' );
 					return $this->start_action( 'quote', $picked, $state );
 				}
 			}
 			if ( $this->words_in( $normalized, 'yes_words' ) && str_word_count( $normalized ) <= 5 ) {
 				if ( 'finance' === $state['offer']['action'] ) {
-					$finance = $this->finance_flow( (int) $state['offer']['ids'][0], $message, $normalized, $state );
+					$finance = $this->finance_flow( $state['offer']['ids'], $message, $normalized, $state );
 					if ( $finance ) {
 						return $finance;
 					}
@@ -81,28 +82,43 @@ trait ASI_Dialogue_Actions {
 			}
 		}
 
-		// 3. Cuotas.
-		if ( $this->words_in( $normalized, 'finance_words' ) ) {
-			$target = $this->action_target( $normalized, $state );
-			if ( $target ) {
-				$finance = $this->finance_flow( $target, $message, $normalized, $state );
+		// 3. Seguimiento de lo que está viendo: "y las cuotas de la otra", "y el del pickup??".
+		$follow = $this->selection_follow_up( $message, $normalized, $state );
+		if ( $follow ) {
+			return $follow;
+		}
+
+		// 4. Cuotas (de uno o de varios: los que nombra o los que está viendo).
+		if ( $this->words_in( $normalized, 'finance_words' ) && ! $this->words_in( $normalized, 'quote_words' ) ) {
+			// Lo que nombra; si no nombra nada, todo lo que está viendo; si no, el de la conversación.
+			$targets = $this->action_targets( $message, $normalized, $state, false );
+			if ( ! $targets && count( $state['selected'] ) > 1 ) {
+				$targets = $state['selected'];
+			}
+			if ( ! $targets ) {
+				$one     = $this->action_target( $normalized, $state );
+				$targets = $one ? array( $one ) : array();
+			}
+			if ( $targets ) {
+				$finance = $this->finance_flow( $targets, $message, $normalized, $state );
 				if ( $finance ) {
 					return $finance;
 				}
 			}
 		}
 
-		// 4. Comparación en PDF.
+		// 5. Comparación en PDF.
 		if ( isset( $available['compare'] ) && $this->words_in( $normalized, 'compare_pdf_words' ) && count( $state['results'] ) >= 2 ) {
 			$max = isset( $available['compare']['max_items'] ) ? (int) $available['compare']['max_items'] : 4;
 			return $this->start_action( 'compare', array_slice( $state['results'], 0, $max ), $state );
 		}
 
-		// 5. Cotización.
+		// 6. Cotización ("con cuotas": el PDF y la tabla de cuotas en la misma respuesta).
 		if ( isset( $available['quote'] ) && $this->words_in( $normalized, 'quote_words' ) ) {
 			$max     = isset( $available['quote']['max_items'] ) ? (int) $available['quote']['max_items'] : 1;
 			$targets = array_slice( $this->action_targets( $message, $normalized, $state ), 0, max( 1, $max ) );
 			if ( $targets ) {
+				$state['with_finance'] = $this->words_in( $normalized, 'finance_words' );
 				return $this->start_action( 'quote', $targets, $state );
 			}
 			if ( count( $state['results'] ) > 1 ) {
@@ -158,7 +174,7 @@ trait ASI_Dialogue_Actions {
 	 *
 	 * @return int[]
 	 */
-	private function action_targets( $message, $normalized, array $state ) {
+	private function action_targets( $message, $normalized, array $state, $fallback = true ) {
 		// 1. Por nombre: cada parte separada por "y", coma, "con"…
 		$named = array();
 		$rest  = ' ' . $normalized . ' ';
@@ -211,6 +227,9 @@ trait ASI_Dialogue_Actions {
 
 		if ( $named ) {
 			return $named;
+		}
+		if ( ! $fallback ) {
+			return array();
 		}
 		$one = $this->action_target( $normalized, $state );
 		return $one ? array( $one ) : array();
@@ -298,6 +317,9 @@ trait ASI_Dialogue_Actions {
 	 * Empieza una acción: si ya tiene los datos del cliente, la ejecuta; si no, los pide.
 	 */
 	private function start_action( $action, array $ids, array $state ) {
+		if ( ! empty( $state['with_finance'] ) ) {
+			$state['pending'] = array( 'action' => $action, 'ids' => $ids, 'with' => 'finance' );
+		}
 		return $this->continue_action( $action, $ids, $state['customer'], $state );
 	}
 
@@ -310,7 +332,7 @@ trait ASI_Dialogue_Actions {
 			},
 			$rows
 		);
-		$pending = array( 'action' => $action, 'ids' => $ids );
+		$pending = array( 'action' => $action, 'ids' => $ids, 'with' => isset( $state['pending']['with'] ) ? $state['pending']['with'] : '' );
 		$vars    = array(
 			'title'  => $titles ? $titles[0] : '',
 			'titles' => $this->responder->join_list( $titles, 'and' ),
@@ -350,7 +372,17 @@ trait ASI_Dialogue_Actions {
 		if ( ! empty( $result['test'] ) ) {
 			$text[] = $this->responder->say( 'action_test_note' );
 		}
-		$offer = 'quote' === $action && 1 === count( $ids ) ? array( 'action' => 'finance', 'ids' => array( $ids[0] ) ) : array();
+		$offer  = 'quote' === $action ? array( 'action' => 'finance', 'ids' => $ids ) : array();
+		$table  = array();
+		$with   = isset( $state['pending']['with'] ) && 'finance' === $state['pending']['with'];
+		if ( $with ) {
+			$block = $this->finance_block( $ids, '', '' );
+			if ( $block ) {
+				$text[] = $block['text'];
+				$table  = $block['table'];
+				$offer  = array();
+			}
+		}
 		return array(
 			'kind'        => 'file',
 			'text'        => $this->sentences( $text ),
@@ -362,93 +394,220 @@ trait ASI_Dialogue_Actions {
 				'download' => $this->responder->say( 'file_download' ),
 			),
 			'cards'       => array(),
-			'followup'    => $this->responder->say( 'compare' === $action ? 'action_after_compare' : 'action_after_quote' ),
+			'table'       => $table,
+			'followup'    => $this->responder->say( 'compare' === $action ? 'action_after_compare' : ( $table ? 'action_after_quote_finance' : 'action_after_quote' ) ),
 			'links'       => array(),
-			'suggestions' => 'quote' === $action ? (array) $this->lexicon->get_list( 'after_quote_chips' ) : array(),
+			'suggestions' => 'quote' === $action && ! $table ? (array) $this->lexicon->get_list( 'after_quote_chips' ) : array(),
 			'more'        => false,
-			'state'       => array_merge( $clear, array( 'focus' => $ids[0], 'offer' => $offer ) ),
+			'state'       => array_merge(
+				$clear,
+				array(
+					'focus'    => $ids[0],
+					'offer'    => $offer,
+					'selected' => $ids,
+					'last'     => $with ? 'finance' : $action,
+					'quoted'   => array_values( array_unique( array_merge( $state['quoted'], 'quote' === $action ? $ids : array() ) ) ),
+				)
+			),
 		);
 	}
 
 	/**
-	 * Cuotas con las reglas del sitio (o las del panel).
+	 * Cuotas con las reglas del sitio (o las del panel), de uno o de varios productos.
+	 *
+	 * @param int|int[] $ids Productos.
 	 */
-	private function finance_flow( $id, $message, $normalized, array $state ) {
-		$rules = $this->runner()->financing( $id );
-		$rows  = $this->repository->rows( $this->context['lang'], array( $id ) );
-		if ( ! $rules || ! $rows ) {
+	private function finance_flow( $ids, $message, $normalized, array $state ) {
+		$ids   = array_values( array_unique( array_filter( array_map( 'intval', (array) $ids ) ) ) );
+		$block = $this->finance_block( $ids, $message, $normalized );
+		if ( ! $block ) {
 			return null;
 		}
-		$card  = (array) $rows[0]['card'];
-		$money = ASI_Money::config( (array) $this->context['money'] );
-		$price = ASI_Money::card_price( $card, $money );
-		if ( ! $price['amount'] ) {
-			return null;
-		}
-		$amount   = (float) $price['amount'];
-		$currency = '' !== $price['currency'] ? $price['currency'] : $money['base'];
-		$fmt      = static function ( $value ) use ( $currency ) {
-			return ASI_Money::format( round( $value ), $currency );
-		};
+		$available = $this->runner()->available();
+		$quoted    = ! array_diff( $block['ids'], $state['quoted'] );
+		$offer     = isset( $available['quote'] ) && ! $quoted;
+		return array(
+			'kind'        => 'finance',
+			'text'        => $block['text'],
+			'table'       => $block['table'],
+			'cards'       => $this->cards( $block['rows'] ),
+			'followup'    => $this->responder->say( $offer ? 'finance_offer_quote' : 'finance_disclaimer', $block['vars'] ),
+			'links'       => array(),
+			'suggestions' => $offer ? (array) $this->lexicon->get_list( 'finance_chips' ) : array(),
+			'more'        => false,
+			// Se conservan los resultados: después se puede seguir con "compara el primero y el segundo".
+			'state'       => array(
+				'focus'    => $block['ids'][0],
+				'offer'    => $offer ? array( 'action' => 'quote', 'ids' => $block['ids'] ) : array(),
+				'selected' => count( $block['ids'] ) > 1 ? $block['ids'] : ( $state['selected'] ? $state['selected'] : $block['ids'] ),
+				'last'     => 'finance',
+			),
+		);
+	}
 
-		// Enganche: "con 50 mil de enganche", "enganche de Q40,000", "30 %".
-		$pct  = (float) $rules['down_default'];
-		$note = '';
-		$text = ASI_Money::fold( $message );
+	/**
+	 * Tabla de cuotas: una columna por producto. El enganche y el plazo que pida el cliente
+	 * ("con 100 mil de enganche", "30 %", "a 48 meses") se aplican a todos.
+	 *
+	 * @return array|null { text, table, rows, ids, vars }
+	 */
+	private function finance_block( array $ids, $message, $normalized ) {
+		$money = ASI_Money::config( (array) $this->context['money'] );
+		$text  = ASI_Money::fold( (string) $message );
+		$items = array();
+		foreach ( $this->repository->rows( $this->context['lang'], $ids ) as $row ) {
+			$rules = $this->runner()->financing( (int) $row['post_id'] );
+			$price = ASI_Money::card_price( (array) $row['card'], $money );
+			if ( $rules && $price['amount'] ) {
+				$items[ (int) $row['post_id'] ] = array( $row, $rules, $price );
+			}
+		}
+		// En el orden que los pidió.
+		$ordered = array();
+		foreach ( $ids as $id ) {
+			if ( isset( $items[ $id ] ) ) {
+				$ordered[] = $items[ $id ];
+			}
+		}
+		if ( ! $ordered ) {
+			return null;
+		}
+
+		$wanted_pct = null;
+		$wanted_amt = null;
 		if ( preg_match( '/([0-9]{1,2}(?:[.,][0-9])?)\s*%/', $text, $m ) ) {
-			$pct = (float) str_replace( ',', '.', $m[1] ) / 100;
+			$wanted_pct = (float) str_replace( ',', '.', $m[1] ) / 100;
 		} elseif ( preg_match( '/(?:enganche|prima|inicial|down payment)\D{0,12}?((?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)|((?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)\s*(?:de\s+)?(?:enganche|prima|inicial)/', $text, $m ) ) {
-			$raw    = '' !== trim( $m[1] ) ? $m[1] : $m[2];
-			$value  = (float) ASI_Money::parse_display_price( $raw ) * ( preg_match( '/(mil|k)\s*$/', trim( $raw ) ) ? 1000 : 1 );
-			$pct    = $value > 0 ? $value / $amount : $pct;
+			$raw        = '' !== trim( $m[1] ) ? $m[1] : $m[2];
+			$wanted_amt = (float) ASI_Money::parse_display_price( $raw ) * ( preg_match( '/(mil|k)\s*$/', trim( $raw ) ) ? 1000 : 1 );
 		}
-		if ( $pct < $rules['down_min'] || $pct > $rules['down_max'] ) {
-			$asked = $pct;
-			$pct   = max( (float) $rules['down_min'], min( (float) $rules['down_max'], $pct ) );
-			$note  = $this->responder->say( $asked < $rules['down_min'] ? 'finance_down_min' : 'finance_down_max', array( 'pct' => round( $pct * 100 ) . ' %', 'down' => $fmt( $amount * $pct ) ) );
-		}
-		$down      = $amount * $pct;
-		$principal = $amount - $down;
-		$monthly   = (float) $rules['rate'] / 12;
-		$terms     = (array) $rules['terms'];
+		$terms = null;
 		if ( preg_match( '/([0-9]{2})\s*(?:meses|months)/', $text, $m ) ) {
 			$terms = array( (int) $m[1] );
 		} elseif ( preg_match( '/([1-9])\s*(?:anos|ano|years?)/', $text, $m ) ) {
 			$terms = array( 12 * (int) $m[1] );
 		}
-		$table = array();
-		foreach ( $terms as $months ) {
-			$months  = max( 1, (int) $months );
-			$payment = $monthly > 0 ? ( $monthly * $principal ) / ( 1 - pow( 1 + $monthly, -$months ) ) : $principal / $months;
-			$table[] = array( $this->responder->say( 'finance_term', array( 'n' => $months ) ), $fmt( $payment ) );
+
+		$columns = array();
+		$notes   = array();
+		$parts   = array();
+		foreach ( $ordered as $item ) {
+			list( $row, $rules, $price ) = $item;
+			$amount   = (float) $price['amount'];
+			$currency = '' !== $price['currency'] ? $price['currency'] : $money['base'];
+			$pct      = null !== $wanted_pct ? $wanted_pct : ( $wanted_amt ? $wanted_amt / $amount : (float) $rules['down_default'] );
+			if ( $pct < $rules['down_min'] || $pct > $rules['down_max'] ) {
+				$asked = $pct;
+				$pct   = max( (float) $rules['down_min'], min( (float) $rules['down_max'], $pct ) );
+				$notes[] = $this->responder->say( $asked < $rules['down_min'] ? 'finance_down_min' : 'finance_down_max', array( 'pct' => round( $pct * 100 ) . ' %', 'down' => ASI_Money::format( round( $amount * $pct ), $currency ) ) );
+			}
+			$down      = $amount * $pct;
+			$columns[] = array(
+				'title'     => $row['card']['title'],
+				'currency'  => $currency,
+				'principal' => $amount - $down,
+				'monthly'   => (float) $rules['rate'] / 12,
+				'terms'     => null !== $terms ? $terms : (array) $rules['terms'],
+				'rate'      => (float) $rules['rate'],
+			);
+			$parts[] = $this->responder->say( 'finance_part', array( 'title' => $row['card']['title'], 'price' => ASI_Money::format( $amount, $currency ), 'down' => ASI_Money::format( round( $down ), $currency ), 'pct' => round( $pct * 100 ) . ' %' ) );
 		}
-		$vars = array(
-			'title' => $card['title'],
-			'price' => $fmt( $amount ),
-			'down'  => $fmt( $down ),
-			'pct'   => round( $pct * 100 ) . ' %',
-			'rate'  => rtrim( rtrim( number_format( $rules['rate'] * 100, 2 ), '0' ), '.' ) . ' %',
-		);
-		$intro = array( $this->responder->say( 1 === count( $table ) ? 'finance_single' : 'finance_table', $vars + array( 'term' => $table[0][0], 'payment' => $table[0][1] ) ) );
-		if ( $note ) {
-			$intro[] = $note;
+
+		$all_terms = array();
+		foreach ( $columns as $column ) {
+			$all_terms = array_merge( $all_terms, $column['terms'] );
 		}
-		$available = $this->runner()->available();
+		$all_terms = array_values( array_unique( array_map( 'intval', $all_terms ) ) );
+		sort( $all_terms );
+		$rows = array();
+		foreach ( $all_terms as $months ) {
+			$line = array( $this->responder->say( 'finance_term', array( 'n' => $months ) ) );
+			foreach ( $columns as $column ) {
+				$r       = $column['monthly'];
+				$p       = $column['principal'];
+				$payment = $r > 0 ? ( $r * $p ) / ( 1 - pow( 1 + $r, -max( 1, $months ) ) ) : $p / max( 1, $months );
+				$line[]  = ASI_Money::format( round( $payment ), $column['currency'] );
+			}
+			$rows[] = $line;
+		}
+
+		$rate  = rtrim( rtrim( number_format( $columns[0]['rate'] * 100, 2 ), '0' ), '.' ) . ' %';
+		$vars  = array( 'rate' => $rate, 'title' => $columns[0]['title'] );
+		$intro = 1 === count( $columns )
+			? ( 1 === count( $rows )
+				? $this->responder->say( 'finance_single_part', array( 'part' => $parts[0], 'term' => $rows[0][0], 'payment' => $rows[0][1] ) )
+				: $this->responder->say( 'finance_table_part', array( 'part' => $parts[0] ) ) )
+			: $this->responder->say( 'finance_table_many', array( 'parts' => $this->responder->join_list( $parts, 'and' ) ) );
+		$head  = array( $this->responder->say( 'finance_head_term' ) );
+		foreach ( $columns as $column ) {
+			$head[] = 1 === count( $columns ) ? $this->responder->say( 'finance_head_payment' ) : $this->short( $column['title'], 22 );
+		}
 		return array(
-			'kind'        => 'finance',
-			'text'        => $this->sentences( $intro ),
-			'table'       => 1 === count( $table ) ? array() : array( 'head' => array( $this->responder->say( 'finance_head_term' ), $this->responder->say( 'finance_head_payment' ) ), 'rows' => $table ),
-			'cards'       => $this->cards( $rows ),
-			'followup'    => $this->responder->say( isset( $available['quote'] ) ? 'finance_offer_quote' : 'finance_disclaimer', $vars ),
-			'links'       => array(),
-			'suggestions' => isset( $available['quote'] ) ? (array) $this->lexicon->get_list( 'finance_chips' ) : array(),
-			'more'        => false,
-			// Se conservan los resultados: después se puede seguir con "compara el primero y el segundo".
-			'state'       => array(
-				'focus' => (int) $id,
-				'offer' => isset( $available['quote'] ) ? array( 'action' => 'quote', 'ids' => array( (int) $id ) ) : array(),
-			),
+			'text'  => $this->sentences( array_merge( array( $intro ), array_unique( $notes ) ) ),
+			'table' => 1 === count( $columns ) && 1 === count( $rows ) ? array() : array( 'head' => $head, 'rows' => $rows ),
+			'rows'  => array_column( $ordered, 0 ),
+			'ids'   => array_map( 'intval', array_column( array_column( $ordered, 0 ), 'post_id' ) ),
+			'vars'  => $vars,
 		);
+	}
+
+	/**
+	 * Seguimiento sobre lo que está viendo (lo último cotizado, comparado o con cuotas):
+	 * "y las cuotas de la otra", "y el del pickup??", "y la de la suv". Repite lo último que pidió
+	 * (cuotas; o la cotización, si esa todavía no la tiene) con ese producto.
+	 */
+	private function selection_follow_up( $message, $normalized, array $state ) {
+		if ( count( $state['selected'] ) < 2 || str_word_count( $normalized ) > 9 ) {
+			return null;
+		}
+		$is_follow = preg_match( '/^(y|e|tambien|and)\s/', $normalized ) || preg_match( '/(^|\s)(la otra|el otro|los otros|las otras|the other)(\s|$)/', $normalized );
+		if ( ! $is_follow ) {
+			return null;
+		}
+		$picked = array();
+		if ( preg_match( '/(^|\s)(la otra|el otro|los otros|las otras|the other)(\s|$)/', $normalized ) ) {
+			$picked = array_values( array_diff( $state['selected'], array( (int) $state['focus'] ) ) );
+		}
+		if ( ! $picked ) {
+			$picked = $this->pick_in_selection( $normalized, $state );
+		}
+		if ( ! $picked ) {
+			return null;
+		}
+		$wants_finance = $this->words_in( $normalized, 'finance_words' );
+		$wants_quote   = $this->words_in( $normalized, 'quote_words' );
+		$last          = '' !== $state['last'] ? $state['last'] : 'finance';
+		if ( $wants_quote || ( ! $wants_finance && 'quote' === $last && array_diff( $picked, $state['quoted'] ) ) ) {
+			return $this->start_action( 'quote', $picked, $state );
+		}
+		return $this->finance_flow( $picked, $message, $normalized, $state );
+	}
+
+	/**
+	 * Dentro de la selección, el que nombra por tipo ("el del pickup", "la suv") o por nombre.
+	 *
+	 * @return int[]
+	 */
+	private function pick_in_selection( $normalized, array $state ) {
+		$rows   = $this->repository->rows( $this->context['lang'], $state['selected'] );
+		$picked = array();
+		foreach ( $rows as $row ) {
+			$category = ' ' . ASI_Lexicon::normal_form( (string) ( isset( $row['card']['category'] ) ? $row['card']['category'] : '' ) ) . ' ';
+			$body     = isset( $row['card']['attrs']['body'] ) ? (string) $row['card']['attrs']['body'] : '';
+			$text     = ' ' . ASI_Lexicon::normal_form( $normalized ) . ' ';
+			$by_type  = ( '' !== trim( $category ) && false !== strpos( $text, $category ) )
+				|| ( '' !== $body && preg_match( '/\s(' . preg_quote( $body, '/' ) . '|' . ( 'pickup' === $body ? 'pick up|picop|palangana' : ( 'suv' === $body ? 'camioneta' : 'x^' ) ) . ')\s/', $text ) );
+			$by_name  = false;
+			foreach ( explode( ' ', trim( $row['title_norm'] ) ) as $word ) {
+				if ( strlen( $word ) >= 3 && ! ctype_digit( $word ) && false !== strpos( $text, ' ' . $word . ' ' ) ) {
+					$by_name = true;
+				}
+			}
+			if ( $by_type || $by_name ) {
+				$picked[] = (int) $row['post_id'];
+			}
+		}
+		return count( $picked ) < count( $rows ) ? $picked : array();
 	}
 
 	/**

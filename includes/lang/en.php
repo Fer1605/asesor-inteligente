@@ -341,6 +341,11 @@ return array(
 		'action_ask_quote_many' => array( 'Happy to prepare the quote for {titles}! I just need your name and email (and a phone number if you want an advisor to call you).' ),
 		'action_done_quote_many' => array( 'Done, {name}! Here is the quote for {titles}.' ),
 		'advice_more' => array( 'Sure, here are other options for {summary}: {options}.' ),
+		'finance_part'         => array( '{title} ({price}, {down} down, {pct})' ),
+		'finance_table_part'   => array( 'For the {part}, these are the approximate monthly payments:' ),
+		'finance_single_part'  => array( 'For the {part}, the approximate payment over {term} is {payment}.' ),
+		'finance_table_many'   => array( 'These are the approximate monthly payments for {parts}:' ),
+		'action_after_quote_finance' => array( 'Reference rate; an advisor confirms the final figure. Want a different down payment or term, or other options?' ),
 		'results_budget' => array(
 			'With a budget {budget} I have {n}. The ones that make the most of your budget come first.',
 			'For a budget {budget} there are {n}; I start with the most complete within that amount.',

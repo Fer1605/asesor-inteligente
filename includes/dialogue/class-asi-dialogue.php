@@ -1314,7 +1314,11 @@ class ASI_Dialogue {
 		if ( ! is_array( $action ) || empty( $action['action'] ) || ! is_string( $action['action'] ) || ! preg_match( '/^[a-z_]{2,20}$/', $action['action'] ) ) {
 			return array();
 		}
-		return array( 'action' => $action['action'], 'ids' => $ints( isset( $action['ids'] ) ? $action['ids'] : array(), 4 ) );
+		return array(
+			'action' => $action['action'],
+			'ids'    => $ints( isset( $action['ids'] ) ? $action['ids'] : array(), 8 ),
+			'with'   => isset( $action['with'] ) && 'finance' === $action['with'] ? 'finance' : '',
+		);
 	}
 
 	private static function clean_customer_state( $customer ) {
@@ -1347,10 +1351,13 @@ class ASI_Dialogue {
 			'pending'  => self::clean_action( isset( $state['pending'] ) ? $state['pending'] : array(), $ints ),
 			'offer'    => self::clean_action( isset( $state['offer'] ) ? $state['offer'] : array(), $ints ),
 			'customer' => self::clean_customer_state( isset( $state['customer'] ) ? $state['customer'] : array() ),
+			'selected' => $ints( isset( $state['selected'] ) ? $state['selected'] : array(), 8 ),
+			'quoted'   => $ints( isset( $state['quoted'] ) ? $state['quoted'] : array(), 20 ),
+			'last'     => isset( $state['last'] ) && in_array( $state['last'], array( 'quote', 'compare', 'finance' ), true ) ? $state['last'] : '',
 		);
 		// Otra página de idioma o país: la conversación empieza de cero.
 		if ( '' !== $clean['lang'] && $clean['lang'] !== $this->context['lang'] ) {
-			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'] );
+			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'], 'selected' => array(), 'quoted' => array(), 'last' => '' );
 		}
 		return $clean;
 	}
