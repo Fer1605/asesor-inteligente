@@ -1528,6 +1528,7 @@ class ASI_Admin {
 				'ai_enabled'   => ! empty( $_POST['ai_enabled'] ),
 				'ai_order'     => $order,
 				'ai_models'    => $models,
+				'ai_mode'      => isset( $_POST['ai_mode'] ) && 'review' === $_POST['ai_mode'] ? 'review' : 'rescue',
 				'ai_daily_cap' => isset( $_POST['ai_daily_cap'] ) ? max( 0, min( 100000, (int) $_POST['ai_daily_cap'] ) ) : 300,
 			)
 		);
@@ -1565,6 +1566,9 @@ class ASI_Admin {
 				<p><strong>Primero probar con</strong>
 					<label><input type="radio" name="ai_first" value="groq" <?php checked( 'groq', $settings['order'] ? $settings['order'][0] : 'groq' ); ?>> Groq</label>
 					<label><input type="radio" name="ai_first" value="google" <?php checked( 'google', $settings['order'] ? $settings['order'][0] : 'groq' ); ?>> Google (Gemma)</label></p>
+				<p><strong>Cuándo entra la IA</strong><br>
+					<label><input type="radio" name="ai_mode" value="rescue" <?php checked( 'review' !== $settings['mode'] ); ?>> Solo cuando el chat no entiende <span class="asi-muted">(gasta lo mínimo)</span></label><br>
+					<label><input type="radio" name="ai_mode" value="review" <?php checked( 'review' === $settings['mode'] ); ?>> Lee cada búsqueda y corrige si el chat entendió otra cosa <span class="asi-muted">(una consulta por búsqueda; las frases repetidas salen de la caché)</span></label></p>
 				<p><label><strong>Tope diario</strong> de consultas a la IA en este sitio <input type="number" min="0" max="100000" name="ai_daily_cap" value="<?php echo esc_attr( (string) $settings['daily_cap'] ); ?>"> <span class="asi-muted">(0 = sin tope)</span></label></p>
 				<p class="asi-actions"><?php submit_button( 'Guardar', 'primary', 'submit', false ); ?></p>
 			</form>
@@ -1626,8 +1630,10 @@ class ASI_Admin {
 					<tbody>
 					<?php foreach ( array_slice( $cache, 0, 100, true ) as $key => $row ) : ?>
 						<tr>
-							<td><span class="asi-tag asi-tag--code"><?php echo esc_html( $row['lang'] ); ?></span> <?php echo esc_html( $row['message'] ); ?></td>
-							<td><?php echo esc_html( $row['phrase'] ); ?></td>
+							<td><span class="asi-tag asi-tag--code"><?php echo esc_html( $row['lang'] ); ?></span> <?php echo esc_html( $row['message'] ); ?>
+								<?php if ( ! empty( $row['context'] ) ) : ?><br><span class="asi-muted">después de: <?php echo esc_html( $row['context'] ); ?></span><?php endif; ?></td>
+							<td><?php echo esc_html( '' !== (string) $row['phrase'] ? $row['phrase'] : '—' ); ?>
+								<?php if ( isset( $row['changed'] ) ) : ?><br><span class="asi-tag"><?php echo $row['changed'] ? 'Corrigió al chat' : 'El chat ya lo había entendido'; ?></span><?php endif; ?></td>
 							<td><code><?php echo esc_html( $row['model'] ); ?></code></td>
 							<td><?php echo (int) $row['hits'] + 1; ?></td>
 							<td>

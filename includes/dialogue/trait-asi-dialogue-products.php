@@ -429,6 +429,12 @@ trait ASI_Dialogue_Products {
 			$query = $this->analyzer->analyze( $text );
 		}
 		$result = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'catalog' ), 'limit' => 200 ) );
+		// "¿Cuánto sale la más barata?": las palabras sueltas no son un producto; es de lo que venía viendo.
+		if ( ( ! $result['items'] || 'exact' !== $result['quality'] ) && $text === $rest && '' !== $state['q'] ) {
+			$text   = $state['q'];
+			$query  = $this->analyzer->analyze( $text );
+			$result = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'catalog' ), 'limit' => 200 ) );
+		}
 		if ( ! $result['items'] ) {
 			return null;
 		}
@@ -472,10 +478,13 @@ trait ASI_Dialogue_Products {
 		$next = array_slice( $rows, 1, 3 );
 		$ids  = array_map( 'intval', array_column( array_slice( $rows, 0, 4 ), 'post_id' ) );
 
+		$top_cards = $this->cards( array( $top ), $query );
+		// El precio como se ve en la tarjeta ("$ 25,990"), no el número crudo de la ficha.
+		$price = isset( $top_cards[0]['price'] ) && '' !== (string) $top_cards[0]['price'] ? $top_cards[0]['price'] : $top['card']['price'];
 		return array(
 			'kind'        => 'results',
-			'text'        => $this->responder->say( $ascending ? 'cheapest' : 'priciest', array( 'title' => $top['card']['title'], 'price' => $top['card']['price'], 'en_label' => $en_label ) ),
-			'cards'       => $this->cards( array( $top ), $query ),
+			'text'        => $this->responder->say( $ascending ? 'cheapest' : 'priciest', array( 'title' => $top['card']['title'], 'price' => $price, 'en_label' => $en_label ) ),
+			'cards'       => $top_cards,
 			'extra'       => $next ? array( 'text' => $this->responder->say( 'sorted_more' ), 'cards' => $this->cards( $next, $query ) ) : array(),
 			'followup'    => $this->responder->say( 'fact_followup' ),
 			'links'       => array(),

@@ -255,7 +255,7 @@ class ASI_AI_Interpreter {
 	}
 
 	/** Números escritos en el mensaje ("160", "160,000", "1.5", "ciento sesenta mil"). */
-	private static function numbers_in( $message ) {
+	public static function numbers_in( $message ) {
 		preg_match_all( '/[0-9]+(?:[.,][0-9]+)*/', (string) $message, $m );
 		$out = self::word_numbers( $message );
 		foreach ( $m[0] as $raw ) {
@@ -413,6 +413,219 @@ class ASI_AI_Interpreter {
 		$phrase = self::phrase( $intent, $phrases );
 		$result = self::try_phrase( $dialogue, $message, $phrase, $state );
 		return array( 'response' => $result, 'phrase' => $result ? $phrase : '', 'intent' => $intent, 'model' => isset( $answer['model'] ) ? $answer['model'] : '' );
+	}
+
+	// ------------------------------------------------------------------
+	// Modo "lee todo": la IA revisa cada búsqueda y corrige solo si entendió otra cosa
+	// ------------------------------------------------------------------
+
+	/** Respuestas que la IA revisa en modo "lee todo": búsquedas y lo que las reglas no entendieron. */
+	const REVIEW_KINDS = array( 'results', 'unclear', 'none' );
+
+	/**
+	 * ¿Esta respuesta se revisa con la IA? Búsquedas normales: no un formulario a medias (datos
+	 * personales) ni la recomendación por perfil (esa ya la arma el asesor).
+	 */
+	public static function reviewable( array $response, array $state, $message ) {
+		if ( ! isset( $response['kind'] ) || ! in_array( $response['kind'], self::REVIEW_KINDS, true ) ) {
+			return false;
+		}
+		if ( ! empty( $state['pending'] ) ) {
+			return false;
+		}
+		// Una búsqueda sin texto es la recomendación por perfil: esa la arma el asesor.
+		if ( 'results' === $response['kind'] && empty( $response['state']['q'] ) ) {
+			return false;
+		}
+		return '' !== self::scrub( $message );
+	}
+
+	/**
+	 * Instrucciones del modo "lee todo": la IA devuelve cómo queda la búsqueda completa.
+	 *
+	 * @param string $message Mensaje del cliente (sin datos personales).
+	 * @param string $current Lo que venía buscando (texto acumulado), o ''.
+	 * @param string $site    Nombre del sitio.
+	 */
+	public static function review_prompt( $message, $current, $site = '' ) {
+		$lines   = array();
+		$lines[] = 'Eres el intérprete de un chat de ventas de vehículos' . ( '' !== $site ? ' del sitio "' . $site . '"' : '' ) . '. NO le respondes al cliente: traduces lo que busca a filtros.';
+		$lines[] = 'El cliente escribe en español o inglés, con errores de dedo y modismos de Guatemala.';
+		$lines[] = '';
+		$lines[] = '' !== trim( $current ) ? 'Lo que venía buscando (mensajes anteriores juntos): """' . str_replace( '"""', '"', $current ) . '"""' : 'No venía buscando nada.';
+		$lines[] = 'Mensaje nuevo: """' . str_replace( '"""', '"', $message ) . '"""';
+		$lines[] = '';
+		$lines[] = 'Devuelve la búsqueda COMPLETA como queda después del mensaje nuevo:';
+		$lines[] = '- Si el mensaje afina ("solo toyota", "que no pase de 100 mil", "y diésel"), conserva lo anterior y suma lo nuevo.';
+		$lines[] = '- Si cambia de tema ("ahora busco un pickup"), empieza de cero.';
+		$lines[] = '- Un monto nuevo reemplaza al anterior. "No mayor a", "que no pase de", "no más de", "hasta", "menos de" = max. "Mayor a", "más de", "desde", "arriba de" = min. "Tengo 200 mil" = max.';
+		$lines[] = '- "solo X" o "quiero X" NO es excluir. Excluir es "que no sea X", "sin X", "menos X", "no quiero X".';
+		$lines[] = '- Montos en número completo: 100 mil = 100000, 1.5 millones = 1500000.';
+		$lines[] = '';
+		$lines[] = 'Campos: "type" tipo de vehículo (suv, pickup, sedan, hatchback, camion, microbus, panel, moto…) o vacío; "brands" marcas que quiere; "words" otras características (4x4, diesel, automatica, hibrido, 7 pasajeros, año, modelo) o vacío; "exclude" marcas o tipos que NO quiere; "min" y "max" montos o null; "currency" "USD" si dice dólares/$, "GTQ" si dice quetzales/Q, si no vacío.';
+		$lines[] = 'Si el mensaje no es una búsqueda (pregunta cuotas, cotizar, horario, saludo…), responde {"search":false}.';
+		$lines[] = 'Responde SOLO con JSON en una línea, sin explicación: {"search":true,"type":"suv","brands":["toyota"],"words":"","exclude":[],"min":null,"max":100000,"currency":""}';
+		return implode( "\n", $lines );
+	}
+
+	/**
+	 * Lee la búsqueda que devolvió la IA. Los montos solo valen si están escritos en el mensaje o
+	 * en lo que venía buscando (la IA no puede inventar un presupuesto).
+	 *
+	 * @return array|null type, brands[], words, exclude[], min, max, currency — o null si no es búsqueda.
+	 */
+	public static function parse_review( $raw, $message, $current = '' ) {
+		if ( ! preg_match( '/\{.*\}/s', (string) $raw, $m ) ) {
+			return null;
+		}
+		$data = json_decode( $m[0], true );
+		if ( ! is_array( $data ) || empty( $data['search'] ) ) {
+			return null;
+		}
+		$words = function ( $value, $max_items ) {
+			$list = is_array( $value ) ? $value : ( '' === trim( (string) $value ) ? array() : array( $value ) );
+			$out  = array();
+			foreach ( array_slice( $list, 0, $max_items ) as $item ) {
+				$item = self::clean_query( is_scalar( $item ) ? (string) $item : '' );
+				if ( '' !== $item && ! in_array( $item, $out, true ) ) {
+					$out[] = $item;
+				}
+			}
+			return $out;
+		};
+		$numbers = array_merge( self::numbers_in( $message ), self::numbers_in( $current ) );
+		$amount  = function ( $key ) use ( $data, $numbers ) {
+			if ( ! isset( $data[ $key ] ) || ! is_numeric( $data[ $key ] ) || $data[ $key ] <= 0 ) {
+				return null;
+			}
+			$value = (float) $data[ $key ];
+			foreach ( $numbers as $n ) {
+				foreach ( array( 1, 1000, 1000000 ) as $scale ) {
+					if ( abs( $n * $scale - $value ) <= max( 0.5, $value * 0.001 ) ) {
+						return $value;
+					}
+				}
+			}
+			return null;
+		};
+		$spec = array(
+			'type'     => implode( ' ', $words( isset( $data['type'] ) ? $data['type'] : '', 1 ) ),
+			'brands'   => $words( isset( $data['brands'] ) ? $data['brands'] : array(), 3 ),
+			'words'    => implode( ' ', $words( isset( $data['words'] ) ? $data['words'] : '', 4 ) ),
+			'exclude'  => $words( isset( $data['exclude'] ) ? $data['exclude'] : array(), 3 ),
+			'min'      => $amount( 'min' ),
+			'max'      => $amount( 'max' ),
+			'currency' => '',
+		);
+		if ( null !== $spec['min'] && null !== $spec['max'] && $spec['min'] >= $spec['max'] ) {
+			$spec['min'] = null;
+		}
+		// La moneda la deciden las palabras del cliente, no la IA.
+		$said = $message . ' ' . $current;
+		if ( preg_match( '/(\$|d[oó]lar|dollar|usd|verdes)/iu', $said ) ) {
+			$spec['currency'] = 'USD';
+		} elseif ( preg_match( '/(quetzal|gtq|(^|[^a-z])q\.?\s?[0-9])/iu', $said ) ) {
+			$spec['currency'] = 'GTQ';
+		}
+		if ( '' === $spec['type'] && ! $spec['brands'] && '' === $spec['words'] && null === $spec['min'] && null === $spec['max'] ) {
+			return null;
+		}
+		return $spec;
+	}
+
+	/**
+	 * La búsqueda de la IA como frase que las reglas leen sin dudar:
+	 * "suv toyota hasta q100000 que no sea nissan".
+	 */
+	public static function search_phrase( array $spec, array $phrases ) {
+		$parts  = array_filter( array( $spec['type'], implode( ' ', $spec['brands'] ), $spec['words'] ), 'strlen' );
+		$symbol = 'USD' === $spec['currency'] ? '$' : ( 'GTQ' === $spec['currency'] ? 'q' : '' );
+		$money  = function ( $v ) use ( $symbol ) {
+			return $symbol . (int) round( $v );
+		};
+		if ( null !== $spec['min'] && null !== $spec['max'] && isset( $phrases['search_range'] ) ) {
+			$parts[] = str_replace( array( '{min}', '{max}' ), array( $money( $spec['min'] ), $money( $spec['max'] ) ), $phrases['search_range'] );
+		} elseif ( null !== $spec['max'] && isset( $phrases['search_max'] ) ) {
+			$parts[] = str_replace( '{amount}', $money( $spec['max'] ), $phrases['search_max'] );
+		} elseif ( null !== $spec['min'] && isset( $phrases['search_min'] ) ) {
+			$parts[] = str_replace( '{amount}', $money( $spec['min'] ), $phrases['search_min'] );
+		}
+		if ( $spec['exclude'] && isset( $phrases['search_not'] ) ) {
+			$parts[] = str_replace( '{words}', implode( ' ', $spec['exclude'] ), $phrases['search_not'] );
+		}
+		return trim( implode( ' ', $parts ) );
+	}
+
+	/**
+	 * Qué entendió el analizador, para comparar dos lecturas: términos, atributos, montos y exclusiones.
+	 */
+	public static function signature( array $query ) {
+		$terms = function ( $groups ) {
+			$out = array();
+			foreach ( (array) $groups as $g ) {
+				$out[] = isset( $g['text'] ) ? (string) $g['text'] : '';
+			}
+			sort( $out );
+			return $out;
+		};
+		$attrs = isset( $query['attrs'] ) ? (array) $query['attrs'] : array();
+		ksort( $attrs );
+		return json_encode(
+			array(
+				$terms( $query['groups'] ),
+				$attrs,
+				null === $query['price_min'] ? null : (float) $query['price_min'],
+				null === $query['price_max'] ? null : (float) $query['price_max'],
+				$terms( isset( $query['exclude'] ) ? $query['exclude'] : array() ),
+			)
+		);
+	}
+
+	/**
+	 * Revisión completa de una búsqueda ya contestada por las reglas.
+	 *
+	 * @param ASI_Dialogue       $dialogue Diálogo.
+	 * @param ASI_Query_Analyzer $analyzer Analizador del sitio (para comparar lecturas).
+	 * @param string             $message  Mensaje original.
+	 * @param array              $state    Estado ANTES del mensaje.
+	 * @param array              $response Respuesta de las reglas.
+	 * @param array              $phrases  Plantillas del idioma.
+	 * @param callable           $ask      function( string $prompt ): array|null { text, model }
+	 * @return array { response|null (null = las reglas tenían razón), phrase, model, asked }
+	 */
+	public static function review( ASI_Dialogue $dialogue, ASI_Query_Analyzer $analyzer, $message, array $state, array $response, array $phrases, callable $ask, $site = '', $cached = null ) {
+		$current = isset( $state['q'] ) && is_string( $state['q'] ) ? self::scrub( $state['q'] ) : '';
+		$out     = array( 'response' => null, 'phrase' => '', 'model' => '', 'asked' => false );
+		if ( null !== $cached ) {
+			$phrase = (string) $cached;
+		} else {
+			$answer = call_user_func( $ask, self::review_prompt( self::scrub( $message ), $current, $site ) );
+			if ( ! is_array( $answer ) || empty( $answer['text'] ) ) {
+				return $out;
+			}
+			$out['asked'] = true;
+			$out['model'] = isset( $answer['model'] ) ? $answer['model'] : '';
+			$spec         = self::parse_review( $answer['text'], self::scrub( $message ), $current );
+			$phrase       = $spec ? self::search_phrase( $spec, $phrases ) : '';
+		}
+		$out['phrase'] = $phrase;
+		if ( '' === $phrase ) {
+			return $out;
+		}
+		// ¿Entendieron lo mismo? Se compara lo que buscaron las reglas con la frase de la IA.
+		$rules_q = isset( $response['state']['q'] ) ? (string) $response['state']['q'] : '';
+		if ( 'results' === $response['kind'] && self::signature( $analyzer->analyze( $rules_q ) ) === self::signature( $analyzer->analyze( $phrase ) ) ) {
+			return $out;
+		}
+		// Entendieron otra cosa: se busca con la frase de la IA como búsqueda completa (no se suma a la anterior).
+		$fresh      = $state;
+		$fresh['q'] = '';
+		$new        = $dialogue->handle( $phrase, $fresh );
+		// Solo si con su lectura sí hay resultados exactos (no "estas se acercan").
+		if ( isset( $new['kind'] ) && 'results' === $new['kind'] && ! empty( $new['cards'] ) && empty( $new['learn'] ) ) {
+			$out['response'] = $new;
+		}
+		return $out;
 	}
 
 	/**

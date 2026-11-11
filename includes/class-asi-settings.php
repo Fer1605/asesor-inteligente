@@ -66,6 +66,7 @@ class ASI_Settings {
 			'ai_enabled'          => false,
 			'ai_order'            => array( 'groq', 'google' ),
 			'ai_models'           => array(),  // proveedor => "modelo1, modelo2" (vacío = los de fábrica).
+			'ai_mode'             => 'rescue', // rescue = solo cuando no entiende; review = lee cada búsqueda.
 			'ai_daily_cap'        => 300,      // Consultas a la IA por día en este sitio (0 = sin tope).
 		);
 	}

@@ -163,3 +163,75 @@ check( 'negación normal sigue funcionando', false, in_array( 4, asi_card_ids( $
 $s = array();
 $r = $chat( 'una pickup que no sea nissan, solo toyota', $s );
 check( 'negación con "solo" después: pickup Toyota', array( 6 ), asi_card_ids( $r ) );
+
+// Modo "lee todo": la IA revisa cada búsqueda (IA simulada).
+$es_ai    = ASI_Lexicon::get( 'es' )->get_list( 'ai_phrases' );
+$an       = new ASI_Query_Analyzer( ASI_Lexicon::get( 'es' ), $yard->vocabulary( 'es' ), array( 'base' => 'GTQ', 'map' => array( '2' => 'GTQ', '1' => 'USD' ) ), array( $adv ) );
+$said     = function ( $json ) {
+	$calls = (object) array( 'n' => 0, 'prompt' => '' );
+	return array(
+		function ( $prompt ) use ( $json, $calls ) {
+			$calls->n++;
+			$calls->prompt = $prompt;
+			return array( 'text' => $json, 'model' => 'fake' );
+		},
+		$calls,
+	);
+};
+$review = function ( $message, &$s, $json ) use ( $bot, $an, $es_ai, $said ) {
+	list( $ask, $calls ) = $said( $json );
+	$before = $s;
+	$rules  = $bot->handle( $message, $s );
+	$out    = ASI_AI_Interpreter::review( $bot, $an, $message, $before, $rules, $es_ai, $ask );
+	$final  = $out['response'] ? $out['response'] : $rules;
+	$s      = $final['state'];
+	return array( $final, $out, $calls, $rules );
+};
+
+check( 'lee todo: revisa búsquedas', true, ASI_AI_Interpreter::reviewable( array( 'kind' => 'results', 'state' => array( 'q' => 'suv' ) ), array(), 'suv' ) );
+check( 'lee todo: no revisa un formulario a medias', false, ASI_AI_Interpreter::reviewable( array( 'kind' => 'results', 'state' => array( 'q' => 'suv' ) ), array( 'pending' => array( 'type' => 'quote' ) ), 'ana' ) );
+check( 'lee todo: no revisa cuotas', false, ASI_AI_Interpreter::reviewable( array( 'kind' => 'finance', 'state' => array( 'q' => 'suv' ) ), array(), 'cuotas' ) );
+
+$p = ASI_AI_Interpreter::parse_review( '{"search":true,"type":"suv","brands":["toyota"],"exclude":[],"min":null,"max":100000}', 'quiero solo toyota', 'suv que no sean mayor a 100 mil' );
+check( 'lee todo: el monto puede venir de lo anterior', 100000.0, $p['max'] );
+check( 'lee todo: frase canónica', 'suv toyota hasta 100000', ASI_AI_Interpreter::search_phrase( $p, $es_ai ) );
+$p = ASI_AI_Interpreter::parse_review( '{"search":true,"type":"suv","max":50000}', 'una suv barata', '' );
+check( 'lee todo: monto inventado se descarta', null, $p['max'] );
+check( 'lee todo: no es búsqueda', null, ASI_AI_Interpreter::parse_review( '{"search":false}', 'cuotas de la 2', 'suv' ) );
+$p = ASI_AI_Interpreter::parse_review( '{"search":true,"type":"pickup","exclude":["nissan"],"max":40000}', 'pickup que no sea nissan hasta 40 mil dolares', '' );
+check( 'lee todo: moneda por las palabras del cliente', 'pickup hasta $40000 que no sea nissan', ASI_AI_Interpreter::search_phrase( $p, $es_ai ) );
+
+// Cuando la IA entendió lo mismo, se queda la respuesta de las reglas.
+$s = array();
+$chat( 'busco una suv', $s );
+list( $r, $out ) = $review( 'pero que no sean mayor a 300 mil', $s, '{"search":true,"type":"suv","brands":[],"words":"","exclude":[],"min":null,"max":300000,"currency":""}' );
+check( 'lee todo: de acuerdo = no cambia nada', null, $out['response'] );
+check( 'lee todo: pero sí consultó', true, $out['asked'] );
+
+// Cuando entendió otra cosa, se busca con su lectura (como una regla vieja que excluía Toyota).
+$s = array();
+$chat( 'busco una suv', $s );
+list( $r, $out, $calls, $rules ) = $review( 'las de la marca del triangulo japonesa', $s, '{"search":true,"type":"suv","brands":["toyota"],"words":"","exclude":[],"min":null,"max":null,"currency":""}' );
+check( 'lee todo: corrige con su lectura', array( 4 ), asi_card_ids( $r ) );
+check( 'lee todo: le pasa lo que venía buscando', true, false !== strpos( $calls->prompt, 'busco una suv' ) );
+check( 'lee todo: la siguiente búsqueda parte de la corregida', 'suv toyota', $s['q'] );
+
+// Si la lectura de la IA no da resultados, se queda la de las reglas.
+$s = array();
+$chat( 'busco una suv', $s );
+list( $r, $out ) = $review( 'solo las moradas', $s, '{"search":true,"type":"suv","brands":["ferrari"],"words":"","exclude":[],"min":null,"max":null}' );
+check( 'lee todo: lectura sin resultados no reemplaza', null, $out['response'] );
+
+// Con caché no vuelve a preguntar.
+$s = array();
+$chat( 'busco una suv', $s );
+$before = $s;
+$rules  = $bot->handle( 'las de la marca del triangulo japonesa', $s );
+list( $ask, $calls ) = $said( '{}' );
+$out = ASI_AI_Interpreter::review( $bot, $an, 'las de la marca del triangulo japonesa', $before, $rules, $es_ai, $ask, '', 'suv toyota' );
+check( 'lee todo: caché sin consultar', array( 0, array( 4 ) ), array( $calls->n, asi_card_ids( $out['response'] ) ) );
+$s = array();
+$chat( 'busco pickup toyota', $s );
+$r = $chat( 'cuanto sale la mas barata', $s );
+check( '"cuánto sale la más barata" = la más barata de lo que veía', true, false !== strpos( $r['text'], 'Hilux' ) );
+check( 'la más barata: precio con formato', true, false !== strpos( $r['text'], '384,990' ) );

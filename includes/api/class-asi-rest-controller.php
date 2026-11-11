@@ -167,14 +167,18 @@ class ASI_REST_Controller {
 		$dialogue = new ASI_Dialogue( new ASI_Index_Repository(), $dcontext );
 		$response = $dialogue->handle( $message, $state );
 
-		// Si las reglas no entendieron y la IA está prendida, ella interpreta y las reglas responden.
-		// También cuando pidió cuotas con un enganche o plazo que las reglas no supieron leer.
-		$fin_unread = ! empty( $response['fin_unread'] );
-		if ( ( $fin_unread || ASI_AI_Interpreter::needs_help( $response ) ) && ASI_AI::enabled() ) {
-			$rescued = ASI_AI::rescue( $dialogue, $message, $state, $dcontext, $fin_unread );
-			if ( $rescued ) {
+		// IA (opcional). Modo "rescate": solo cuando las reglas no entendieron o no leyeron un enganche.
+		// Modo "lee todo": además revisa cada búsqueda y corrige solo si entendió otra cosa.
+		if ( ASI_AI::enabled() ) {
+			$fin_unread = ! empty( $response['fin_unread'] );
+			$review     = 'review' === ASI_AI::settings()['mode'] && ! $fin_unread && ASI_AI_Interpreter::reviewable( $response, $state, $message );
+			$fixed      = $review ? ASI_AI::review( $dialogue, $message, $state, $dcontext, $response ) : null;
+			if ( ! $fixed && ( $fin_unread || ASI_AI_Interpreter::needs_help( $response ) ) ) {
+				$fixed = ASI_AI::rescue( $dialogue, $message, $state, $dcontext, $fin_unread );
+			}
+			if ( $fixed ) {
 				// Ya entendida: no va a "preguntas sin respuesta"; queda en la lista de la IA del panel.
-				$response = $rescued;
+				$response = $fixed;
 				unset( $response['learn'] );
 			}
 		}

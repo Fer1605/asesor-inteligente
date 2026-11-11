@@ -21,7 +21,7 @@ class ASI_AI {
 	const KEYS_OPTION  = 'asi_ai_keys';
 	const USAGE_OPTION = 'asi_ai_usage';
 	const CACHE_OPTION = 'asi_ai_cache';
-	const CACHE_MAX    = 300;
+	const CACHE_MAX    = 1000;
 	const TIMEOUT      = 6;   // Segundos por consulta.
 	const DEADLINE     = 9;   // Segundos en total por mensaje (toda la cadena).
 
@@ -53,6 +53,7 @@ class ASI_AI {
 			'order'     => array_values( array_intersect( (array) $s['ai_order'], array_keys( self::PROVIDERS ) ) ),
 			'models'    => (array) $s['ai_models'],
 			'daily_cap' => max( 0, (int) $s['ai_daily_cap'] ),
+			'mode'      => isset( $s['ai_mode'] ) && 'review' === $s['ai_mode'] ? 'review' : 'rescue',
 		);
 	}
 
@@ -158,6 +159,49 @@ class ASI_AI {
 		);
 		self::save_cache( $cache );
 		return self::mark( $result['response'], $result['phrase'], $result['model'], false );
+	}
+
+	/**
+	 * Modo "lee todo": la IA revisa una búsqueda que las reglas ya contestaron. Si entendió lo mismo,
+	 * se queda la respuesta de las reglas; si entendió otra cosa, se busca con su lectura.
+	 *
+	 * @return array|null Respuesta corregida, o null si se queda la de las reglas.
+	 */
+	public static function review( ASI_Dialogue $dialogue, $message, array $state, array $context, array $response ) {
+		$current  = isset( $state['q'] ) && is_string( $state['q'] ) ? $state['q'] : '';
+		$key      = 'r|' . $context['lang'] . '|' . ASI_Normalizer::normalize( ASI_AI_Interpreter::scrub( $current ) ) . '|' . ASI_Normalizer::normalize( ASI_AI_Interpreter::scrub( $message ) );
+		$phrases  = (array) ASI_Lexicon::get( $context['language'] )->get_list( 'ai_phrases' );
+		$lexicon  = ASI_Lexicon::get( $context['language'] );
+		$analyzer = new ASI_Query_Analyzer( $lexicon, ( new ASI_Index_Repository() )->vocabulary( $context['lang'] ), (array) $context['money'], (array) $context['packs'] );
+		$cache    = self::cache();
+		$cached   = isset( $cache[ $key ] ) ? (string) $cache[ $key ]['phrase'] : null;
+
+		$result = ASI_AI_Interpreter::review( $dialogue, $analyzer, $message, $state, $response, $phrases, array( __CLASS__, 'ask' ), isset( $context['site_name'] ) ? $context['site_name'] : '', $cached );
+
+		if ( null !== $cached ) {
+			$cache[ $key ]['hits'] = (int) $cache[ $key ]['hits'] + 1;
+			$cache[ $key ]['last'] = time();
+			update_option( self::CACHE_OPTION, $cache, false );
+		} elseif ( $result['asked'] ) {
+			// Se guarda también cuando la IA estuvo de acuerdo: así esa frase no vuelve a gastar.
+			$cache[ $key ] = array(
+				'lang'    => $context['lang'],
+				'message' => ASI_AI_Interpreter::scrub( $message ),
+				'context' => ASI_AI_Interpreter::scrub( $current ),
+				'phrase'  => $result['phrase'],
+				'changed' => null !== $result['response'],
+				'model'   => $result['model'],
+				'hits'    => 0,
+				'time'    => time(),
+				'last'    => time(),
+			);
+			self::save_cache( $cache );
+		}
+		if ( ! $result['response'] ) {
+			return null;
+		}
+		$model = null !== $cached ? $cache[ $key ]['model'] : $result['model'];
+		return self::mark( $result['response'], $result['phrase'], $model, null !== $cached );
 	}
 
 	/** Nota técnica en la respuesta (solo la ve un administrador en la pestaña Probar). */
