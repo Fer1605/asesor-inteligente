@@ -143,6 +143,23 @@ class ASI_Settings {
 		return $out;
 	}
 
+	/**
+	 * Correos válidos de un texto ("a@x.com, b@y.com; c@z.com"), sin repetir.
+	 *
+	 * @param string $text Texto.
+	 * @return string[]
+	 */
+	public static function email_list( $text ) {
+		$out = array();
+		foreach ( preg_split( '/[\s,;]+/', (string) $text ) as $email ) {
+			$email = sanitize_email( $email );
+			if ( is_email( $email ) && ! in_array( strtolower( $email ), array_map( 'strtolower', $out ), true ) ) {
+				$out[] = $email;
+			}
+		}
+		return array_slice( $out, 0, 10 );
+	}
+
 	public static function mode() {
 		$mode = self::all()['mode'];
 		return in_array( $mode, self::MODES, true ) ? $mode : 'admin';

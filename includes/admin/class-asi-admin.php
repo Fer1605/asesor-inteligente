@@ -206,11 +206,12 @@ class ASI_Admin {
 
 			case 'actions':
 				$mode  = isset( $_POST['actions_mode'] ) ? sanitize_key( wp_unslash( $_POST['actions_mode'] ) ) : 'test';
-				$email = isset( $_POST['test_email'] ) ? sanitize_email( wp_unslash( $_POST['test_email'] ) ) : '';
+				// Uno o varios correos de prueba, separados por coma, punto y coma o espacio.
+				$email = implode( ', ', ASI_Settings::email_list( isset( $_POST['test_email'] ) ? sanitize_text_field( wp_unslash( $_POST['test_email'] ) ) : '' ) );
 				ASI_Settings::update(
 					array(
 						'actions_mode'     => in_array( $mode, array( 'off', 'test', 'live' ), true ) ? $mode : 'test',
-						'test_email'       => is_email( $email ) ? $email : '',
+						'test_email'       => $email,
 						'finance_rate'     => isset( $_POST['finance_rate'] ) ? (string) max( 0, (float) str_replace( ',', '.', sanitize_text_field( wp_unslash( $_POST['finance_rate'] ) ) ) ) : '',
 						'finance_down_min' => isset( $_POST['finance_down_min'] ) ? max( 0, min( 90, (int) $_POST['finance_down_min'] ) ) : 20,
 					)
@@ -966,7 +967,7 @@ class ASI_Admin {
 					<label><input type="radio" name="actions_mode" value="test" <?php checked( $mode, 'test' ); ?>> <strong>Prueba</strong>: el PDF le llega al correo que escriban en el chat; el aviso a ventas solo va al correo de prueba</label><br>
 					<label><input type="radio" name="actions_mode" value="live" <?php checked( $mode, 'live' ); ?>> En vivo: el aviso va a quienes avisa el formulario del sitio</label>
 				</p>
-				<p><label><strong>Correo de prueba</strong><br><input type="email" class="regular-text" name="test_email" value="<?php echo esc_attr( $settings['test_email'] ); ?>"></label></p>
+				<p><label><strong>Correos de prueba</strong> <span class="asi-muted">(uno o varios, separados por coma)</span><br><input type="text" class="large-text" name="test_email" value="<?php echo esc_attr( $settings['test_email'] ); ?>" placeholder="tu@correo.com, jefe@correo.com"></label></p>
 				<p><strong>Cuotas</strong> <span class="asi-muted">(solo si el sitio no trae su propia calculadora)</span><br>
 					<label>Tasa anual <input type="text" inputmode="decimal" size="5" name="finance_rate" value="<?php echo esc_attr( (string) $settings['finance_rate'] ); ?>"> %</label>
 					&nbsp; <label>Enganche mínimo <input type="number" min="0" max="90" name="finance_down_min" value="<?php echo esc_attr( (string) $settings['finance_down_min'] ); ?>"> %</label></p>
