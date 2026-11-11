@@ -259,3 +259,16 @@ check( 'comparar: tabla corta (máx. 6 filas)', true, count( $r['compare']['rows
 check( 'comparar: ofrece enviarla al correo', true, false !== strpos( $r['followup'], 'correo' ) );
 $say( 'sí', $s17 );
 check( 'comparar: "sí" pide los datos para enviarla', array( 'compare', array( 21, 20 ) ), array( $s17['pending']['action'] ?? '', $s17['pending']['ids'] ?? array() ) );
+// Conversación real: cotizar 2, cuotas, "comparativa de los carros", "de los que me acabas de cotizar".
+$runner->calls = array();
+$runner->previews = array();
+$s18 = array( 'customer' => array( 'name' => 'Fer', 'email' => 'f@example.com', 'phone' => '' ), 'results' => array( 21, 20, 22, 23 ), 'shown' => array( 21, 20, 22, 23 ) );
+$say( 'cotizame la 2 y 3', $s18 );
+$say( 'Calcular cuotas', $s18 );
+$r = $say( 'me peudes dar na comparativa de los carros porfa', $s18 );
+check( 'real: "comparativa de los carros" compara los dos cotizados sin preguntar', array( 'compare', array( 20, 22 ) ), array( $r['kind'], $s18['selected'] ) );
+// Si el chat sí tuvo que preguntar, "de los que me acabas de cotizar" responde a esa pregunta.
+$s19 = array( 'customer' => array( 'name' => 'Fer', 'email' => 'f@example.com', 'phone' => '' ), 'results' => array( 21 ), 'shown' => array( 21, 20, 22 ), 'quoted' => array( 20, 22 ), 'awaiting' => 'compare' );
+$calls_before = count( $runner->calls );
+$r = $say( 'de los que me acabas de cotizar', $s19 );
+check( 'real: "de los que me acabas de cotizar" compara (no vuelve a cotizar)', array( 'compare', $calls_before ), array( $r['kind'], count( $runner->calls ) ) );

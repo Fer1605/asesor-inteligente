@@ -56,6 +56,28 @@ trait ASI_Dialogue_Actions {
 			return $this->continue_action( $state['pending']['action'], $state['pending']['ids'], $customer, $state );
 		}
 
+		// 1b. El chat preguntó "¿cuáles comparo?": esta es la respuesta ("la 1 y la 3", "la tank y la
+		// d-max", "los que me acabas de cotizar").
+		if ( 'compare' === $state['awaiting'] ) {
+			$ids = $this->action_targets( $message, $normalized, $state, false );
+			if ( count( $ids ) < 2 ) {
+				foreach ( array( $state['selected'], array_slice( $state['quoted'], -2 ), $state['results'] ) as $candidates ) {
+					if ( count( $candidates ) >= 2 ) {
+						$ids = $candidates;
+						break;
+					}
+				}
+			}
+			if ( count( $ids ) >= 2 ) {
+				$state['awaiting'] = '';
+				$reply             = $this->compare_flow( 'comparalos', array_merge( $state, array( 'selected' => array_slice( $ids, 0, 2 ) ) ) );
+				if ( $reply ) {
+					$reply['state'] = array_merge( isset( $reply['state'] ) ? $reply['state'] : array(), array( 'awaiting' => '' ) );
+					return $reply;
+				}
+			}
+		}
+
 		// 2. "Sí" a lo último que ofreció el chat.
 		if ( ! empty( $state['offer']['action'] ) ) {
 			// "El tercero", "la Frontier y la MG RX9" responden a "¿cuál te cotizo?"; después de otras
@@ -116,7 +138,8 @@ trait ASI_Dialogue_Actions {
 		}
 
 		// 6. Cotización ("con cuotas": el PDF y la tabla de cuotas en la misma respuesta).
-		if ( isset( $available['quote'] ) && $this->words_in( $normalized, 'quote_words' ) ) {
+		$past = (bool) preg_match( '/(acabas de cotiz|ya me cotiz|me cotizaste|que cotice|los cotizados|las cotizadas|ya cotice|que ya me|de los que me|de las que me)/', $normalized );
+		if ( ! $past && isset( $available['quote'] ) && $this->words_in( $normalized, 'quote_words' ) ) {
 			$max     = isset( $available['quote']['max_items'] ) ? (int) $available['quote']['max_items'] : 1;
 			$targets = array_slice( $this->action_targets( $message, $normalized, $state ), 0, max( 1, $max ) );
 			if ( $targets ) {

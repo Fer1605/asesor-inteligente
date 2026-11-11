@@ -209,8 +209,12 @@ trait ASI_Dialogue_Products {
 			}
 		}
 		// Sin nombres: la selección (lo último cotizado, con cuotas o comparado); si no, los primeros.
-		if ( ! $pair && isset( $state['selected'] ) && count( $state['selected'] ) >= 2 && ( $these || '' !== $both || count( $tokens ) <= 4 ) ) {
+		if ( ! $pair && isset( $state['selected'] ) && count( $state['selected'] ) >= 2 ) {
 			$rows = $this->repository->rows( $this->context['lang'], array_slice( $state['selected'], 0, 2 ) );
+			$pair = 2 === count( $rows ) ? $rows : null;
+		}
+		if ( ! $pair && isset( $state['quoted'] ) && count( $state['quoted'] ) >= 2 ) {
+			$rows = $this->repository->rows( $this->context['lang'], array_slice( $state['quoted'], -2 ) );
 			$pair = 2 === count( $rows ) ? $rows : null;
 		}
 		if ( ! $pair && count( $state['results'] ) >= 2 && ( '' !== $both || $these || count( $tokens ) <= 1 ) ) {
@@ -229,7 +233,7 @@ trait ASI_Dialogue_Products {
 				'links'       => array(),
 				'suggestions' => array(),
 				'more'        => false,
-				'state'       => array(),
+				'state'       => array( 'awaiting' => 'compare' ),
 			);
 		}
 		return $this->answer_compare( $pair[0], $pair[1] );
