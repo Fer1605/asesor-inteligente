@@ -13,7 +13,7 @@ global $wpdb;
 $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}asi_index" );
 $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}asi_clicks" );
 
-foreach ( array( 'asi_settings', 'asi_schema', 'asi_languages', 'asi_reindex_state', 'asi_db_version', 'asi_fulltext', 'asi_misses', 'asi_pages_created', 'asi_questions', 'asi_learned', 'asi_clicks_db_version', 'asi_doc_version', 'asi_reindex_pending_ids' ) as $option ) {
+foreach ( array( 'asi_settings', 'asi_schema', 'asi_languages', 'asi_reindex_state', 'asi_db_version', 'asi_fulltext', 'asi_misses', 'asi_pages_created', 'asi_questions', 'asi_learned', 'asi_clicks_db_version', 'asi_doc_version', 'asi_reindex_pending_ids', 'asi_ai_keys', 'asi_ai_usage', 'asi_ai_cache' ) as $option ) {
 	delete_option( $option );
 }
 

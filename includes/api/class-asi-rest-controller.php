@@ -162,8 +162,20 @@ class ASI_REST_Controller {
 		$state   = $request->get_param( 'state' );
 		$message = (string) $request->get_param( 'message' );
 
-		$dialogue = new ASI_Dialogue( new ASI_Index_Repository(), self::dialogue_context_for( $context, $this->plugin->languages ) );
-		$response = $dialogue->handle( $message, is_array( $state ) ? $state : array() );
+		$state    = is_array( $state ) ? $state : array();
+		$dcontext = self::dialogue_context_for( $context, $this->plugin->languages );
+		$dialogue = new ASI_Dialogue( new ASI_Index_Repository(), $dcontext );
+		$response = $dialogue->handle( $message, $state );
+
+		// Si las reglas no entendieron y la IA está prendida, ella interpreta y las reglas responden.
+		if ( ASI_AI_Interpreter::needs_help( $response ) && ASI_AI::enabled() ) {
+			$rescued = ASI_AI::rescue( $dialogue, $message, $state, $dcontext );
+			if ( $rescued ) {
+				// Ya entendida: no va a "preguntas sin respuesta"; queda en la lista de la IA del panel.
+				$response = $rescued;
+				unset( $response['learn'] );
+			}
+		}
 
 		if ( ! empty( $response['learn'] ) ) {
 			ASI_Learning::log_question( $message, $context->lang, isset( $response['qkey'] ) ? $response['qkey'] : '', $response['learn'] );

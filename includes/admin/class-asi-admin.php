@@ -26,6 +26,7 @@ class ASI_Admin {
 		'conexion'   => 'Conexión',
 		'contenido'  => 'Contenido',
 		'aprendizaje' => 'Aprendizaje',
+		'ia'         => 'IA',
 		'probar'     => 'Probar',
 		'guia'       => 'Guía',
 	);
@@ -250,6 +251,23 @@ class ASI_Admin {
 
 			case 'forget':
 				ASI_Learning::forget( isset( $_POST['lang'] ) ? sanitize_key( wp_unslash( $_POST['lang'] ) ) : '', isset( $_POST['key'] ) ? sanitize_text_field( wp_unslash( $_POST['key'] ) ) : '' );
+				break;
+
+			case 'ai_save':
+				$this->save_ai();
+				break;
+
+			case 'ai_test':
+				$provider = isset( $_POST['provider'] ) ? sanitize_key( wp_unslash( $_POST['provider'] ) ) : '';
+				set_transient( 'asi_ai_test_' . get_current_user_id(), array_merge( array( 'provider' => $provider ), ASI_AI::test( $provider ) ), 10 * MINUTE_IN_SECONDS );
+				break;
+
+			case 'ai_forget':
+				ASI_AI::forget( isset( $_POST['key'] ) ? sanitize_text_field( wp_unslash( $_POST['key'] ) ) : '' );
+				break;
+
+			case 'ai_clear':
+				delete_option( ASI_AI::CACHE_OPTION );
 				break;
 
 			case 'clear_questions':
@@ -531,6 +549,7 @@ class ASI_Admin {
 		'conexion'   => 'dashicons-admin-links',
 		'contenido'  => 'dashicons-database',
 		'aprendizaje' => 'dashicons-welcome-learn-more',
+		'ia'         => 'dashicons-lightbulb',
 		'probar'     => 'dashicons-format-chat',
 		'guia'       => 'dashicons-book-alt',
 	);
@@ -553,6 +572,10 @@ class ASI_Admin {
 			'teach_synonym' => 'Sinónimo agregado. Se aplica desde la próxima búsqueda.',
 			'dismiss'      => 'Pregunta quitada de la lista. El asistente no cambió nada.',
 			'forget'       => 'Respuesta enseñada eliminada.',
+			'ai_save'      => 'Ajustes de la IA guardados.',
+			'ai_test'      => 'Prueba de conexión hecha: el resultado está abajo.',
+			'ai_forget'    => 'Frase quitada: la próxima vez se vuelve a preguntar a la IA.',
+			'ai_clear'     => 'Lista de frases interpretadas vaciada.',
 		);
 		?>
 		<div class="wrap asi-admin">
@@ -1478,6 +1501,147 @@ class ASI_Admin {
 	}
 
 	// ---------- Probar ----------
+
+	// ---------- IA ----------
+
+	private function save_ai() {
+		$order   = isset( $_POST['ai_first'] ) && 'google' === sanitize_key( wp_unslash( $_POST['ai_first'] ) ) ? array( 'google', 'groq' ) : array( 'groq', 'google' );
+		$models  = array();
+		foreach ( array_keys( ASI_AI::PROVIDERS ) as $provider ) {
+			$text                = isset( $_POST['ai_models'][ $provider ] ) ? sanitize_text_field( wp_unslash( $_POST['ai_models'][ $provider ] ) ) : '';
+			$models[ $provider ] = implode( ', ', array_filter( array_map( 'trim', preg_split( '/[\s,]+/', preg_replace( '#[^A-Za-z0-9_./:,\s\-]#', '', $text ) ) ) ) );
+			if ( ! empty( $_POST['ai_drop'][ $provider ] ) ) {
+				ASI_AI::save_key( $provider, '' );
+			}
+			$key = isset( $_POST['ai_key'][ $provider ] ) ? trim( sanitize_text_field( wp_unslash( $_POST['ai_key'][ $provider ] ) ) ) : '';
+			if ( '' !== $key ) {
+				ASI_AI::save_key( $provider, preg_replace( '/[^A-Za-z0-9_\-\.]/', '', $key ) );
+				ASI_AI::unblock( $provider );
+			}
+		}
+		ASI_Settings::update(
+			array(
+				'ai_enabled'   => ! empty( $_POST['ai_enabled'] ),
+				'ai_order'     => $order,
+				'ai_models'    => $models,
+				'ai_daily_cap' => isset( $_POST['ai_daily_cap'] ) ? max( 0, min( 100000, (int) $_POST['ai_daily_cap'] ) ) : 300,
+			)
+		);
+	}
+
+	private function tab_ia() {
+		$settings = ASI_AI::settings();
+		$usage    = ASI_AI::usage();
+		$blocked  = ASI_AI::blocked();
+		$test     = get_transient( 'asi_ai_test_' . get_current_user_id() );
+		$cache    = ASI_AI::cache();
+		$on       = ASI_AI::enabled();
+		?>
+		<?php $this->card_open( 'Interpretar con IA (prueba)', 'dashicons-lightbulb', 'purple' ); ?>
+			<p class="asi-muted">Opcional. Cuando el chat no entiende un mensaje (“no estoy seguro de haberte entendido”), le pregunta a una IA gratuita qué quiso decir el cliente. La IA <strong>no le contesta</strong> al cliente: solo elige una orden (cuotas, cotizar, comparar, ver una opción, buscar algo o un dato del negocio) y el chat responde con los datos del sitio. No puede inventar precios ni vehículos.</p>
+			<p class="asi-muted">Antes de enviarlo se le quitan correos, teléfonos y enlaces. Si la IA no responde o se acaba el límite gratis del día, el chat sigue funcionando como siempre.</p>
+			<p>Estado: <?php echo $on ? '<span class="asi-tag asi-tag--ok">Prendida</span>' : '<span class="asi-tag asi-tag--soft">Apagada</span>'; ?>
+				<?php if ( $settings['enabled'] && ! $on ) : ?><span class="asi-tag asi-tag--warn">Falta una clave</span><?php endif; ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" autocomplete="off">
+				<?php $this->hidden_fields( 'ai_save', 'ia' ); ?>
+				<p><label><input type="checkbox" name="ai_enabled" value="1" <?php checked( $settings['enabled'] ); ?>> <strong>Usar la IA</strong> cuando el chat no entienda</label></p>
+				<?php foreach ( ASI_AI::PROVIDERS as $provider => $info ) : ?>
+					<?php $hint = ASI_AI::key_hint( $provider ); ?>
+					<fieldset class="asi-fieldset">
+						<p><strong><?php echo esc_html( $info['label'] ); ?></strong>
+							<?php echo $hint ? '<span class="asi-tag asi-tag--ok">Clave guardada · termina en ' . esc_html( $hint ) . '</span>' : '<span class="asi-tag asi-tag--soft">Sin clave</span>'; ?>
+							<a href="<?php echo esc_url( $info['console'] ); ?>" target="_blank" rel="noopener noreferrer">Sacar una clave gratis <span class="dashicons dashicons-external" aria-hidden="true"></span></a></p>
+						<p><label>Clave <span class="asi-muted">(se guarda en el sitio y no se vuelve a mostrar; deja vacío para conservar la actual)</span><br>
+							<input type="password" class="regular-text" name="ai_key[<?php echo esc_attr( $provider ); ?>]" value="" autocomplete="new-password" spellcheck="false"></label>
+							<?php if ( $hint ) : ?><label><input type="checkbox" name="ai_drop[<?php echo esc_attr( $provider ); ?>]" value="1"> Borrar la clave</label><?php endif; ?></p>
+						<p><label>Modelos, en orden <span class="asi-muted">(si uno llega a su límite del día se usa el siguiente)</span><br>
+							<input type="text" class="large-text" name="ai_models[<?php echo esc_attr( $provider ); ?>]" value="<?php echo esc_attr( implode( ', ', ASI_AI::models_for( $provider ) ) ); ?>"></label></p>
+					</fieldset>
+				<?php endforeach; ?>
+				<p><strong>Primero probar con</strong>
+					<label><input type="radio" name="ai_first" value="groq" <?php checked( 'groq', $settings['order'] ? $settings['order'][0] : 'groq' ); ?>> Groq</label>
+					<label><input type="radio" name="ai_first" value="google" <?php checked( 'google', $settings['order'] ? $settings['order'][0] : 'groq' ); ?>> Google (Gemma)</label></p>
+				<p><label><strong>Tope diario</strong> de consultas a la IA en este sitio <input type="number" min="0" max="100000" name="ai_daily_cap" value="<?php echo esc_attr( (string) $settings['daily_cap'] ); ?>"> <span class="asi-muted">(0 = sin tope)</span></label></p>
+				<p class="asi-actions"><?php submit_button( 'Guardar', 'primary', 'submit', false ); ?></p>
+			</form>
+		<?php $this->card_close(); ?>
+
+		<?php $this->card_open( 'Probar la conexión', 'dashicons-yes-alt', 'green' ); ?>
+			<p class="asi-muted">Hace una consulta real con la frase del jefe “pero dame la cuoa de cada uno” y muestra los modelos que tiene la cuenta. Cuenta como una consulta del día.</p>
+			<div class="asi-actions">
+				<?php foreach ( ASI_AI::PROVIDERS as $provider => $info ) : ?>
+					<?php if ( ASI_AI::has_key( $provider ) ) : ?>
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="asi-inline-form">
+							<?php $this->hidden_fields( 'ai_test', 'ia' ); ?>
+							<input type="hidden" name="provider" value="<?php echo esc_attr( $provider ); ?>">
+							<button class="button"><?php echo esc_html( 'Probar ' . $info['label'] ); ?></button>
+						</form>
+					<?php endif; ?>
+				<?php endforeach; ?>
+			</div>
+			<?php if ( is_array( $test ) ) : ?>
+				<p class="asi-note <?php echo $test['ok'] ? 'asi-note--ok' : 'asi-note--warn'; ?>"><strong><?php echo esc_html( isset( ASI_AI::PROVIDERS[ $test['provider'] ] ) ? ASI_AI::PROVIDERS[ $test['provider'] ]['label'] : $test['provider'] ); ?>:</strong> <?php echo esc_html( $test['text'] ); ?></p>
+				<?php if ( $test['models'] ) : ?>
+					<details class="asi-details"><summary>Modelos disponibles en la cuenta (<?php echo (int) count( $test['models'] ); ?>)</summary><p><code><?php echo esc_html( implode( ', ', $test['models'] ) ); ?></code></p></details>
+				<?php endif; ?>
+			<?php endif; ?>
+		<?php $this->card_close(); ?>
+
+		<?php $this->card_open( 'Uso de hoy', 'dashicons-chart-bar', 'blue' ); ?>
+			<p>Consultas a la IA hoy (día UTC): <strong><?php echo (int) $usage['calls']; ?></strong><?php echo $settings['daily_cap'] ? ' de ' . (int) $settings['daily_cap'] : ''; ?>
+				<?php if ( $usage['calls'] ) : ?><span class="asi-muted"> · promedio <?php echo (int) round( $usage['ms'] / $usage['calls'] ); ?> ms · <?php echo (int) $usage['tokens']; ?> tokens</span><?php endif; ?></p>
+			<?php if ( $usage['by'] ) : ?>
+				<ul><?php foreach ( $usage['by'] as $model => $n ) : ?><li><code><?php echo esc_html( $model ); ?></code>: <?php echo (int) $n; ?></li><?php endforeach; ?></ul>
+			<?php endif; ?>
+			<?php if ( $blocked ) : ?>
+				<p><strong>En pausa</strong> <span class="asi-muted">(llegaron a su límite o fallaron; se vuelven a probar solos)</span></p>
+				<ul><?php foreach ( $blocked as $what => $until ) : ?><li><code><?php echo esc_html( $what ); ?></code> hasta las <?php echo esc_html( wp_date( 'H:i', $until ) ); ?></li><?php endforeach; ?></ul>
+			<?php endif; ?>
+			<?php if ( $usage['errors'] ) : ?>
+				<details class="asi-details"><summary>Últimos avisos (<?php echo (int) count( $usage['errors'] ); ?>)</summary><ul>
+					<?php foreach ( $usage['errors'] as $error ) : ?><li><?php echo esc_html( wp_date( 'd/m H:i', $error['time'] ) . ' · ' . $error['where'] . ' · ' . $error['text'] ); ?></li><?php endforeach; ?>
+				</ul></details>
+			<?php endif; ?>
+		<?php $this->card_close(); ?>
+
+		<?php $this->card_open( 'Frases que interpretó la IA', 'dashicons-list-view', 'amber' ); ?>
+			<p class="asi-muted">Cada frase se le pregunta a la IA una sola vez: si alguien la vuelve a escribir, el chat ya sabe qué hacer y no gasta consultas. Si una está mal, quítala.</p>
+			<?php if ( ! $cache ) : ?>
+				<p class="asi-muted">Todavía ninguna.</p>
+			<?php else : ?>
+				<?php
+				uasort(
+					$cache,
+					function ( $a, $b ) {
+						return $b['last'] - $a['last'];
+					}
+				);
+				?>
+				<table class="asi-table">
+					<thead><tr><th>Lo que escribió</th><th>Lo que entendió</th><th>Modelo</th><th>Veces</th><th></th></tr></thead>
+					<tbody>
+					<?php foreach ( array_slice( $cache, 0, 100, true ) as $key => $row ) : ?>
+						<tr>
+							<td><span class="asi-tag asi-tag--code"><?php echo esc_html( $row['lang'] ); ?></span> <?php echo esc_html( $row['message'] ); ?></td>
+							<td><?php echo esc_html( $row['phrase'] ); ?></td>
+							<td><code><?php echo esc_html( $row['model'] ); ?></code></td>
+							<td><?php echo (int) $row['hits'] + 1; ?></td>
+							<td>
+								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="asi-inline-form">
+									<?php $this->hidden_fields( 'ai_forget', 'ia' ); ?>
+									<input type="hidden" name="key" value="<?php echo esc_attr( $key ); ?>">
+									<button class="button-link">Quitar</button>
+								</form>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+				<div class="asi-actions"><?php $this->action_button( 'ai_clear', 'Vaciar la lista', 'ia' ); ?></div>
+			<?php endif; ?>
+		<?php $this->card_close(); ?>
+		<?php
+	}
 
 	private function tab_probar() {
 		$languages = $this->plugin->languages->all();
