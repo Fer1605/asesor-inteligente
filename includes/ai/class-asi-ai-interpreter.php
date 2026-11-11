@@ -108,9 +108,12 @@ class ASI_AI_Interpreter {
 			}
 		}
 		$lines[] = '';
-		$lines[] = 'En "items" pon los números de las opciones a las que se refiere, o "all" si habla de todas, de cada una o de estas. Vacío si no aplica.';
+		$lines[] = 'En "items" pon los números de las opciones a las que se refiere, o "all" si habla de todas, de cada una o de estas. Vacío si no aplica o si se refiere a lo último que vio.';
+		if ( in_array( 'finance', $actions, true ) ) {
+			$lines[] = 'Si da un enganche o un plazo, ponlo: "down_pct" (porcentaje, ej. 25), o "down_amount" (monto completo en número: 160 mil = 160000) con "currency" ("USD" solo si dice dólares o $, "GTQ" si dice quetzales o Q, vacío si no dice), y "term_months" (meses: 4 años = 48). Si no lo dice, déjalos vacíos. No inventes números que no estén en el mensaje.';
+		}
 		$lines[] = 'Si dudas, usa "none". No inventes opciones que no están en la lista.';
-		$lines[] = 'Responde SOLO con JSON en una línea, sin explicación: {"action":"finance","items":"all","query":"","topic":""}';
+		$lines[] = 'Responde SOLO con JSON en una línea, sin explicación: {"action":"finance","items":"all","query":"","topic":"","down_pct":null,"down_amount":null,"currency":"","term_months":null}';
 		$lines[] = '';
 		$lines[] = 'Mensaje del cliente: """' . str_replace( '"""', '"', $message ) . '"""';
 		return implode( "\n", $lines );
@@ -124,7 +127,7 @@ class ASI_AI_Interpreter {
 	 * @param string[] $actions Acciones permitidas.
 	 * @return array|null action, items (int[] base 1 | 'all'), query, topic
 	 */
-	public static function parse( $raw, $visible, array $actions ) {
+	public static function parse( $raw, $visible, array $actions, $message = '' ) {
 		if ( ! preg_match( '/\{[^{}]*\}/s', (string) $raw, $m ) ) {
 			return null;
 		}
@@ -153,12 +156,19 @@ class ASI_AI_Interpreter {
 			$items = $list;
 		}
 
-		$out = array( 'action' => $action, 'items' => $items, 'query' => '', 'topic' => '' );
+		$out = array( 'action' => $action, 'items' => $items, 'query' => '', 'topic' => '', 'fin' => array() );
+		if ( in_array( $action, array( 'finance', 'quote' ), true ) ) {
+			$out['fin'] = self::fin( $data, $message );
+		}
 
 		switch ( $action ) {
 			case 'finance':
 			case 'quote':
 			case 'compare':
+				// "Con 160 mil de enganche" sin nombrar vehículo: sobre la última tabla que vio.
+				if ( 'finance' === $action && $out['fin'] && array() === $items ) {
+					return $out;
+				}
 				if ( ! $visible ) {
 					// Cuotas sin nada a la vista = cómo funciona el financiamiento; lo demás no aplica.
 					return 'finance' === $action ? array_merge( $out, array( 'action' => 'info', 'items' => array(), 'topic' => 'financing' ) ) : null;
@@ -193,6 +203,51 @@ class ASI_AI_Interpreter {
 	}
 
 	/**
+	 * Enganche y plazo que leyó la IA, solo si esos números están en el mensaje del cliente (así no
+	 * puede inventar un monto). 160 mil = 160000; 4 años = 48 meses.
+	 *
+	 * @return array pct, amt, cur, term (solo lo que vino)
+	 */
+	public static function fin( array $data, $message ) {
+		$numbers = self::numbers_in( $message );
+		$found   = function ( $value, $scales ) use ( $numbers ) {
+			foreach ( $numbers as $n ) {
+				foreach ( $scales as $scale ) {
+					if ( abs( $n * $scale - $value ) <= max( 0.5, $value * 0.001 ) ) {
+						return true;
+					}
+				}
+			}
+			return false;
+		};
+		$out = array();
+		if ( isset( $data['down_pct'] ) && is_numeric( $data['down_pct'] ) && $data['down_pct'] > 0 && $data['down_pct'] < 100 && $found( (float) $data['down_pct'], array( 1 ) ) ) {
+			$out['pct'] = round( (float) $data['down_pct'], 1 );
+		} elseif ( isset( $data['down_amount'] ) && is_numeric( $data['down_amount'] ) && $data['down_amount'] >= 100 && $found( (float) $data['down_amount'], array( 1, 1000, 1000000 ) ) ) {
+			$out['amt'] = (int) round( (float) $data['down_amount'] );
+			$cur        = isset( $data['currency'] ) ? strtoupper( trim( (string) $data['currency'] ) ) : '';
+			$out['cur'] = in_array( $cur, array( 'USD', 'GTQ' ), true ) ? $cur : '';
+		}
+		if ( isset( $data['term_months'] ) && is_numeric( $data['term_months'] ) && $data['term_months'] >= 6 && $data['term_months'] <= 120 && $found( (float) $data['term_months'], array( 1, 12 ) ) ) {
+			$out['term'] = (int) $data['term_months'];
+		}
+		return $out;
+	}
+
+	/** Números escritos en el mensaje ("160", "160,000", "1.5"). */
+	private static function numbers_in( $message ) {
+		preg_match_all( '/[0-9]+(?:[.,][0-9]+)*/', (string) $message, $m );
+		$out = array();
+		foreach ( $m[0] as $raw ) {
+			$out[] = (float) preg_replace( '/[^0-9]/', '', $raw );
+			if ( preg_match( '/^([0-9]+)[.,]([0-9]{1,2})$/', $raw, $d ) ) {
+				$out[] = (float) ( $d[1] . '.' . $d[2] );
+			}
+		}
+		return $out;
+	}
+
+	/**
 	 * Palabras para buscar: solo letras, números cortos y espacios. Nada de correos ni teléfonos.
 	 */
 	public static function clean_query( $query ) {
@@ -221,8 +276,12 @@ class ASI_AI_Interpreter {
 		if ( 'info' === $action ) {
 			return isset( $phrases[ $intent['topic'] ] ) ? $phrases[ $intent['topic'] ] : '';
 		}
+		$fin = self::fin_phrase( isset( $intent['fin'] ) ? (array) $intent['fin'] : array(), $phrases );
+		if ( 'finance' === $action && '' !== $fin && array() === $intent['items'] && isset( $phrases['finance_fin'] ) ) {
+			return str_replace( '{fin}', $fin, $phrases['finance_fin'] );
+		}
 		if ( 'all' === $intent['items'] && isset( $phrases[ $action . '_all' ] ) ) {
-			return $phrases[ $action . '_all' ];
+			return trim( $phrases[ $action . '_all' ] . ' ' . $fin );
 		}
 		if ( ! is_array( $intent['items'] ) || ! $intent['items'] || ! isset( $phrases[ $action ], $phrases['item'], $phrases['join'] ) ) {
 			return '';
@@ -231,7 +290,22 @@ class ASI_AI_Interpreter {
 		foreach ( $intent['items'] as $n ) {
 			$parts[] = str_replace( '{n}', (string) $n, $phrases['item'] );
 		}
-		return str_replace( '{items}', implode( $phrases['join'], $parts ), $phrases[ $action ] );
+		return trim( str_replace( '{items}', implode( $phrases['join'], $parts ), $phrases[ $action ] ) . ( 'quote' === $action && '' !== $fin ? ' ' . $phrases['with_finance'] : '' ) . ' ' . $fin );
+	}
+
+	/** "con q160000 de enganche a 48 meses": en la forma que las reglas leen sin dudar. */
+	public static function fin_phrase( array $fin, array $phrases ) {
+		$parts = array();
+		if ( isset( $fin['pct'] ) && isset( $phrases['fin_pct'] ) ) {
+			$parts[] = str_replace( '{pct}', (string) $fin['pct'], $phrases['fin_pct'] );
+		} elseif ( isset( $fin['amt'] ) && isset( $phrases['fin_amount'] ) ) {
+			$symbol  = 'USD' === ( isset( $fin['cur'] ) ? $fin['cur'] : '' ) ? '$' : ( 'GTQ' === ( isset( $fin['cur'] ) ? $fin['cur'] : '' ) ? 'q' : '' );
+			$parts[] = str_replace( '{amount}', $symbol . $fin['amt'], $phrases['fin_amount'] );
+		}
+		if ( isset( $fin['term'] ) && isset( $phrases['fin_term'] ) ) {
+			$parts[] = str_replace( '{n}', (string) $fin['term'], $phrases['fin_term'] );
+		}
+		return implode( ' ', $parts );
 	}
 
 	/**
@@ -247,7 +321,7 @@ class ASI_AI_Interpreter {
 	 * @param string       $site     Nombre del sitio.
 	 * @return array|null  { response, phrase, intent, model } o null si no ayudó.
 	 */
-	public static function rescue( ASI_Dialogue $dialogue, $message, array $state, array $titles, array $actions, array $phrases, callable $ask, $site = '' ) {
+	public static function rescue( ASI_Dialogue $dialogue, $message, array $state, array $titles, array $actions, array $phrases, callable $ask, $site = '', $need_fin = false ) {
 		$clean = self::scrub( $message );
 		if ( '' === $clean ) {
 			return null;
@@ -256,7 +330,11 @@ class ASI_AI_Interpreter {
 		if ( ! is_array( $answer ) || empty( $answer['text'] ) ) {
 			return null;
 		}
-		$intent = self::parse( $answer['text'], count( $titles ), $actions );
+		$intent = self::parse( $answer['text'], count( $titles ), $actions, $clean );
+		// Si las reglas ya entendieron todo menos el enganche o el plazo, solo sirve si la IA los leyó.
+		if ( $intent && $need_fin && ! $intent['fin'] ) {
+			$intent = null;
+		}
 		if ( ! $intent ) {
 			return array( 'response' => null, 'phrase' => '', 'intent' => null, 'model' => isset( $answer['model'] ) ? $answer['model'] : '' );
 		}

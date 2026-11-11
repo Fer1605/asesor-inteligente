@@ -116,11 +116,11 @@ class ASI_AI {
 	 * @param array        $context  Contexto del diálogo (dialogue_context_for).
 	 * @return array|null Respuesta nueva, o null si se queda la original.
 	 */
-	public static function rescue( ASI_Dialogue $dialogue, $message, array $state, array $context ) {
+	public static function rescue( ASI_Dialogue $dialogue, $message, array $state, array $context, $need_fin = false ) {
 		$ids     = isset( $state['results'] ) && is_array( $state['results'] ) ? array_slice( array_values( array_filter( array_map( 'intval', $state['results'] ) ) ), 0, ASI_AI_Interpreter::MAX_VISIBLE ) : array();
 		$titles  = self::titles( $context['lang'], $ids );
 		$phrases = (array) ASI_Lexicon::get( $context['language'] )->get_list( 'ai_phrases' );
-		$key     = ASI_AI_Interpreter::cache_key( $context['lang'], $message, (bool) $titles );
+		$key     = ASI_AI_Interpreter::cache_key( $context['lang'], $message, (bool) $titles ) . ( $need_fin ? '|fin' : '' );
 
 		// 1. Caché: ya se interpretó antes.
 		$cache = self::cache();
@@ -142,7 +142,7 @@ class ASI_AI {
 				$actions[] = $action;
 			}
 		}
-		$result = ASI_AI_Interpreter::rescue( $dialogue, $message, $state, $titles, $actions, $phrases, array( __CLASS__, 'ask' ), isset( $context['site_name'] ) ? $context['site_name'] : '' );
+		$result = ASI_AI_Interpreter::rescue( $dialogue, $message, $state, $titles, $actions, $phrases, array( __CLASS__, 'ask' ), isset( $context['site_name'] ) ? $context['site_name'] : '', $need_fin );
 		if ( ! $result || empty( $result['response'] ) ) {
 			return null;
 		}

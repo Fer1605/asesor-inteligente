@@ -64,6 +64,9 @@ class ASI_Dialogue {
 	/** @var array Enganche y plazo que pidió el cliente: pct (%), amt (monto), term (meses). Se recuerdan. */
 	private $fin_memory = array();
 
+	/** @var bool Este mensaje traía números de enganche/plazo que las reglas no entendieron. */
+	private $fin_unread = false;
+
 	/** @var array<int,array> Datos de la ficha ya leídos en esta petición. */
 	private $details_cache = array();
 
@@ -106,6 +109,7 @@ class ASI_Dialogue {
 		$message = trim( function_exists( 'mb_substr' ) ? mb_substr( (string) $message, 0, self::MAX_MESSAGE ) : substr( (string) $message, 0, self::MAX_MESSAGE ) );
 		$state   = $this->clean_state( $state );
 		$this->fin_memory = $state['fin'];
+		$this->fin_unread = false;
 
 		$this->lexicon   = ASI_Lexicon::get( $this->context['language'], $this->context['synonyms'] );
 		$this->vocab     = $this->repository->vocabulary( $this->context['lang'] );
@@ -117,6 +121,9 @@ class ASI_Dialogue {
 		// Errores de dedo en las palabras de acción ("cuoa", "cotisacion"), antes de buscar.
 		list( $message, $normalized ) = $this->fix_action_typos( $message, $normalized );
 		$response   = $this->route( $message, $normalized, $state );
+		if ( $this->fin_unread && isset( $response['kind'] ) && in_array( $response['kind'], array( 'finance', 'file' ), true ) ) {
+			$response['fin_unread'] = true; // Lo usa el endpoint (IA); no se envía al navegador.
+		}
 		// Clave de la pregunta para el aprendizaje (la usa el endpoint; no se envía al navegador).
 		$response['qkey'] = self::content_key( $this->analyzer, $this->lexicon, $message );
 		$response   = $this->maybe_language_hint( $response, $normalized );
@@ -1510,6 +1517,9 @@ class ASI_Dialogue {
 			$out['pct'] = round( (float) $fin['pct'], 1 );
 		} elseif ( isset( $fin['amt'] ) && is_numeric( $fin['amt'] ) && $fin['amt'] > 0 && $fin['amt'] < 1e9 ) {
 			$out['amt'] = (int) $fin['amt'];
+			if ( isset( $fin['cur'] ) && is_string( $fin['cur'] ) && preg_match( '/^[A-Z]{3}$/', $fin['cur'] ) ) {
+				$out['cur'] = $fin['cur'];
+			}
 		}
 		if ( isset( $fin['term'] ) && is_numeric( $fin['term'] ) && $fin['term'] >= 6 && $fin['term'] <= 120 ) {
 			$out['term'] = (int) $fin['term'];

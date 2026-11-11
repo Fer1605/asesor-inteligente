@@ -67,6 +67,11 @@ return array(
 	'search_else_words' => array( 'buscar otra cosa', 'otra cosa', 'algo diferente', 'algo distinto', 'quiero buscar otra cosa' ),
 	// Frases que las reglas ya entienden; con ellas se traduce lo que interpretó la IA (opcional).
 	'ai_phrases'        => array(
+		'finance_fin'  => 'cuotas {fin}',
+		'with_finance' => 'con cuotas',
+		'fin_pct'      => 'con {pct}% de enganche',
+		'fin_amount'   => 'con {amount} de enganche',
+		'fin_term'     => 'a {n} meses',
 		'finance_all' => 'cuotas de cada una',
 		'finance'     => 'cuotas de {items}',
 		'quote_all'   => 'cotizar todas',
@@ -465,6 +470,8 @@ return array(
 		'finance_memory'        => array( 'Con {what}, como me dijiste.' ),
 		'finance_memory_pct'    => array( 'el {pct} de enganche' ),
 		'finance_memory_amount' => array( '{down} de enganche' ),
+		'finance_converted'     => array( 'Tomé tu enganche de {asked} como {down} al tipo de cambio de referencia ({rate}); el asesor confirma el cambio del día.' ),
+		'finance_currency_hint' => array( 'Si me das un monto, lo tomo en {base}; si tu enganche es en dólares, dímelo (por ejemplo “$20 mil” o “20 mil dólares”).' ),
 		'finance_intro_one'    => array( 'Cuotas aproximadas del {title}:', 'Así quedarían las cuotas del {title}:' ),
 		'finance_intro_many'   => array( 'Cuotas aproximadas, lado a lado:', 'Así quedarían las cuotas de cada uno:' ),
 		'finance_row_price'    => array( 'Precio' ),

@@ -43,6 +43,11 @@ return array(
 	'search_else_words' => array( 'something else', 'search something else', 'look for something else', 'something different' ),
 	// Phrases the rules already understand; used to translate what the optional AI interpreted.
 	'ai_phrases'        => array(
+		'finance_fin'  => 'payments {fin}',
+		'with_finance' => 'with payments',
+		'fin_pct'      => 'with {pct}% down payment',
+		'fin_amount'   => 'with {amount} down payment',
+		'fin_term'     => '{n} months',
 		'finance_all' => 'payments for each one',
 		'finance'     => 'payments for {items}',
 		'quote_all'   => 'quote all of them',
@@ -372,6 +377,8 @@ return array(
 		'finance_memory'        => array( 'With {what}, as you told me.' ),
 		'finance_memory_pct'    => array( 'a {pct} down payment' ),
 		'finance_memory_amount' => array( '{down} down' ),
+		'finance_converted'     => array( 'I took your {asked} down payment as {down} at the reference exchange rate ({rate}); an advisor confirms the rate of the day.' ),
+		'finance_currency_hint' => array( 'Amounts are taken in {base}; if your down payment is in dollars, tell me (e.g. “$20k” or “20k dollars”).' ),
 		'finance_intro_one'    => array( 'Approximate monthly payments for the {title}:' ),
 		'finance_intro_many'   => array( 'Approximate monthly payments, side by side:' ),
 		'finance_row_price'    => array( 'Price' ),

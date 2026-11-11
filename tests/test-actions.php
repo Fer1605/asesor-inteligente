@@ -439,3 +439,38 @@ foreach ( array( 'tengo 100 mil para el enganche', 'puedo dar 100 mil como engan
 	$r = $say( $phrase, $sc );
 	check( 'monto: "' . $phrase . '"', 'Q 100,000', $r['table']['rows'][1][1] ?? '' );
 }
+
+// Enganche en quetzales o en dólares, con vehículos en dólares (tipo de cambio de referencia 7.7).
+$shopU = new ASI_Test_Repository();
+$shopU->add( 41, 'es', 'catalog', 'TOYOTA LAND CRUISER', array( 'category' => array( 'SUV' ) ), 'SUV.', array(), array( 'price' => '80000', 'currency_raw' => '1', 'attrs' => array( 'body' => 'suv' ) ) );
+$shopU->add( 42, 'es', 'catalog', 'MAZDA CX-5', array( 'category' => array( 'SUV' ) ), 'SUV.', array(), array( 'price' => '300000', 'currency_raw' => '2', 'attrs' => array( 'body' => 'suv' ) ) );
+$ubot = new ASI_Dialogue( $shopU, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'money' => array( 'base' => 'GTQ', 'map' => array( '1' => 'USD', '2' => 'GTQ' ) ), 'packs' => array( new ASI_Pack_Autos() ), 'actions' => $runner ), function () {
+	return 0;
+} );
+$usay = function ( $message, &$state ) use ( $ubot ) {
+	$r     = $ubot->handle( $message, $state );
+	$state = $r['state'];
+	return $r;
+};
+$two = array( 'results' => array( 41, 42 ), 'shown' => array( 41, 42 ) );
+$su = $two;
+$r = $usay( 'cuotas de la 1', $su );
+check( 'dólares: el vehículo en dólares da cuotas en dólares', array( '$ 80,000', '$ 16,000' ), array( $r['table']['rows'][0][1] ?? '', $r['table']['rows'][1][1] ?? '' ) );
+check( 'dólares: avisa que los montos se toman en quetzales', true, false !== strpos( $r['followup'], 'lo tomo en quetzales' ) );
+$r = $usay( 'tengo 154 mil de enganche', $su );
+check( 'dólares: Q 154,000 de enganche en un carro en dólares = $ 20,000', '$ 20,000', $r['table']['rows'][1][1] ?? '' );
+check( 'dólares: y explica la conversión', true, false !== strpos( $r['text'], 'Q 154,000' ) && false !== strpos( $r['text'], 'Q 7.70 = $ 1' ) );
+$r = $usay( 'y las de la 2', $su );
+check( 'dólares: el mismo enganche en el carro en quetzales = Q 154,000', 'Q 154,000', $r['table']['rows'][1][1] ?? '' );
+$su = $two;
+$usay( 'cuotas de la 2', $su );
+$r = $usay( 'tengo 20 mil dolares de enganche', $su );
+check( 'dólares: "20 mil dólares" en un carro en quetzales = Q 154,000', 'Q 154,000', $r['table']['rows'][1][1] ?? '' );
+$r = $usay( 'y las de la 1', $su );
+check( 'dólares: lo recuerda en dólares para el carro en dólares', '$ 20,000', $r['table']['rows'][1][1] ?? '' );
+$su = $two;
+$usay( 'cuotas de la 1', $su );
+$r = $usay( 'para el enganche tengo $25,000', $su );
+check( 'dólares: "$25,000" se toma en dólares', '$ 25,000', $r['table']['rows'][1][1] ?? '' );
+$r = $usay( 'con 25 mil usd de enganche', $su );
+check( 'dólares: "25 mil usd" también', '$ 25,000', $r['table']['rows'][1][1] ?? '' );

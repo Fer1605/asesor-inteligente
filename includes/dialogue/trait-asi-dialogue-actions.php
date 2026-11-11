@@ -469,7 +469,7 @@ trait ASI_Dialogue_Actions {
 			),
 			'cards'       => array(),
 			'table'       => $table,
-			'followup'    => $table ? $this->responder->say( 'finance_other_down', array( 'rate' => '' ) ) : $this->responder->say( 'compare' === $action ? 'action_after_compare' : 'action_after_quote' ),
+			'followup'    => $table ? $this->sentences( array( $this->responder->say( 'finance_other_down', array( 'rate' => '' ) ), $this->currency_hint() ) ) : $this->responder->say( 'compare' === $action ? 'action_after_compare' : 'action_after_quote' ),
 			'links'       => array(),
 			'suggestions' => $table ? $chips : ( 'quote' === $action ? (array) $this->lexicon->get_list( 'after_quote_chips' ) : array() ),
 			'more'        => false,
@@ -519,7 +519,7 @@ trait ASI_Dialogue_Actions {
 			'text'        => $block['text'],
 			'table'       => $block['table'],
 			'cards'       => $this->cards( $block['rows'] ),
-			'followup'    => $this->sentences( array( $left ? $this->responder->say( 'finance_more_columns', array( 'n' => $left ) ) : '', $this->responder->say( 'finance_other_down', $block['vars'] ), $offer ? $this->responder->say( 'finance_offer_quote_short' ) : '' ) ),
+			'followup'    => $this->sentences( array( $left ? $this->responder->say( 'finance_more_columns', array( 'n' => $left ) ) : '', $this->responder->say( 'finance_other_down', $block['vars'] ), $this->currency_hint(), $offer ? $this->responder->say( 'finance_offer_quote_short' ) : '' ) ),
 			'links'       => $links,
 			'suggestions' => array_merge( $offer ? array( $this->responder->say( 'finance_quote_chip' ) ) : array(), $block['chips'] ),
 			'more'        => false,
@@ -550,7 +550,7 @@ trait ASI_Dialogue_Actions {
 		$parts = array();
 		$patterns = array(
 			'/[0-9]{1,2}(?:[.,][0-9])?\s*%/',
-			'/(?:enganche|prima|inicial|down payment)\D{0,12}?(?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?|(?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?\s*(?:(?:de|para|como|en)\s+(?:el\s+|la\s+|mi\s+)?)?(?:enganche|prima|inicial)/',
+			'/(?:enganche|prima|inicial|down payment)\D{0,12}?((?:us\$|q\.?|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)(\s*(?:dolares|dolar|dollars|usd|quetzales|quetzal))?|((?:us\$|q\.?|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)(\s*(?:dolares|dolar|dollars|usd|quetzales|quetzal))?\s*(?:(?:de|para|como|en)\s+(?:el\s+|la\s+|mi\s+)?)?(?:enganche|prima|inicial)/',
 			'/[0-9]{2}\s*(?:meses|months)|[1-9]\s*(?:anos|ano|years?)/',
 		);
 		foreach ( $patterns as $pattern ) {
@@ -559,6 +559,23 @@ trait ASI_Dialogue_Actions {
 			}
 		}
 		return substr( preg_replace( '/[^a-z0-9 %.,$]/', '', implode( ' ', $parts ) ), 0, 60 );
+	}
+
+	/** "Q 7.70 = $ 1" con el tipo de cambio del panel (o el de referencia). */
+	private static function rate_text( array $money ) {
+		$money = ASI_Money::config( $money );
+		$rate  = ASI_Money::rate( 'USD', $money );
+		return $rate && 'USD' !== $money['base'] ? ASI_Money::format( round( $rate, 2 ), $money['base'] ) . ' = $ 1' : '';
+	}
+
+	/** "Si me das un monto lo tomo en quetzales; si es en dólares, dímelo." (si la base no es dólar). */
+	private function currency_hint() {
+		$money = ASI_Money::config( (array) $this->context['money'] );
+		if ( '' === $money['base'] || 'USD' === $money['base'] || ! isset( ASI_Money::CURRENCIES[ $money['base'] ] ) ) {
+			return '';
+		}
+		$words = ASI_Money::CURRENCIES[ $money['base'] ]['words'];
+		return $this->responder->say( 'finance_currency_hint', array( 'base' => isset( $words[1] ) ? $words[1] : $money['base'] ) );
 	}
 
 	private function finance_block( array $ids, $message, $normalized ) {
@@ -585,17 +602,31 @@ trait ASI_Dialogue_Actions {
 
 		$wanted_pct = null;
 		$wanted_amt = null;
+		$wanted_cur = '';
 		if ( preg_match( '/([0-9]{1,2}(?:[.,][0-9])?)\s*%/', $text, $m ) ) {
 			$wanted_pct = (float) str_replace( ',', '.', $m[1] ) / 100;
-		} elseif ( preg_match( '/(?:enganche|prima|inicial|down payment)\D{0,12}?((?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)|((?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)\s*(?:(?:de|para|como|en)\s+(?:el\s+|la\s+|mi\s+)?)?(?:enganche|prima|inicial)/', $text, $m ) ) {
-			$raw        = '' !== trim( $m[1] ) ? $m[1] : $m[2];
+		} elseif ( preg_match( '/(?:enganche|prima|inicial|down payment)\D{0,12}?((?:us\$|q\.?|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)(\s*(?:dolares|dolar|dollars|usd|quetzales|quetzal))?|((?:us\$|q\.?|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)(\s*(?:dolares|dolar|dollars|usd|quetzales|quetzal))?\s*(?:(?:de|para|como|en)\s+(?:el\s+|la\s+|mi\s+)?)?(?:enganche|prima|inicial)/', $text, $m ) ) {
+			$first      = isset( $m[1] ) && '' !== trim( $m[1] );
+			$raw        = $first ? $m[1] : ( isset( $m[3] ) ? $m[3] : '' );
+			$word       = $first ? ( isset( $m[2] ) ? $m[2] : '' ) : ( isset( $m[4] ) ? $m[4] : '' );
 			$wanted_amt = (float) ASI_Money::parse_display_price( $raw ) * ( preg_match( '/(mil|k)\s*$/', trim( $raw ) ) ? 1000 : 1 );
+			// En qué moneda lo dijo: "$", "dólares" → dólares; si no dice nada, la moneda del sitio.
+			$wanted_cur = ASI_Money::currency_in_text( $raw . ' ' . $word, $money );
+		}
+		if ( $wanted_amt && '' === $wanted_cur ) {
+			$wanted_cur = $money['base'];
 		}
 		$terms = null;
 		if ( preg_match( '/([0-9]{2})\s*(?:meses|months)/', $text, $m ) ) {
 			$terms = array( (int) $m[1] );
 		} elseif ( preg_match( '/([1-9])\s*(?:anos|ano|years?)/', $text, $m ) ) {
 			$terms = array( 12 * (int) $m[1] );
+		}
+
+		// Habló de números que las reglas no supieron leer ("ciento sesenta al inicio", "le pongo 160
+		// pues"): se marca para que la IA (si está prendida) los interprete.
+		if ( null === $wanted_pct && ! $wanted_amt && null === $terms && preg_match( '/[0-9]{2,}|(^|\s)(mil|millon|millones|k)(\s|$)/', $text ) ) {
+			$this->fin_unread = true;
 		}
 
 		// Memoria: lo que dijo antes sigue valiendo ("al 45 %" vale también para el siguiente vehículo);
@@ -607,14 +638,16 @@ trait ASI_Dialogue_Actions {
 				$remembered[] = 'down';
 			} elseif ( isset( $this->fin_memory['amt'] ) ) {
 				$wanted_amt   = (float) $this->fin_memory['amt'];
+				$wanted_cur   = isset( $this->fin_memory['cur'] ) ? $this->fin_memory['cur'] : $money['base'];
 				$remembered[] = 'down';
 			}
 		} else {
-			$this->fin_memory = array_diff_key( $this->fin_memory, array( 'pct' => 1, 'amt' => 1 ) );
+			$this->fin_memory = array_diff_key( $this->fin_memory, array( 'pct' => 1, 'amt' => 1, 'cur' => 1 ) );
 			if ( null !== $wanted_pct ) {
 				$this->fin_memory['pct'] = round( $wanted_pct * 100, 1 );
 			} else {
 				$this->fin_memory['amt'] = (int) round( $wanted_amt );
+				$this->fin_memory['cur'] = $wanted_cur;
 			}
 		}
 		if ( null === $terms && isset( $this->fin_memory['term'] ) ) {
@@ -637,7 +670,25 @@ trait ASI_Dialogue_Actions {
 			list( $row, $rules, $price ) = $item;
 			$amount   = (float) $price['amount'];
 			$currency = '' !== $price['currency'] ? $price['currency'] : $money['base'];
-			$pct      = null !== $wanted_pct ? $wanted_pct : ( $wanted_amt ? $wanted_amt / $amount : (float) $rules['down_default'] );
+			// Un enganche en otra moneda que el vehículo se convierte al tipo de cambio de referencia
+			// del panel (aproximado): el vehículo en dólares sigue en dólares.
+			$down_in = $wanted_amt;
+			if ( $wanted_amt && $wanted_cur !== $currency ) {
+				$in_base = ASI_Money::to_base( $wanted_amt, $wanted_cur, $money );
+				$rate_to = ASI_Money::rate( $currency, $money );
+				if ( null !== $in_base && $rate_to ) {
+					$down_in = $in_base / $rate_to;
+					$notes[] = $this->responder->say(
+						'finance_converted',
+						array(
+							'asked' => ASI_Money::format( round( $wanted_amt ), $wanted_cur ),
+							'down'  => ASI_Money::format( round( $down_in ), $currency ),
+							'rate'  => self::rate_text( $money ),
+						)
+					);
+				}
+			}
+			$pct      = null !== $wanted_pct ? $wanted_pct : ( $down_in ? $down_in / $amount : (float) $rules['down_default'] );
 			if ( $pct < $rules['down_min'] || $pct > $rules['down_max'] ) {
 				$asked = $pct;
 				$pct   = max( (float) $rules['down_min'], min( (float) $rules['down_max'], $pct ) );
@@ -696,7 +747,7 @@ trait ASI_Dialogue_Actions {
 		if ( $remembered ) {
 			$what = array();
 			if ( in_array( 'down', $remembered, true ) ) {
-				$what[] = $wanted_amt && null === $wanted_pct ? $this->responder->say( 'finance_memory_amount', array( 'down' => ASI_Money::format( round( $wanted_amt ), $columns[0]['currency'] ) ) ) : $this->responder->say( 'finance_memory_pct', array( 'pct' => reset( $pcts ) . ' %' ) );
+				$what[] = $wanted_amt && null === $wanted_pct ? $this->responder->say( 'finance_memory_amount', array( 'down' => ASI_Money::format( round( $wanted_amt ), $wanted_cur ) ) ) : $this->responder->say( 'finance_memory_pct', array( 'pct' => reset( $pcts ) . ' %' ) );
 			}
 			if ( in_array( 'term', $remembered, true ) ) {
 				$what[] = $this->responder->say( 'finance_term', array( 'n' => (int) $terms[0] ) );

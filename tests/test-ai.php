@@ -26,7 +26,7 @@ check( 'ia: quita correos, teléfonos y enlaces', false, (bool) preg_match( '/@|
 check( 'ia: deja el resto del mensaje', true, false !== strpos( $clean, 'mi cel' ) );
 
 // Lo que devuelve la IA se valida.
-check( 'ia: lee JSON con texto alrededor', array( 'action' => 'finance', 'items' => 'all', 'query' => '', 'topic' => '' ), ASI_AI_Interpreter::parse( "Claro:\n{\"action\":\"finance\",\"items\":\"all\"}", 4, $acts ) );
+check( 'ia: lee JSON con texto alrededor', array( 'action' => 'finance', 'items' => 'all', 'query' => '', 'topic' => '', 'fin' => array() ), ASI_AI_Interpreter::parse( "Claro:\n{\"action\":\"finance\",\"items\":\"all\"}", 4, $acts ) );
 check( 'ia: números de opciones válidos', array( 1, 3 ), ASI_AI_Interpreter::parse( '{"action":"quote","items":[1,3,9]}', 4, $acts )['items'] );
 check( 'ia: opciones que no existen se descartan', 'all', ASI_AI_Interpreter::parse( '{"action":"finance","items":[7,9]}', 4, $acts )['items'] );
 check( 'ia: todas las opciones = all', 'all', ASI_AI_Interpreter::parse( '{"action":"finance","items":[1,2,3,4]}', 4, $acts )['items'] );
@@ -98,3 +98,26 @@ check( 'ia e2e: si la IA repite el mensaje, no se acepta', null, $res['response'
 list( $ask, $asked ) = $fake( '{"action":"none"}' );
 ASI_AI_Interpreter::rescue( $abot, 'mi correo es ana@example.com y quiero algo', array(), array(), $acts, $es_phrases, $ask );
 check( 'ia e2e: a la IA no le llega el correo', false, false !== strpos( $asked->prompt, 'ana@example.com' ) );
+
+// La IA también lee el enganche, el plazo y la moneda, pero solo con números que están en el mensaje.
+$msg = 'le pongo ciento sesenta, o sea 160 al inicio y lo pago en 4 años';
+check( 'ia fin: monto del mensaje (160 → 160000) y años → meses', array( 'amt' => 160000, 'cur' => '', 'term' => 48 ), ASI_AI_Interpreter::fin( array( 'down_amount' => 160000, 'term_months' => 48 ), $msg ) );
+check( 'ia fin: un monto que no está en el mensaje se descarta', array(), ASI_AI_Interpreter::fin( array( 'down_amount' => 250000 ), $msg ) );
+check( 'ia fin: un porcentaje inventado se descarta', array(), ASI_AI_Interpreter::fin( array( 'down_pct' => 35 ), 'quiero dar la tercera parte' ) );
+check( 'ia fin: dólares', array( 'amt' => 20000, 'cur' => 'USD' ), ASI_AI_Interpreter::fin( array( 'down_amount' => 20000, 'currency' => 'usd' ), 'tengo 20 de los verdes' ) );
+check( 'ia fin: frase para las reglas', 'cuotas con q160000 de enganche a 48 meses', ASI_AI_Interpreter::phrase( array( 'action' => 'finance', 'items' => array(), 'fin' => array( 'amt' => 160000, 'cur' => 'GTQ', 'term' => 48 ) ), $es_phrases ) );
+check( 'ia fin: con opciones nombradas', 'cuotas de la 2 con 25% de enganche', ASI_AI_Interpreter::phrase( array( 'action' => 'finance', 'items' => array( 2 ), 'fin' => array( 'pct' => 25 ) ), $es_phrases ) );
+check( 'ia fin: cotización con cuotas', 'cotizar la 1 con cuotas con $20000 de enganche', ASI_AI_Interpreter::phrase( array( 'action' => 'quote', 'items' => array( 1 ), 'fin' => array( 'amt' => 20000, 'cur' => 'USD' ) ), $es_phrases ) );
+
+// De punta a punta: las reglas no leen "160 al inicio"; la IA sí, y las reglas calculan.
+$sa = $four;
+$sa = $abot->handle( 'cuotas de la 1', $sa )['state'];
+$first = $abot->handle( 'para el enganche le pongo como 160 nomas', $sa );
+check( 'ia fin e2e: las reglas responden pero avisan que no leyeron el número', array( 'finance', true ), array( $first['kind'], ! empty( $first['fin_unread'] ) ) );
+list( $ask ) = $fake( '{"action":"finance","items":"","down_amount":160000,"currency":""}' );
+$res = ASI_AI_Interpreter::rescue( $abot, 'para el enganche le pongo como 160 nomas', $sa, $titles4, $acts, $es_phrases, $ask, '', true );
+check( 'ia fin e2e: Q 100,000 no; Q 160,000 sí, en la misma tabla', array( 'finance', 'Q 160,000', 2 ), array( $res['response']['kind'] ?? '', substr( $res['response']['table']['rows'][1][1] ?? '', 0, 9 ), count( $res['response']['table']['head'] ?? array() ) ) );
+list( $ask ) = $fake( '{"action":"finance","items":"all"}' );
+check( 'ia fin e2e: si la IA no trae el número, se queda la respuesta de las reglas', null, ASI_AI_Interpreter::rescue( $abot, 'para el enganche le pongo como 160 nomas', $sa, $titles4, $acts, $es_phrases, $ask, '', true )['response'] ?? null );
+check( 'ia fin e2e: una petición normal no llama a la IA', false, ! empty( $abot->handle( 'cuotas de la 1', $four )['fin_unread'] ) );
+check( 'ia fin e2e: "cuotas de la 2" tampoco', false, ! empty( $abot->handle( 'cuotas de la 2 al 30%', $four )['fin_unread'] ) );
