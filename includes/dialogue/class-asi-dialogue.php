@@ -124,6 +124,11 @@ class ASI_Dialogue {
 		if ( $this->fin_unread && isset( $response['kind'] ) && in_array( $response['kind'], array( 'finance', 'file' ), true ) ) {
 			$response['fin_unread'] = true; // Lo usa el endpoint (IA); no se envía al navegador.
 		}
+		// Justo después de una tabla de cuotas, "¿y si le doy 200 al principio?" no es una búsqueda:
+		// si las reglas solo lo entendieron a medias y trae un número, que la IA lea el enganche.
+		if ( in_array( $state['last'], array( 'finance', 'quote' ), true ) && ! empty( $response['learn'] ) && preg_match( '/[0-9]{2,}|(^|\s)(mil|cien|ciento|doscientos|trescientos)(\s|$)/', $normalized ) ) {
+			$response['fin_unread'] = true;
+		}
 		// Clave de la pregunta para el aprendizaje (la usa el endpoint; no se envía al navegador).
 		$response['qkey'] = self::content_key( $this->analyzer, $this->lexicon, $message );
 		$response   = $this->maybe_language_hint( $response, $normalized );
