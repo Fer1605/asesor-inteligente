@@ -231,7 +231,7 @@ class ASI_REST_Controller {
 			'packs'          => array_values( ASI_Extensions::active_packs() ),
 			'actions'        => new ASI_Actions(),
 			'card_flags'     => ASI_Settings::card_flags( $context->lang ),
-			'whatsapp'       => isset( $settings['whatsapp'] ) ? (string) $settings['whatsapp'] : '',
+			'whatsapp'       => ASI_WhatsApp::get()['value'],
 		);
 	}
 

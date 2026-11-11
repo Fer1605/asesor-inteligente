@@ -12,6 +12,7 @@ $root = dirname( __DIR__ );
 require $root . '/includes/i18n/class-asi-country-resolver.php';
 require $root . '/includes/text/class-asi-normalizer.php';
 require $root . '/includes/text/class-asi-money.php';
+require $root . '/includes/discovery/class-asi-whatsapp.php';
 require $root . '/includes/discovery/class-asi-field-classifier.php';
 require $root . '/includes/index/class-asi-elementor-text.php';
 require $root . '/includes/discovery/class-asi-json-paths.php';

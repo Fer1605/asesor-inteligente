@@ -77,6 +77,7 @@ class ASI_Indexer {
 	 * Empieza (o reinicia) el reindexado completo desde el primer post.
 	 */
 	public function start_full_reindex() {
+		ASI_WhatsApp::forget(); // El WhatsApp del sitio se vuelve a buscar.
 		update_option(
 			self::STATE_OPTION,
 			array(
@@ -181,6 +182,10 @@ class ASI_Indexer {
 	public function on_post_saved( $post_id, $post ) {
 		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
 			return;
+		}
+		// Si cambian el pie o el botón de WhatsApp, el chat usa el número nuevo.
+		if ( isset( $post->post_type ) && 'elementor_library' === $post->post_type ) {
+			ASI_WhatsApp::forget();
 		}
 		$schema = ASI_Schema_Discovery::get_schema();
 		if ( empty( $schema['post_types'][ $post->post_type ] ) ) {

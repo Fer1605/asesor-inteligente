@@ -322,3 +322,23 @@ $pb = new ASI_Dialogue( $places, array( 'lang' => 'es', 'language' => 'es', 'sit
 $r = $pb->handle( 'donde estan ubicados en la capital', array() );
 check( 'lugares: "la capital" no se corrige a "capota"', false, false !== stripos( $r['text'], 'capota' ) );
 check( 'lugares: "la capital" = las sedes por zona', array( 'https://x.test/z10/' ), array_values( array_filter( array_column( isset( $r['places'] ) ? $r['places'] : $r['links'], 'url' ), function ( $u ) { return false !== strpos( $u, 'x.test/z' ) || false !== strpos( $u, 'coban' ); } ) ) );
+
+// WhatsApp: se saca del sitio.
+check( 'wa: enlace con texto', '+50232699880', ASI_WhatsApp::number_from( 'https://wa.me/+50232699880?text=Hola' ) );
+check( 'wa: api.whatsapp.com', '+50240461378', ASI_WhatsApp::number_from( 'https://api.whatsapp.com/send?phone=50240461378&text=x' ) );
+check( 'wa: número escrito con código', '+50232699880', ASI_WhatsApp::number_from( '+502 3269-9880' ) );
+check( 'wa: sin código de país no se adivina', '', ASI_WhatsApp::number_from( '3269-9880' ) );
+check( 'wa: enlace sin número', '', ASI_WhatsApp::number_from( 'https://wa.me/message/E2SWHJRS4AQXK1' ) );
+$tree = array(
+	array( 'elements' => array(
+		array( 'settings' => array( 'link' => array( 'url' => 'https://wa.me/50240461378' ) ) ),
+		array( 'settings' => array( 'link' => array( 'url' => 'https://wa.me/50240461378' ) ) ),
+		array( 'settings' => array( '_position' => 'fixed', 'link' => array( 'url' => 'http://wa.me/+50232699880' ) ) ),
+	) ),
+);
+$links  = ASI_WhatsApp::links_in_elementor( $tree );
+$scores = array();
+foreach ( $links as $l ) {
+	$scores[ $l['number'] ] = ( isset( $scores[ $l['number'] ] ) ? $scores[ $l['number'] ] : 0 ) + ( $l['fixed'] ? 100 : 1 );
+}
+check( 'wa: el botón flotante gana aunque otro se repita', '+50232699880', ASI_WhatsApp::best( $scores ) );
