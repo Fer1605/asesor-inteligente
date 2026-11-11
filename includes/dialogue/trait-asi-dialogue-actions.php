@@ -112,6 +112,9 @@ trait ASI_Dialogue_Actions {
 
 		// 3. Seguimiento de lo que está viendo: "y las cuotas de la otra", "y el del pickup??".
 		$follow = $this->selection_follow_up( $message, $normalized, $state );
+		if ( ! $follow ) {
+			$follow = $this->ordinal_follow_up( $message, $normalized, $state );
+		}
 		if ( $follow ) {
 			return $follow;
 		}
@@ -746,6 +749,25 @@ trait ASI_Dialogue_Actions {
 		$wants_quote   = $this->words_in( $normalized, 'quote_words' );
 		$last          = '' !== $state['last'] ? $state['last'] : 'finance';
 		if ( $wants_quote || ( ! $wants_finance && 'quote' === $last && array_diff( $picked, $state['quoted'] ) ) ) {
+			return $this->start_action( 'quote', $picked, $state );
+		}
+		return $this->finance_flow( $picked, $message, $normalized, $state );
+	}
+
+	/**
+	 * "Y las de la 2", "y la tercera?", "e el 4" justo después de cuotas o de cotizar: lo mismo con
+	 * esa opción de la lista, en vez de buscar "2" como si fuera un vehículo nuevo.
+	 */
+	private function ordinal_follow_up( $message, $normalized, array $state ) {
+		if ( ! in_array( $state['last'], array( 'finance', 'quote' ), true ) || ! $state['results'] || str_word_count( $normalized ) > 7 || ! preg_match( '/^(y|e|and|tambien|ahora|also)\s/', $normalized ) ) {
+			return null;
+		}
+		$picked = $this->action_targets( $message, $normalized, $state, false );
+		if ( ! $picked || array_diff( $picked, $state['results'] ) ) {
+			return null;
+		}
+		$wants_finance = $this->words_in( $normalized, 'finance_words' );
+		if ( $this->words_in( $normalized, 'quote_words' ) || ( ! $wants_finance && 'quote' === $state['last'] && array_diff( $picked, $state['quoted'] ) ) ) {
 			return $this->start_action( 'quote', $picked, $state );
 		}
 		return $this->finance_flow( $picked, $message, $normalized, $state );

@@ -396,3 +396,11 @@ check( 'memoria: "todos los plazos" vuelve a la tabla completa con el 30 %', arr
 $fresh = $four;
 $r = $say( 'cuotas de la 1', $fresh );
 check( 'memoria: una conversación nueva empieza con el enganche normal', 'Enganche (20 %)', $down_of( $r ) );
+$sf = $four;
+$say( 'las cuotas de la 4 a un 45% de enganche', $sf );
+$r = $say( 'y las de la 2', $sf );
+check( 'seguimiento: "y las de la 2" tras cuotas = cuotas de la 2 al 45 % (no una búsqueda)', array( 'finance', 20, 'Enganche (45 %)' ), array( $r['kind'], $r['cards'][0]['id'] ?? 0, $r['table']['rows'][1][0] ?? '' ) );
+$r = $say( 'y la tercera?', $sf );
+check( 'seguimiento: "y la tercera?" también', array( 'finance', 22 ), array( $r['kind'], $r['cards'][0]['id'] ?? 0 ) );
+$r = $say( 'y las de cada una', $sf );
+check( 'seguimiento: y después de todas, con el mismo enganche', array( 'finance', 5, 'Enganche (45 %)' ), array( $r['kind'], count( $r['table']['head'] ?? array() ), $r['table']['rows'][1][0] ?? '' ) );
