@@ -613,6 +613,10 @@ trait ASI_Dialogue_Actions {
 			// En qué moneda lo dijo: "$", "dólares" → dólares; si no dice nada, la moneda del sitio.
 			$wanted_cur = ASI_Money::currency_in_text( $raw . ' ' . $word, $money );
 		}
+		// "150 de enganche" son 150 mil: nadie da 150 de enganche por un vehículo.
+		if ( $wanted_amt && $wanted_amt < 1000 ) {
+			$wanted_amt *= 1000;
+		}
 		if ( $wanted_amt && '' === $wanted_cur ) {
 			$wanted_cur = $money['base'];
 		}
@@ -625,7 +629,8 @@ trait ASI_Dialogue_Actions {
 
 		// Habló de números que las reglas no supieron leer ("ciento sesenta al inicio", "le pongo 160
 		// pues"): se marca para que la IA (si está prendida) los interprete.
-		if ( null === $wanted_pct && ! $wanted_amt && null === $terms && preg_match( '/[0-9]{2,}|(^|\s)(mil|millon|millones|k)(\s|$)/', $text ) ) {
+		$rest = preg_replace( '/[0-9]{2}\s*(?:meses|months)|[1-9]\s*(?:anos|ano|years?)/', ' ', $text );
+		if ( null === $wanted_pct && ! $wanted_amt && preg_match( '/[0-9]{2,}|(^|\s)(mil|millon|millones|k)(\s|$)/', $rest ) ) {
 			$this->fin_unread = true;
 		}
 

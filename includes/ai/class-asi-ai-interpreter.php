@@ -235,11 +235,15 @@ class ASI_AI_Interpreter {
 			$out['pct'] = round( (float) $data['down_pct'], 1 );
 		} elseif ( $amount >= 1000 && $found( $amount, array( 1, 1000, 1000000 ) ) ) {
 			$out['amt'] = (int) round( $amount );
-			$cur        = isset( $data['currency'] ) ? strtoupper( trim( (string) $data['currency'] ) ) : '';
-			if ( '' === $cur && preg_match( '/(\$|dolar|dólar|dollar|usd|verdes)/iu', (string) $message ) ) {
+			// La moneda la deciden las palabras del cliente, no la IA: "$", "dólares", "verdes" → USD;
+			// "Q", "quetzales" → GTQ; si no dice nada, la del sitio.
+			$cur = '';
+			if ( preg_match( '/(\$|d[oó]lar|dollar|usd|verdes)/iu', (string) $message ) ) {
 				$cur = 'USD';
+			} elseif ( preg_match( '/(quetzal|gtq|(^|[^a-z])q\.?\s?[0-9])/iu', (string) $message ) ) {
+				$cur = 'GTQ';
 			}
-			$out['cur'] = in_array( $cur, array( 'USD', 'GTQ' ), true ) ? $cur : '';
+			$out['cur'] = $cur;
 		}
 		if ( isset( $data['term_months'] ) && is_numeric( $data['term_months'] ) && $data['term_months'] >= 6 && $data['term_months'] <= 120 && $found( (float) $data['term_months'], array( 1, 12 ) ) ) {
 			$out['term'] = (int) $data['term_months'];

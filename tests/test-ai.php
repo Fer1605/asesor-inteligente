@@ -104,7 +104,7 @@ $msg = 'le pongo ciento sesenta, o sea 160 al inicio y lo pago en 4 años';
 check( 'ia fin: monto del mensaje (160 → 160000) y años → meses', array( 'amt' => 160000, 'cur' => '', 'term' => 48 ), ASI_AI_Interpreter::fin( array( 'down_amount' => 160000, 'term_months' => 48 ), $msg ) );
 check( 'ia fin: un monto que no está en el mensaje se descarta', array(), ASI_AI_Interpreter::fin( array( 'down_amount' => 250000 ), $msg ) );
 check( 'ia fin: un porcentaje inventado se descarta', array(), ASI_AI_Interpreter::fin( array( 'down_pct' => 35 ), 'quiero dar la tercera parte' ) );
-check( 'ia fin: dólares', array( 'amt' => 20000, 'cur' => 'USD' ), ASI_AI_Interpreter::fin( array( 'down_amount' => 20000, 'currency' => 'usd' ), 'tengo 20 de los verdes' ) );
+check( 'ia fin: dólares', array( 'amt' => 20000, 'cur' => 'USD' ), ASI_AI_Interpreter::fin( array( 'down_amount' => 20000, 'currency' => 'GTQ' ), 'tengo 20 de los verdes' ) );
 check( 'ia fin: frase para las reglas', 'cuotas con q160000 de enganche a 48 meses', ASI_AI_Interpreter::phrase( array( 'action' => 'finance', 'items' => array(), 'fin' => array( 'amt' => 160000, 'cur' => 'GTQ', 'term' => 48 ) ), $es_phrases ) );
 check( 'ia fin: con opciones nombradas', 'cuotas de la 2 con 25% de enganche', ASI_AI_Interpreter::phrase( array( 'action' => 'finance', 'items' => array( 2 ), 'fin' => array( 'pct' => 25 ) ), $es_phrases ) );
 check( 'ia fin: cotización con cuotas', 'cotizar la 1 con cuotas con $20000 de enganche', ASI_AI_Interpreter::phrase( array( 'action' => 'quote', 'items' => array( 1 ), 'fin' => array( 'amt' => 20000, 'cur' => 'USD' ) ), $es_phrases ) );
