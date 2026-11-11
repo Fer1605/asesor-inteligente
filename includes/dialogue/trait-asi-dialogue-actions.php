@@ -550,7 +550,7 @@ trait ASI_Dialogue_Actions {
 		$parts = array();
 		$patterns = array(
 			'/[0-9]{1,2}(?:[.,][0-9])?\s*%/',
-			'/(?:enganche|prima|inicial|down payment)\D{0,12}?((?:us\$|q\.?|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)(\s*(?:dolares|dolar|dollars|usd|quetzales|quetzal))?|((?:us\$|q\.?|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)(\s*(?:dolares|dolar|dollars|usd|quetzales|quetzal))?\s*(?:(?:de|para|como|en)\s+(?:el\s+|la\s+|mi\s+)?)?(?:enganche|prima|inicial)/',
+			'/(?:enganche|prima|inicial|entrada|down payment)\D{0,12}?((?:us\$|q\.?|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)(\s*(?:dolares|dolar|dollars|usd|quetzales|quetzal))?|((?:us\$|q\.?|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)(\s*(?:dolares|dolar|dollars|usd|quetzales|quetzal))?\s*(?:(?:de|para|como|en)\s+(?:el\s+|la\s+|mi\s+)?)?(?:enganche|prima|inicial|entrada)/',
 			'/[0-9]{2}\s*(?:meses|months)|[1-9]\s*(?:anos|ano|years?)/',
 		);
 		foreach ( $patterns as $pattern ) {
@@ -605,7 +605,7 @@ trait ASI_Dialogue_Actions {
 		$wanted_cur = '';
 		if ( preg_match( '/([0-9]{1,2}(?:[.,][0-9])?)\s*%/', $text, $m ) ) {
 			$wanted_pct = (float) str_replace( ',', '.', $m[1] ) / 100;
-		} elseif ( preg_match( '/(?:enganche|prima|inicial|down payment)\D{0,12}?((?:us\$|q\.?|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)(\s*(?:dolares|dolar|dollars|usd|quetzales|quetzal))?|((?:us\$|q\.?|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)(\s*(?:dolares|dolar|dollars|usd|quetzales|quetzal))?\s*(?:(?:de|para|como|en)\s+(?:el\s+|la\s+|mi\s+)?)?(?:enganche|prima|inicial)/', $text, $m ) ) {
+		} elseif ( preg_match( '/(?:enganche|prima|inicial|entrada|down payment)\D{0,12}?((?:us\$|q\.?|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)(\s*(?:dolares|dolar|dollars|usd|quetzales|quetzal))?|((?:us\$|q\.?|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)(\s*(?:dolares|dolar|dollars|usd|quetzales|quetzal))?\s*(?:(?:de|para|como|en)\s+(?:el\s+|la\s+|mi\s+)?)?(?:enganche|prima|inicial|entrada)/', $text, $m ) ) {
 			$first      = isset( $m[1] ) && '' !== trim( $m[1] );
 			$raw        = $first ? $m[1] : ( isset( $m[3] ) ? $m[3] : '' );
 			$word       = $first ? ( isset( $m[2] ) ? $m[2] : '' ) : ( isset( $m[4] ) ? $m[4] : '' );

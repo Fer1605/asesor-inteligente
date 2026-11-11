@@ -110,7 +110,7 @@ class ASI_AI_Interpreter {
 		$lines[] = '';
 		$lines[] = 'En "items" pon los números de las opciones a las que se refiere, o "all" si habla de todas, de cada una o de estas. Vacío si no aplica o si se refiere a lo último que vio.';
 		if ( in_array( 'finance', $actions, true ) ) {
-			$lines[] = 'Si da un enganche o un plazo, ponlo: "down_pct" (porcentaje, ej. 25), o "down_amount" (monto completo en número: 160 mil = 160000) con "currency" ("USD" solo si dice dólares o $, "GTQ" si dice quetzales o Q, vacío si no dice), y "term_months" (meses: 4 años = 48). Si no lo dice, déjalos vacíos. No inventes números que no estén en el mensaje.';
+			$lines[] = 'Si da un enganche o un plazo, ponlo: "down_pct" solo si dice % o "por ciento"; si no, es un monto: "down_amount" en número completo (160 mil = 160000; "160" o "unos 150" de enganche son miles: 160000, 150000) con "currency" ("USD" si dice dólares, $, usd o "verdes"; "GTQ" si dice quetzales o Q; vacío si no dice), y "term_months" (meses: 4 años = 48). Si no lo dice, déjalos vacíos. No inventes números que no estén en el mensaje.';
 		}
 		$lines[] = 'Si dudas, usa "none". No inventes opciones que no están en la lista.';
 		$lines[] = 'Responde SOLO con JSON en una línea, sin explicación: {"action":"finance","items":"all","query":"","topic":"","down_pct":null,"down_amount":null,"currency":"","term_months":null}';
@@ -221,11 +221,24 @@ class ASI_AI_Interpreter {
 			return false;
 		};
 		$out = array();
-		if ( isset( $data['down_pct'] ) && is_numeric( $data['down_pct'] ) && $data['down_pct'] > 0 && $data['down_pct'] < 100 && $found( (float) $data['down_pct'], array( 1 ) ) ) {
+		// Porcentaje solo si lo dijo como porcentaje ("20 de los verdes" es un monto, no 20 %).
+		$says_pct = (bool) preg_match( '/%|por\s*ciento|percent/i', (string) $message );
+		$amount   = isset( $data['down_amount'] ) && is_numeric( $data['down_amount'] ) ? (float) $data['down_amount'] : 0;
+		if ( ! $says_pct && ! $amount && isset( $data['down_pct'] ) && is_numeric( $data['down_pct'] ) ) {
+			$amount = (float) $data['down_pct'];
+		}
+		// Un enganche de "150" son 150 mil: nadie da 150 de enganche por un vehículo.
+		if ( $amount > 0 && $amount < 1000 ) {
+			$amount *= 1000;
+		}
+		if ( $says_pct && isset( $data['down_pct'] ) && is_numeric( $data['down_pct'] ) && $data['down_pct'] > 0 && $data['down_pct'] < 100 && $found( (float) $data['down_pct'], array( 1 ) ) ) {
 			$out['pct'] = round( (float) $data['down_pct'], 1 );
-		} elseif ( isset( $data['down_amount'] ) && is_numeric( $data['down_amount'] ) && $data['down_amount'] >= 100 && $found( (float) $data['down_amount'], array( 1, 1000, 1000000 ) ) ) {
-			$out['amt'] = (int) round( (float) $data['down_amount'] );
+		} elseif ( $amount >= 1000 && $found( $amount, array( 1, 1000, 1000000 ) ) ) {
+			$out['amt'] = (int) round( $amount );
 			$cur        = isset( $data['currency'] ) ? strtoupper( trim( (string) $data['currency'] ) ) : '';
+			if ( '' === $cur && preg_match( '/(\$|dolar|dólar|dollar|usd|verdes)/iu', (string) $message ) ) {
+				$cur = 'USD';
+			}
 			$out['cur'] = in_array( $cur, array( 'USD', 'GTQ' ), true ) ? $cur : '';
 		}
 		if ( isset( $data['term_months'] ) && is_numeric( $data['term_months'] ) && $data['term_months'] >= 6 && $data['term_months'] <= 120 && $found( (float) $data['term_months'], array( 1, 12 ) ) ) {
@@ -234,15 +247,62 @@ class ASI_AI_Interpreter {
 		return $out;
 	}
 
-	/** Números escritos en el mensaje ("160", "160,000", "1.5"). */
+	/** Números escritos en el mensaje ("160", "160,000", "1.5", "ciento sesenta mil"). */
 	private static function numbers_in( $message ) {
 		preg_match_all( '/[0-9]+(?:[.,][0-9]+)*/', (string) $message, $m );
-		$out = array();
+		$out = self::word_numbers( $message );
 		foreach ( $m[0] as $raw ) {
 			$out[] = (float) preg_replace( '/[^0-9]/', '', $raw );
 			if ( preg_match( '/^([0-9]+)[.,]([0-9]{1,2})$/', $raw, $d ) ) {
 				$out[] = (float) ( $d[1] . '.' . $d[2] );
 			}
+		}
+		return $out;
+	}
+
+	/**
+	 * Números en letras, en español e inglés básicos: "ciento sesenta mil" = 160000, "veinte" = 20,
+	 * "cuarenta y cinco" = 45, "two hundred" = 200.
+	 *
+	 * @return float[]
+	 */
+	private static function word_numbers( $message ) {
+		$units = array(
+			'un' => 1, 'uno' => 1, 'una' => 1, 'dos' => 2, 'tres' => 3, 'cuatro' => 4, 'cinco' => 5, 'seis' => 6, 'siete' => 7, 'ocho' => 8, 'nueve' => 9,
+			'diez' => 10, 'once' => 11, 'doce' => 12, 'trece' => 13, 'catorce' => 14, 'quince' => 15, 'dieciseis' => 16, 'diecisiete' => 17, 'dieciocho' => 18, 'diecinueve' => 19,
+			'veinte' => 20, 'veinti' => 20, 'veintiuno' => 21, 'veintidos' => 22, 'veintitres' => 23, 'veinticuatro' => 24, 'veinticinco' => 25, 'veintiseis' => 26, 'veintisiete' => 27, 'veintiocho' => 28, 'veintinueve' => 29,
+			'treinta' => 30, 'cuarenta' => 40, 'cincuenta' => 50, 'sesenta' => 60, 'setenta' => 70, 'ochenta' => 80, 'noventa' => 90,
+			'cien' => 100, 'ciento' => 100, 'doscientos' => 200, 'trescientos' => 300, 'cuatrocientos' => 400, 'quinientos' => 500, 'seiscientos' => 600, 'setecientos' => 700, 'ochocientos' => 800, 'novecientos' => 900,
+			'one' => 1, 'two' => 2, 'three' => 3, 'four' => 4, 'five' => 5, 'six' => 6, 'seven' => 7, 'eight' => 8, 'nine' => 9, 'ten' => 10, 'twenty' => 20, 'thirty' => 30, 'forty' => 40, 'fifty' => 50, 'sixty' => 60, 'seventy' => 70, 'eighty' => 80, 'ninety' => 90,
+		);
+		$out     = array();
+		$current = 0;
+		$total   = 0;
+		$active  = false;
+		foreach ( preg_split( '/\s+/', ASI_Normalizer::normalize( (string) $message ) ) as $word ) {
+			if ( isset( $units[ $word ] ) ) {
+				$current += $units[ $word ];
+				$active   = true;
+			} elseif ( $active && in_array( $word, array( 'y', 'and' ), true ) ) {
+				continue;
+			} elseif ( $active && in_array( $word, array( 'hundred' ), true ) ) {
+				$current *= 100;
+			} elseif ( in_array( $word, array( 'mil', 'thousand' ), true ) ) {
+				$total  += max( 1, $current ) * 1000;
+				$current = 0;
+				$active  = true;
+			} elseif ( $active && in_array( $word, array( 'millon', 'millones', 'million' ), true ) ) {
+				$total  += max( 1, $current ) * 1000000;
+				$current = 0;
+			} elseif ( $active ) {
+				$out[]   = (float) ( $total + $current );
+				$total   = 0;
+				$current = 0;
+				$active  = false;
+			}
+		}
+		if ( $active ) {
+			$out[] = (float) ( $total + $current );
 		}
 		return $out;
 	}
@@ -334,6 +394,10 @@ class ASI_AI_Interpreter {
 		// Si las reglas ya entendieron todo menos el enganche o el plazo, solo sirve si la IA los leyó.
 		if ( $intent && $need_fin && ! $intent['fin'] ) {
 			$intent = null;
+		}
+		// Ahí las reglas ya sabían de qué vehículos hablaba: de la IA solo se toman los números.
+		if ( $intent && $need_fin ) {
+			$intent = array_merge( $intent, array( 'action' => 'finance', 'items' => array() ) );
 		}
 		if ( ! $intent ) {
 			return array( 'response' => null, 'phrase' => '', 'intent' => null, 'model' => isset( $answer['model'] ) ? $answer['model'] : '' );

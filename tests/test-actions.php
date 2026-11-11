@@ -474,3 +474,7 @@ $r = $usay( 'para el enganche tengo $25,000', $su );
 check( 'dólares: "$25,000" se toma en dólares', '$ 25,000', $r['table']['rows'][1][1] ?? '' );
 $r = $usay( 'con 25 mil usd de enganche', $su );
 check( 'dólares: "25 mil usd" también', '$ 25,000', $r['table']['rows'][1][1] ?? '' );
+$sc = $four;
+$say( 'cuotas de la 1', $sc );
+$r = $say( 'puedo dar 100 mil de entrada', $sc );
+check( 'monto: "100 mil de entrada" = enganche', 'Q 100,000', $r['table']['rows'][1][1] ?? '' );
