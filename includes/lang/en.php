@@ -42,6 +42,7 @@ return array(
 	'compare_pdf_words' => array( 'comparison pdf', 'pdf comparison', 'send me the comparison', 'email the comparison' ),
 	'search_else_words' => array( 'something else', 'search something else', 'look for something else', 'something different' ),
 	// Phrases the rules already understand; used to translate what the optional AI interpreted.
+	'ai_signals'        => array( 'not', 'no', 'nor', 'without', 'except', 'less', 'more', 'over', 'under', 'cheap', 'cheaper', 'cheapest', 'expensive', 'but', 'rather', 'instead', 'other', 'another', 'also', 'similar', 'budget', 'thousand', 'million', 'dollars', 'quetzales', 'k', 'around', 'about', 'max', 'min', 'between', 'up', 'have' ),
 	'ai_phrases'        => array(
 		'finance_fin'  => 'payments {fin}',
 		'with_finance' => 'with payments',

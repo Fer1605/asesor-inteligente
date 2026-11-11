@@ -241,3 +241,22 @@ $s = array();
 $r = $chat( 'una suv de hasta 200 mil', $s );
 $extra = isset( $r['extra']['cards'] ) ? $r['extra']['cards'] : array();
 check( 'similares respetan el presupuesto', array(), array_filter( $extra, function ( $c ) { return ASI_Money::parse_display_price( $c['price'] ) > 200000; } ) );
+
+// Filtro: qué búsquedas gastan una consulta.
+$sig  = ASI_Lexicon::get( 'es' )->get_list( 'ai_signals' );
+$ok   = array( 'kind' => 'results', 'state' => array( 'q' => 'x' ) );
+$gate = function ( $m ) use ( $ok, $sig ) {
+	return ASI_AI_Interpreter::reviewable( $ok, array(), $m, $sig );
+};
+check( 'filtro: "suv" no gasta', false, $gate( 'suv' ) );
+check( 'filtro: "solo toyota" no gasta', false, $gate( 'solo toyota' ) );
+check( 'filtro: "pickup 4x4" no gasta', false, $gate( 'pickup 4x4' ) );
+check( 'filtro: "busco una camioneta" no gasta', false, $gate( 'busco una camioneta' ) );
+check( 'filtro: montos sí', true, $gate( 'pero que no sean mayor a 100 mil' ) );
+check( 'filtro: monto en letras sí', true, $gate( 'algo de cien mil' ) );
+check( 'filtro: negación sí', true, $gate( 'ni nissan ni isuzu' ) );
+check( 'filtro: "más barato" sí', true, $gate( 'algo mas barato' ) );
+check( 'filtro: "pero" sí', true, $gate( 'pero automatica' ) );
+check( 'filtro: mensaje largo sí', true, $gate( 'quiero algo comodo para viajar con mi familia los domingos' ) );
+check( 'filtro: resultado aproximado sí', true, ASI_AI_Interpreter::reviewable( array( 'kind' => 'results', 'learn' => 'weak', 'state' => array( 'q' => 'x' ) ), array(), 'suv morada', $sig ) );
+check( 'filtro: lo que no entendió siempre', true, ASI_AI_Interpreter::reviewable( array( 'kind' => 'unclear' ), array(), 'las de la marca del triangulo', $sig ) );

@@ -171,7 +171,7 @@ class ASI_REST_Controller {
 		// Modo "lee todo": además revisa cada búsqueda y corrige solo si entendió otra cosa.
 		if ( ASI_AI::enabled() ) {
 			$fin_unread = ! empty( $response['fin_unread'] );
-			$review     = 'review' === ASI_AI::settings()['mode'] && ! $fin_unread && ASI_AI_Interpreter::reviewable( $response, $state, $message );
+			$review     = 'review' === ASI_AI::settings()['mode'] && ! $fin_unread && ASI_AI_Interpreter::reviewable( $response, $state, $message, (array) ASI_Lexicon::get( $dcontext['language'] )->get_list( 'ai_signals' ) );
 			$fixed      = $review ? ASI_AI::review( $dialogue, $message, $state, $dcontext, $response ) : null;
 			if ( ! $fixed && ( $fin_unread || ASI_AI_Interpreter::needs_help( $response ) ) ) {
 				$fixed = ASI_AI::rescue( $dialogue, $message, $state, $dcontext, $fin_unread );

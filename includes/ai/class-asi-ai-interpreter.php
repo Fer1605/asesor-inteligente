@@ -23,6 +23,7 @@ class ASI_AI_Interpreter {
 	const TOPICS       = array( 'contact', 'location', 'hours', 'financing' );
 	const MAX_VISIBLE  = 8;
 	const MAX_QUERY    = 6;
+	const MAX_PLAIN_WORDS = 5; // Más palabras que esto: la IA revisa (hay más formas de malinterpretar).
 
 	/** Respuestas de las reglas en las que vale la pena preguntarle a la IA. */
 	const HELP_KINDS = array( 'unclear', 'none' );
@@ -426,8 +427,11 @@ class ASI_AI_Interpreter {
 	 * ¿Esta respuesta se revisa con la IA? Búsquedas normales: no un formulario a medias (datos
 	 * personales) ni la recomendación por perfil (esa ya la arma el asesor).
 	 */
-	public static function reviewable( array $response, array $state, $message ) {
+	public static function reviewable( array $response, array $state, $message, array $signals = array() ) {
 		if ( ! isset( $response['kind'] ) || ! in_array( $response['kind'], self::REVIEW_KINDS, true ) ) {
+			return false;
+		}
+		if ( 'results' === $response['kind'] && ! self::worth_asking( $message, $response, $signals ) ) {
 			return false;
 		}
 		if ( ! empty( $state['pending'] ) ) {
@@ -438,6 +442,46 @@ class ASI_AI_Interpreter {
 			return false;
 		}
 		return '' !== self::scrub( $message );
+	}
+
+	/**
+	 * ¿Vale la pena gastar una consulta en esta búsqueda? Las reglas ya contestaron; la IA solo
+	 * revisa lo que tiene riesgo de malinterpretarse:
+	 * - montos o números ("no mayor a 100 mil", "unos 25 mil dólares"),
+	 * - negaciones, comparaciones y giros ("que no sea", "ni", "más barato", "pero", "mejor"),
+	 * - mensajes largos (más de MAX_PLAIN_WORDS palabras),
+	 * - búsquedas en las que las reglas solo encontraron algo parecido.
+	 * "SUV", "toyota", "pickup 4x4" o un botón que tocó el cliente no gastan.
+	 *
+	 * @param string   $message  Mensaje.
+	 * @param array    $response Respuesta de las reglas.
+	 * @param string[] $signals  Palabras de riesgo del idioma ('ai_signals'). Vacío = siempre revisar.
+	 */
+	public static function worth_asking( $message, array $response, array $signals ) {
+		if ( ! $signals || ! empty( $response['learn'] ) ) {
+			return true;
+		}
+		$normal = ASI_Normalizer::normalize( (string) $message );
+		$words  = preg_split( '/\s+/', $normal, -1, PREG_SPLIT_NO_EMPTY );
+		// "4x4" o "4x2" son tracción, no números; "una camioneta" no es un monto.
+		$plain  = preg_replace( '/\b[0-9]+x[0-9]+\b/', ' ', $normal );
+		$big    = array_filter(
+			self::word_numbers( $plain ),
+			function ( $n ) {
+				return $n >= 10;
+			}
+		);
+		if ( count( $words ) > self::MAX_PLAIN_WORDS || preg_match( '/[0-9]/', $plain ) || $big ) {
+			return true;
+		}
+		$padded = ' ' . $normal . ' ';
+		foreach ( $signals as $signal ) {
+			$signal = ASI_Normalizer::normalize( (string) $signal );
+			if ( '' !== $signal && false !== strpos( $padded, ' ' . $signal . ' ' ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

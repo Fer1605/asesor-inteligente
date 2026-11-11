@@ -66,6 +66,9 @@ return array(
 	'compare_pdf_words' => array( 'comparacion en pdf', 'comparativo en pdf', 'pdf de la comparacion', 'pdf comparativo', 'mandame la comparacion', 'enviame la comparacion', 'mandame el comparativo', 'enviame el comparativo', 'la comparacion por correo', 'comparacion por correo', 'comparativo en pdf', 'comparativa en pdf', 'manda la comparacion', 'mandame la comparativa', 'enviame la comparativa' ),
 	'search_else_words' => array( 'buscar otra cosa', 'otra cosa', 'algo diferente', 'algo distinto', 'quiero buscar otra cosa' ),
 	// Frases que las reglas ya entienden; con ellas se traduce lo que interpretó la IA (opcional).
+	// Palabras de riesgo: con alguna de estas, la IA revisa lo que entendieron las reglas (modo "lee todo").
+	// Sin ninguna, un mensaje corto ("suv", "toyota", "pickup 4x4") se contesta sin gastar consultas.
+	'ai_signals'        => array( 'no', 'ni', 'sin', 'excepto', 'salvo', 'menos', 'mas', 'mayor', 'menor', 'pase', 'pasen', 'supere', 'barato', 'barata', 'baratos', 'baratas', 'caro', 'cara', 'caros', 'caras', 'economico', 'economica', 'economicos', 'economicas', 'pero', 'mejor', 'otro', 'otra', 'otros', 'otras', 'tambien', 'ademas', 'aunque', 'parecido', 'parecida', 'similar', 'presupuesto', 'mil', 'millon', 'millones', 'dolares', 'dolar', 'quetzales', 'verdes', 'lucas', 'k', 'unos', 'unas', 'alrededor', 'aproximadamente', 'maximo', 'minimo', 'hasta', 'desde', 'entre', 'tengo' ),
 	'ai_phrases'        => array(
 		'finance_fin'  => 'cuotas {fin}',
 		'with_finance' => 'con cuotas',
