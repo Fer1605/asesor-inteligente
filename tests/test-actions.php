@@ -484,3 +484,39 @@ $r = $sc ? $abot->handle( 'de entrada te puedo dar unos 150 y el resto en 5 año
 check( 'monto: con el plazo leído y el monto no, se pide ayuda a la IA', array( true, '60 meses' ), array( ! empty( $r['fin_unread'] ), $r['table']['rows'][2][0] ?? '' ) );
 $r = $say( 'con 150 de enganche', $sc );
 check( 'monto: "150 de enganche" = 150 mil', 'Q 150,000', $r['table']['rows'][1][1] ?? '' );
+
+// Lo que probó el jefe: "cuotas de la 2, 6 y 1" y luego "¿y la 6?".
+$shop8 = new ASI_Test_Repository();
+foreach ( array( 'NISSAN FRONTIER', 'ISUZU DMAX', 'MAZDA BT50', 'TOYOTA HILUX', 'MITSUBISHI L200', 'FORD RANGER', 'GWM POER', 'JAC T8' ) as $i => $title ) {
+	$shop8->add( 101 + $i, 'es', 'catalog', $title, array( 'category' => array( 'Pick up' ), 'brand' => array( strtok( $title, ' ' ) ) ), 'Pickup.', array(), array( 'price' => (string) ( 300000 - $i * 1000 ), 'currency_raw' => '2', 'attrs' => array( 'body' => 'pickup', 'year' => 2026 - $i ) ) );
+}
+$bot8 = new ASI_Dialogue( $shop8, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'money' => array( 'base' => 'GTQ', 'map' => array( '2' => 'GTQ' ) ), 'packs' => array( new ASI_Pack_Autos() ), 'actions' => $runner ), function () {
+	return 0;
+} );
+$say8 = function ( $message, &$state ) use ( $bot8 ) {
+	$r     = $bot8->handle( $message, $state );
+	$state = $r['state'];
+	return $r;
+};
+$s   = array();
+$say8( 'pick up', $s );
+$vis = $s['results'];
+check( 'lista: hay 8 a la vista', 8, count( $vis ) );
+$r = $say8( 'dame las cuotas de la 2, 6 y 1', $s );
+check( 'lista: "la 2, 6 y 1" = tres columnas', 4, count( $r['table']['head'] ) );
+check( 'lista: en el orden que las pidió', array( $vis[1], $vis[5], $vis[0] ), $s['fin_ids'] );
+$s = array();
+$say8( 'pick up', $s );
+$r = $say8( 'cuotas de la 2 y la 1', $s );
+$r = $say8( 'y la 6?', $s );
+check( '"¿y la 6?" tras cuotas = cuotas, no cotización', 'finance', $r['kind'] );
+check( '"¿y la 6?" suma la 6 a la tabla', array( $vis[1], $vis[0], $vis[5] ), $s['fin_ids'] );
+check( '"¿y la 6?" no empieza una cotización', array(), isset( $s['pending'] ) ? (array) $s['pending'] : array() );
+$r = $say8( 'cotizame la 6', $s );
+check( 'pedir la cotización sí la empieza', true, ! empty( $s['pending']['action'] ) );
+foreach ( array( 'cuotas de la 1, 3, 5', 'cuotas de 1, 2 y 3', 'cuotas de la primera, la tercera y la quinta' ) as $m ) {
+	$s = array();
+	$say8( 'pick up', $s );
+	$r = $say8( $m, $s );
+	check( "lista: \"$m\" = tres", 3, count( $s['fin_ids'] ) );
+}

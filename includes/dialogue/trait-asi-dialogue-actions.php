@@ -87,7 +87,9 @@ trait ASI_Dialogue_Actions {
 			$comparing = (bool) preg_match( '/(^|\s)compar[a-z]*(\s|$)/', $normalized );
 			// "Dame las cuotas de todas" tras "¿cuál te cotizo?" pide cuotas, no la cotización.
 			$financing = $this->words_in( $normalized, 'finance_words' ) && ! $this->words_in( $normalized, 'quote_words' );
-			if ( ! $comparing && ! $financing && 'quote' === $state['offer']['action'] && count( $state['offer']['ids'] ) > 1 && ( str_word_count( $normalized ) <= 8 || $this->words_in( $normalized, 'quote_words' ) ) && ! $this->words_in( $normalized, 'not_data_words' ) ) {
+			// Justo después de una tabla de cuotas, "¿y la 6?" sigue con las cuotas: no es elegir cuál cotizar.
+			$after_finance = 'finance' === $state['last'] && ! $this->words_in( $normalized, 'quote_words' );
+			if ( ! $comparing && ! $financing && ! $after_finance && 'quote' === $state['offer']['action'] && count( $state['offer']['ids'] ) > 1 && ( str_word_count( $normalized ) <= 8 || $this->words_in( $normalized, 'quote_words' ) ) && ! $this->words_in( $normalized, 'not_data_words' ) ) {
 				// Solo lo que nombra de verdad (nombre, número, grupo), nunca "el que está en foco".
 				$picked = $this->action_targets( $message, $normalized, $state, false );
 				if ( $picked ) {
@@ -237,30 +239,37 @@ trait ASI_Dialogue_Actions {
 				$named[] = $id;
 			}
 		}
-		if ( count( $named ) >= 2 ) {
-			return $named;
-		}
-
 		// 2. Por número: todos los ordinales del mensaje, en orden.
 		$ordinals = (array) $this->lexicon->get_list( 'ordinals' );
 		$markers  = (array) $this->lexicon->get_list( 'reference_markers' );
 		$tokens   = explode( ' ', $normalized );
 		$by_order = array();
+		$in_list  = -2; // Posición del último número aceptado: "la 2, 6 y 1" sigue la lista.
 		foreach ( $tokens as $position => $token ) {
 			if ( ! isset( $ordinals[ $token ] ) || ! $state['results'] ) {
 				continue;
 			}
 			$previous = $position > 0 ? $tokens[ $position - 1 ] : '';
-			// Un número suelto es una tarjeta si va con "la/el/y" o si el mensaje es para cotizar
-			// ("cotízame 1 y 3"), y solo hasta la cantidad de tarjetas mostradas.
-			if ( ctype_digit( $token ) && ( (int) $token > count( $state['results'] ) || ( ! in_array( $previous, $markers, true ) && ! in_array( $previous, array( 'y', 'e', 'el', 'la', 'los', 'las', 'numero', 'num' ), true ) && ! $this->words_in( $normalized, 'quote_words' ) ) ) ) {
+			// Un número suelto es una tarjeta si va con "la/el/y", si sigue a otro número de la lista
+			// ("la 2, 6 y 1") o si el mensaje es para cotizar ("cotízame 1 y 3"), y solo hasta la
+			// cantidad de tarjetas mostradas.
+			$listed = $in_list === $position - 1;
+			// "Cuotas de 1, 2 y 3" sí; "de 2 años" o "de 5 mil" no.
+			$next   = isset( $tokens[ $position + 1 ] ) ? $tokens[ $position + 1 ] : '';
+			$of     = 'de' === $previous && ! preg_match( '/^(anos?|meses?|mil|k|millones?|years?|months?|por|%)$/', $next );
+			if ( ctype_digit( $token ) && ( (int) $token > count( $state['results'] ) || ( ! $listed && ! $of && ! in_array( $previous, $markers, true ) && ! in_array( $previous, array( 'y', 'e', 'el', 'la', 'los', 'las', 'numero', 'num' ), true ) && ! $this->words_in( $normalized, 'quote_words' ) ) ) ) {
 				continue;
 			}
+			$in_list = $position;
 			$index = (int) $ordinals[ $token ];
 			$index = -1 === $index ? count( $state['results'] ) - 1 : $index - 1;
 			if ( isset( $state['results'][ $index ] ) && ! in_array( (int) $state['results'][ $index ], $by_order, true ) ) {
 				$by_order[] = (int) $state['results'][ $index ];
 			}
+		}
+		// Por nombre o por número, lo que nombre más opciones ("la primera, la tercera y la quinta").
+		if ( count( $named ) >= 2 && count( $named ) >= count( $by_order ) ) {
+			return $named;
 		}
 		if ( $by_order ) {
 			return $by_order;
@@ -832,6 +841,14 @@ trait ASI_Dialogue_Actions {
 		$wants_finance = $this->words_in( $normalized, 'finance_words' );
 		if ( $this->words_in( $normalized, 'quote_words' ) || ( ! $wants_finance && 'quote' === $state['last'] && array_diff( $picked, $state['quoted'] ) ) ) {
 			return $this->start_action( 'quote', $picked, $state );
+		}
+		// "¿Y la 6?" después de las cuotas de la 2 y la 1: la tabla con las tres, lado a lado.
+		// Solo si ya estaba comparando cuotas lado a lado; después de una sola tabla, la nueva la reemplaza.
+		if ( 'finance' === $state['last'] && count( $state['fin_ids'] ) >= 2 && array_diff( $picked, $state['fin_ids'] ) ) {
+			$all = array_values( array_unique( array_merge( array_map( 'intval', $state['fin_ids'] ), $picked ) ) );
+			if ( count( $all ) <= self::FINANCE_COLUMNS ) {
+				$picked = $all;
+			}
 		}
 		return $this->finance_flow( $picked, $message, $normalized, $state );
 	}
