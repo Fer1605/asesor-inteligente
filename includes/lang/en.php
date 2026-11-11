@@ -364,6 +364,8 @@ return array(
 		'closing_bye_name' => array( 'My pleasure, {name}! It was great helping you.' ),
 		'closing_advisor'  => array( 'An advisor from {site} will contact you soon.' ),
 		'closing_door'     => array( 'If you need anything else, I am here. Have a great day!' ),
+		'compare_full_pdf'    => array( 'Below is the full comparison as a PDF, with all the specs, safety and features of both.' ),
+		'compare_offer_email' => array( 'Want me to email you this comparison?' ),
 		'results_budget' => array(
 			'With a budget {budget} I have {n}. The ones that make the most of your budget come first.',
 			'For a budget {budget} there are {n}; I start with the most complete within that amount.',

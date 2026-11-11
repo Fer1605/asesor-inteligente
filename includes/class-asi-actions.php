@@ -107,6 +107,28 @@ final class ASI_Actions implements ASI_Action_Runner {
 		);
 	}
 
+	public function preview( $action, array $item_ids ) {
+		if ( 'off' === self::mode() ) {
+			return new WP_Error( 'asi_actions_off', 'Las acciones del chat están apagadas.' );
+		}
+		$connector = ASI_Extensions::connector_for( $action );
+		if ( ! $connector ) {
+			return new WP_Error( 'asi_no_connector', 'Esta acción no está disponible en el sitio.' );
+		}
+		$item_ids = array_values( array_filter( array_map( 'absint', $item_ids ), static function ( $id ) {
+			return 'publish' === get_post_status( $id );
+		} ) );
+		if ( ! $item_ids || ! self::within_limit( 'preview', 20 ) ) {
+			return new WP_Error( 'asi_preview', 'No se pudo generar la vista previa.' );
+		}
+		$file = $connector->run( $action, $item_ids, array() );
+		if ( is_wp_error( $file ) ) {
+			return $file;
+		}
+		$url = self::store( $file );
+		return is_wp_error( $url ) ? $url : array( 'url' => $url, 'filename' => $file['filename'] );
+	}
+
 	public function financing( $item_id ) {
 		$connector = null;
 		foreach ( ASI_Extensions::active_connectors() as $candidate ) {
@@ -296,11 +318,11 @@ final class ASI_Actions implements ASI_Action_Runner {
 		);
 	}
 
-	private static function within_limit() {
+	private static function within_limit( $kind = 'action', $max = self::LIMIT_PER_HR ) {
 		$ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'cli';
-		$key = 'asi_act_' . md5( $ip );
+		$key = 'asi_' . ( 'action' === $kind ? 'act' : substr( $kind, 0, 4 ) ) . '_' . md5( $ip );
 		$n   = (int) get_transient( $key );
-		if ( $n >= self::LIMIT_PER_HR && ! current_user_can( 'manage_options' ) ) {
+		if ( $n >= $max && ! current_user_can( 'manage_options' ) ) {
 			return false;
 		}
 		set_transient( $key, $n + 1, HOUR_IN_SECONDS );

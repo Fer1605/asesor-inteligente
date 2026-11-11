@@ -29,6 +29,16 @@ interface ASI_Action_Runner {
 	public function run( $action, array $item_ids, array $customer );
 
 	/**
+	 * Genera el documento solo para verlo en el chat: sin pedir datos, sin correo y sin lead
+	 * (p. ej. la comparativa completa al comparar).
+	 *
+	 * @param string $action   compare, quote.
+	 * @param int[]  $item_ids Productos.
+	 * @return array|WP_Error { url, filename }
+	 */
+	public function preview( $action, array $item_ids );
+
+	/**
 	 * Reglas de financiamiento para un producto (las del sitio o las del panel).
 	 *
 	 * @param int $item_id Producto.

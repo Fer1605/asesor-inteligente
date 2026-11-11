@@ -15,6 +15,11 @@ final class ASI_Test_Runner implements ASI_Action_Runner {
 		$this->calls[] = array( $action, $item_ids, $customer );
 		return $this->fail ? array() : array( 'url' => 'https://example.com/wp-json/asi/v1/file?t=abc', 'filename' => $action . '.pdf', 'emailed' => true, 'test' => true );
 	}
+	public $previews = array();
+	public function preview( $action, array $item_ids ) {
+		$this->previews[] = array( $action, $item_ids );
+		return array( 'url' => 'https://example.com/wp-json/asi/v1/file?t=prev', 'filename' => 'comparativa.pdf' );
+	}
 	public function financing( $item_id ) {
 		return array( 'rate' => 0.09, 'down_min' => 0.2, 'down_max' => 0.7, 'down_default' => 0.2, 'terms' => array( 12, 24, 36, 48, 60, 72 ) );
 	}
@@ -83,7 +88,7 @@ check( 'cotizar: "me interesa el segundo" con datos ya dados → directo', array
 // Comparación en PDF después de comparar.
 $say( 'pick up 4x4', $s );
 $r = $say( 'compara el primero con el segundo', $s );
-check( 'comparar: ofrece el PDF', true, false !== strpos( $r['followup'], 'PDF' ) );
+check( 'comparar: ofrece enviar la comparativa', true, false !== strpos( $r['followup'], 'correo' ) );
 $r = $say( 'sí, mándamela', $s );
 check( 'comparar: PDF de la comparación de esos dos', 'compare', $runner->calls[2][0] );
 check( 'comparar: los mismos dos', 2, count( $runner->calls[2][1] ) );
@@ -231,8 +236,8 @@ check( 'real: ya cotizados, no vuelve a ofrecer el PDF', array(), $s14['offer'] 
 $s15 = array( 'customer' => array( 'name' => 'Fernanda', 'email' => 'f@example.com', 'phone' => '' ), 'results' => array( 21, 20, 22, 23 ), 'shown' => array( 21, 20, 22, 23 ) );
 $say( 'cuánto pagaría al mes por la 2 y la 3', $s15 );
 $r = $say( 'puedes darme una comparativa de estos vehiculos', $s15 );
-check( 'real: "comparativa de estos vehículos" compara los que estaba viendo', array( 'compare', array( 20, 22 ) ), array( $r['kind'], asi_card_ids( $r ) ) );
-check( 'real: y ofrece el PDF de la comparación', true, false !== strpos( $r['followup'], 'PDF' ) );
+check( 'real: "comparativa de estos vehículos" compara los que estaba viendo', array( 'compare', array( 20, 22 ) ), array( $r['kind'], $s15['selected'] ) );
+check( 'real: y muestra el PDF y ofrece enviarlo', array( true, true ), array( ! empty( $r['file']['url'] ), false !== strpos( $r['followup'], 'correo' ) ) );
 // Despedidas (frase real) y que un "gracias" con pedido no corte la conversación.
 $s16 = array( 'customer' => array( 'name' => 'Fernanda López', 'email' => 'f@example.com', 'phone' => '' ), 'quoted' => array( 20 ) );
 foreach ( array( 'solo eso gracias', 'eso es todo, muchas gracias', 'listo, bye', 'no, nada más, gracias', 'ok perfecto, muchas gracias por la ayuda' ) as $bye ) {
@@ -243,3 +248,14 @@ foreach ( array( 'solo eso gracias', 'eso es todo, muchas gracias', 'listo, bye'
 $st = $s16;
 $r  = $say( 'gracias, y tienen en color rojo?', $st );
 check( 'cierre: "gracias, y en rojo?" sigue buscando', false, false !== strpos( $r['text'], 'Fue un placer' ) );
+// Comparar: resumen corto + PDF completo en el chat (sin pedir datos) + oferta de enviarlo.
+$runner->calls = array();
+$runner->previews = array();
+$s17 = array( 'results' => array( 21, 20, 22, 23 ), 'shown' => array( 21, 20, 22, 23 ) );
+$r = $say( 'compara la 1 con la 2', $s17 );
+check( 'comparar: PDF completo en el chat', 'https://example.com/wp-json/asi/v1/file?t=prev', $r['file']['url'] ?? '' );
+check( 'comparar: sin pedir datos ni guardar lead', array( 1, 0 ), array( count( $runner->previews ), count( $runner->calls ) ) );
+check( 'comparar: tabla corta (máx. 6 filas)', true, count( $r['compare']['rows'] ) <= 6 );
+check( 'comparar: ofrece enviarla al correo', true, false !== strpos( $r['followup'], 'correo' ) );
+$say( 'sí', $s17 );
+check( 'comparar: "sí" pide los datos para enviarla', array( 'compare', array( 21, 20 ) ), array( $s17['pending']['action'] ?? '', $s17['pending']['ids'] ?? array() ) );

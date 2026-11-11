@@ -297,6 +297,25 @@ trait ASI_Dialogue_Products {
 			$parts[] = $this->responder->say( 'compare_same' );
 		}
 
+		// Si el sitio tiene comparador en PDF: en el chat solo un resumen y la comparativa completa
+		// en PDF para verla aquí mismo (sin pedir datos); enviarla por correo se ofrece aparte.
+		$file = null;
+		$runner = $this->runner();
+		if ( $runner && isset( $runner->available()['compare'] ) ) {
+			$preview = $runner->preview( 'compare', array( (int) $a['post_id'], (int) $b['post_id'] ) );
+			if ( is_array( $preview ) && ! empty( $preview['url'] ) ) {
+				$file    = array(
+					'url'      => (string) $preview['url'],
+					'name'     => (string) $preview['filename'],
+					'label'    => $this->responder->say( 'file_label_compare' ),
+					'open'     => $this->responder->say( 'file_open' ),
+					'download' => $this->responder->say( 'file_download' ),
+				);
+				$rows    = array_slice( $rows, 0, 6 );
+				$parts[] = $this->responder->say( 'compare_full_pdf' );
+			}
+		}
+
 		return array(
 			'kind'        => 'compare',
 			'text'        => $this->sentences( $parts ),
@@ -305,8 +324,9 @@ trait ASI_Dialogue_Products {
 				'urls'    => array( $a['card']['url'], $b['card']['url'] ),
 				'rows'    => $rows,
 			),
-			'followup'    => $this->runner() && isset( $this->runner()->available()['compare'] ) ? $this->responder->say( 'compare_offer_pdf' ) : $this->responder->say( 'fact_followup' ),
-			'cards'       => $this->cards( array( $a, $b ) ),
+			'file'        => $file,
+			'followup'    => $file ? $this->responder->say( 'compare_offer_email' ) : ( $runner && isset( $runner->available()['compare'] ) ? $this->responder->say( 'compare_offer_pdf' ) : $this->responder->say( 'fact_followup' ) ),
+			'cards'       => $file ? array() : $this->cards( array( $a, $b ) ),
 			'links'       => array(),
 			'suggestions' => array(),
 			'more'        => false,
