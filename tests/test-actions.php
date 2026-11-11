@@ -233,3 +233,13 @@ $say( 'cuánto pagaría al mes por la 2 y la 3', $s15 );
 $r = $say( 'puedes darme una comparativa de estos vehiculos', $s15 );
 check( 'real: "comparativa de estos vehículos" compara los que estaba viendo', array( 'compare', array( 20, 22 ) ), array( $r['kind'], asi_card_ids( $r ) ) );
 check( 'real: y ofrece el PDF de la comparación', true, false !== strpos( $r['followup'], 'PDF' ) );
+// Despedidas (frase real) y que un "gracias" con pedido no corte la conversación.
+$s16 = array( 'customer' => array( 'name' => 'Fernanda López', 'email' => 'f@example.com', 'phone' => '' ), 'quoted' => array( 20 ) );
+foreach ( array( 'solo eso gracias', 'eso es todo, muchas gracias', 'listo, bye', 'no, nada más, gracias', 'ok perfecto, muchas gracias por la ayuda' ) as $bye ) {
+	$st = $s16;
+	$r  = $say( $bye, $st );
+	check( "cierre: \"{$bye}\"", array( 'smalltalk', true, true ), array( $r['kind'], false !== strpos( $r['text'], 'Fernanda' ), false !== strpos( $r['text'], 'asesor' ) ) );
+}
+$st = $s16;
+$r  = $say( 'gracias, y tienen en color rojo?', $st );
+check( 'cierre: "gracias, y en rojo?" sigue buscando', false, false !== strpos( $r['text'], 'Fue un placer' ) );

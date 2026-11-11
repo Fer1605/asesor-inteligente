@@ -57,6 +57,9 @@ return array(
 
 	'request_words'     => array( 'can', 'could', 'show', 'me', 'please', 'options', 'option', 'want', 'see', 'give', 'suggest', 'recommend', 'hi', 'hello', 'thanks' ),
 
+	'closing_words'  => array( 'thats', 'that', 'is', 'all', 'just', 'it', 'thanks', 'thank', 'you', 'so', 'much', 'ok', 'okay', 'great', 'perfect', 'good', 'bye', 'goodbye', 'see', 'later', 'for', 'now', 'cheers', 'nothing', 'else', 'the', 'help' ),
+	'closing_strong' => array( 'thanks', 'thank you', 'thats all', 'that is all', 'nothing else', 'bye', 'goodbye', 'see you' ),
+
 	'money_words' => array(
 		'max'          => array( 'under', 'less than', 'below', 'up to', 'max', 'maximum', 'no more than', 'at most', 'not over', 'cheaper than' ),
 		'min'          => array( 'over', 'more than', 'above', 'at least', 'minimum', 'starting at' ),
@@ -357,6 +360,10 @@ return array(
 		'finance_quote_chip'   => array( 'Send me the quote' ),
 		'finance_other_down'   => array( 'Reference rate; an advisor confirms the final figure. Try another down payment? Pick one or type yours, e.g. “60k down” or “48 months”.' ),
 		'finance_offer_quote_short' => array( 'I can also email you the quote as a PDF.' ),
+		'closing_bye'      => array( 'My pleasure! It was great helping you.' ),
+		'closing_bye_name' => array( 'My pleasure, {name}! It was great helping you.' ),
+		'closing_advisor'  => array( 'An advisor from {site} will contact you soon.' ),
+		'closing_door'     => array( 'If you need anything else, I am here. Have a great day!' ),
 		'results_budget' => array(
 			'With a budget {budget} I have {n}. The ones that make the most of your budget come first.',
 			'For a budget {budget} there are {n}; I start with the most complete within that amount.',

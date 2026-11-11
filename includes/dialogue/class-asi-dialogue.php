@@ -135,6 +135,12 @@ class ASI_Dialogue {
 			return $this->smalltalk( 'greeting' );
 		}
 
+		// Despedidas y cierres ("solo eso, gracias", "eso es todo", "listo, bye").
+		$closing = $this->closing_flow( $normalized, $state );
+		if ( $closing ) {
+			return $closing;
+		}
+
 		// 1. Seguimientos.
 		if ( '' !== $state['q'] && $this->is_more_request( $normalized ) ) {
 			return $this->more( $state );
@@ -978,6 +984,43 @@ class ASI_Dialogue {
 	/**
 	 * ¿Pide más resultados? ("más", "ver más", "otras opciones").
 	 */
+	/**
+	 * ¿El cliente cierra la conversación? Solo si todo el mensaje son palabras de cierre
+	 * ("solo eso gracias", "listo, eso es todo, bye"), nunca si además pide algo ("gracias, ¿y
+	 * en rojo?"). Se despide por su nombre y, si pidió una cotización, le recuerda que un asesor
+	 * lo contactará.
+	 */
+	private function closing_flow( $normalized, array $state ) {
+		$closing = array_map( array( 'ASI_Normalizer', 'normalize' ), (array) $this->lexicon->get_list( 'closing_words' ) );
+		$strong  = (array) $this->lexicon->get_list( 'closing_strong' );
+		$words   = array_values( array_filter( explode( ' ', $normalized ), 'strlen' ) );
+		if ( ! $words || count( $words ) > 10 || '' === ASI_Lexicon::find_phrase( $normalized, $strong ) ) {
+			return null;
+		}
+		foreach ( $words as $word ) {
+			if ( ! in_array( $word, $closing, true ) && ! $this->lexicon->is_stopword( $word ) ) {
+				return null;
+			}
+		}
+		$name   = ! empty( $state['customer']['name'] ) ? strtok( $state['customer']['name'], ' ' ) : '';
+		$quoted = ! empty( $state['quoted'] );
+		$text   = array( $this->responder->say( '' !== $name ? 'closing_bye_name' : 'closing_bye', array( 'name' => $name ) ) );
+		if ( $quoted ) {
+			$text[] = $this->responder->say( 'closing_advisor', array( 'site' => $this->context['site_name'] ) );
+		}
+		$text[] = $this->responder->say( 'closing_door' );
+		return array(
+			'kind'        => 'smalltalk',
+			'text'        => $this->sentences( $text ),
+			'followup'    => '',
+			'cards'       => array(),
+			'links'       => array(),
+			'suggestions' => array(),
+			'more'        => false,
+			'state'       => array( 'pending' => array(), 'offer' => array(), 'q' => '' ),
+		);
+	}
+
 	private function is_more_request( $normalized ) {
 		// Sin las palabras de pedido: "puedes mostrarme más opciones porfavor" → "mas opciones".
 		$request    = array_map( array( 'ASI_Normalizer', 'normalize' ), (array) $this->lexicon->get_list( 'request_words' ) );

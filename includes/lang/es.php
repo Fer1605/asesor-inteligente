@@ -81,6 +81,9 @@ return array(
 
 	'request_words'     => array( 'puedes', 'puede', 'podrias', 'podria', 'pueden', 'mostrarme', 'muestrame', 'mostrar', 'enseñame', 'ensename', 'ensenarme', 'darme', 'dame', 'sugerirme', 'sugiereme', 'recomendarme', 'recomiendame', 'opcion', 'opciones', 'alternativas', 'porfavor', 'porfa', 'favor', 'quiero', 'quisiera', 'ver', 'mmm', 'oye', 'mira', 'hola', 'gracias' ),
 
+	'closing_words'  => array( 'solo', 'eso', 'es', 'todo', 'nada', 'mas', 'gracias', 'muchas', 'mil', 'listo', 'lista', 'perfecto', 'perfecta', 'ok', 'okay', 'oki', 'vale', 'bien', 'muy', 'excelente', 'genial', 'super', 'bueno', 'buena', 'ya', 'seria', 'sería', 'por', 'ahora', 'hoy', 'adios', 'bye', 'chao', 'chau', 'hasta', 'luego', 'pronto', 'nos', 'vemos', 'saludos', 'gracia', 'graciass', 'thanks', 'muchisimas', 'te', 'le', 'agradezco', 'amable', 'muy amable', 'estoy', 'estamos', 'con', 'esto', 'tanto', 'ayuda', 'la', 'tu', 'su' ),
+	'closing_strong' => array( 'gracias', 'solo eso', 'eso es todo', 'es todo', 'nada mas', 'seria todo', 'listo', 'adios', 'bye', 'chao', 'hasta luego', 'nos vemos', 'agradezco', 'muy amable', 'thanks' ),
+
 	'money_words' => array(
 		'max'          => array( 'menos de', 'menor a', 'menor de', 'hasta', 'maximo', 'max', 'no mas de', 'por debajo de', 'que no pase de', 'que no pase los', 'abajo de', 'tope de', 'que no supere', 'que no supere los', 'no mayor a' ),
 		'min'          => array( 'mas de', 'mayor a', 'mayor de', 'desde', 'minimo', 'arriba de', 'por encima de', 'no menos de' ),
@@ -450,6 +453,10 @@ return array(
 		'finance_quote_chip'   => array( 'Envíame la cotización' ),
 		'finance_other_down'   => array( 'Tasa de referencia; el valor final lo confirma un asesor. ¿Probamos con otro enganche? Elige uno o escríbeme el tuyo, por ejemplo “con 60 mil de enganche” o “a 48 meses”.' ),
 		'finance_offer_quote_short' => array( 'También te puedo enviar la cotización en PDF.' ),
+		'closing_bye'      => array( '¡Con mucho gusto! Fue un placer ayudarte.', '¡Gracias a ti! Fue un gusto acompañarte en tu búsqueda.' ),
+		'closing_bye_name' => array( '¡Con mucho gusto, {name}! Fue un placer ayudarte.', '¡Gracias a ti, {name}! Fue un gusto acompañarte en tu búsqueda.' ),
+		'closing_advisor'  => array( 'Un asesor de {site} se pondrá en contacto contigo pronto.', 'Pronto te contactará un asesor de {site} para darle seguimiento.' ),
+		'closing_door'     => array( 'Si necesitas algo más, aquí estaré. ¡Que tengas un excelente día!', 'Cuando quieras retomarlo, escríbeme por aquí. ¡Buen día!' ),
 		'results_budget' => array(
 			'Con un presupuesto {budget} tengo {n}. Te muestro primero las que más aprovechan tu presupuesto.',
 			'Para un presupuesto {budget} hay {n}. Empiezo por las más completas dentro de ese monto.',

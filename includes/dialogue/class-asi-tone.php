@@ -20,6 +20,7 @@ class ASI_Tone {
 		'greeting'           => array( '👋', 'end' ),
 		'thanks'             => array( '😊', 'end' ),
 		'goodbye'            => array( '👋', 'end' ),
+		'closing_door'       => array( '😊', 'end' ),
 		'info.location'      => array( '📍', 'start' ),
 		'info.location_list' => array( '📍', 'start' ),
 		'info.location_specific' => array( '📍', 'start' ),
