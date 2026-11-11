@@ -476,11 +476,14 @@ trait ASI_Dialogue_Actions {
 	private function finance_flow( $ids, $message, $normalized, array $state ) {
 		$ids   = array_values( array_unique( array_filter( array_map( 'intval', (array) $ids ) ) ) );
 		// Hasta 4 columnas: más no se leen en el chat. Las demás, si las pide.
-		$left  = max( 0, count( $ids ) - self::FINANCE_COLUMNS );
-		$ids   = array_slice( $ids, 0, self::FINANCE_COLUMNS );
+		// (Se cuentan solo los que se pueden financiar: con precio y reglas de crédito.)
 		$block = $this->finance_block( $ids, $message, $normalized );
 		if ( ! $block ) {
 			return null;
+		}
+		$left = max( 0, count( $block['ids'] ) - self::FINANCE_COLUMNS );
+		if ( $left ) {
+			$block = $this->finance_block( array_slice( $block['ids'], 0, self::FINANCE_COLUMNS ), $message, $normalized );
 		}
 		// "¿Cómo es el financiamiento?": además de las cuotas, la página del sitio.
 		$links = array();
