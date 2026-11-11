@@ -470,7 +470,7 @@ class ASI_Dialogue {
 		// Pocos resultados: se ofrecen similares como tarjetas (nombre parecido o misma categoría).
 		$similar = $catalog['similar'];
 		if ( ! $similar && $total <= 2 && 'exact' === $catalog['quality'] ) {
-			$similar = $this->same_category( $catalog['items'] );
+			$similar = $this->same_category( $catalog['items'], $query );
 		}
 		if ( ! $clarify && ! $cta_intent ) {
 			// Con similares el cierre siempre se dice: invita a elegir o a dar otro detalle.
@@ -524,9 +524,10 @@ class ASI_Dialogue {
 	 * Otros productos de la misma categoría que los resultados (para ofrecer similares).
 	 *
 	 * @param array[] $items Resultados mostrados.
+	 * @param array   $asked Búsqueda del cliente: los similares respetan su presupuesto.
 	 * @return array[]
 	 */
-	private function same_category( array $items ) {
+	private function same_category( array $items, array $asked = array() ) {
 		$category = isset( $items[0]['card']['category'] ) ? $items[0]['card']['category'] : '';
 		if ( '' === $category ) {
 			return array();
@@ -535,9 +536,9 @@ class ASI_Dialogue {
 		$query  = array(
 			'groups'     => array( array( 'text' => $normal, 'alts' => array( $normal ), 'kind' => 'phrase', 'critical' => true, 'label' => $category, 'term_kind' => 'category' ) ),
 			'content'    => $normal,
-			'price_max'  => null,
-			'price_min'  => null,
-			'price_currency' => '',
+			'price_max'  => isset( $asked['price_max'] ) ? $asked['price_max'] : null,
+			'price_min'  => isset( $asked['price_min'] ) ? $asked['price_min'] : null,
+			'price_currency' => isset( $asked['price_currency'] ) ? $asked['price_currency'] : '',
 			'attrs'      => array(),
 			'attr_labels' => array(),
 			'asks_price' => false,

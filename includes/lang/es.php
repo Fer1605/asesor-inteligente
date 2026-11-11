@@ -83,6 +83,7 @@ return array(
 		'join'        => ' y ',
 		'search_range' => 'entre {min} y {max}',
 		'search_max'  => 'hasta {amount}',
+		'search_around' => 'alrededor de {amount}',
 		'search_min'  => 'desde {amount}',
 		'search_not'  => 'que no sea {words}',
 		'contact'     => 'contacto',

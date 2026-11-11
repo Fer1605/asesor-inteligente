@@ -461,10 +461,11 @@ class ASI_AI_Interpreter {
 		$lines[] = '- Un monto nuevo reemplaza al anterior. "No mayor a", "que no pase de", "no más de", "hasta", "menos de" = max. "Mayor a", "más de", "desde", "arriba de" = min. "Tengo 200 mil" = max.';
 		$lines[] = '- "solo X" o "quiero X" NO es excluir. Excluir es "que no sea X", "sin X", "menos X", "no quiero X".';
 		$lines[] = '- Montos en número completo: 100 mil = 100000, 1.5 millones = 1500000.';
+		$lines[] = '- Si da un monto aproximado ("unos 250 mil", "alrededor de", "como de", "más o menos"), ponlo en "around" y deja min y max en null.';
 		$lines[] = '';
-		$lines[] = 'Campos: "type" tipo de vehículo (suv, pickup, sedan, hatchback, camion, microbus, panel, moto…) o vacío; "brands" marcas que quiere; "words" otras características (4x4, diesel, automatica, hibrido, 7 pasajeros, año, modelo) o vacío; "exclude" marcas o tipos que NO quiere; "min" y "max" montos o null; "currency" "USD" si dice dólares/$, "GTQ" si dice quetzales/Q, si no vacío.';
+		$lines[] = 'Campos: "type" tipo de vehículo (suv, pickup, sedan, hatchback, camion, microbus, panel, moto…) o vacío; "brands" marcas que quiere; "words" otras características (4x4, diesel, automatica, hibrido, 7 pasajeros, año, modelo) o vacío; "exclude" marcas o tipos que NO quiere; "min" y "max" montos o null; "around" monto aproximado o null; "currency" "USD" si dice dólares/$, "GTQ" si dice quetzales/Q, si no vacío.';
 		$lines[] = 'Si el mensaje no es una búsqueda (pregunta cuotas, cotizar, horario, saludo…), responde {"search":false}.';
-		$lines[] = 'Responde SOLO con JSON en una línea, sin explicación: {"search":true,"type":"suv","brands":["toyota"],"words":"","exclude":[],"min":null,"max":100000,"currency":""}';
+		$lines[] = 'Responde SOLO con JSON en una línea, sin explicación: {"search":true,"type":"suv","brands":["toyota"],"words":"","exclude":[],"min":null,"max":100000,"around":null,"currency":""}';
 		return implode( "\n", $lines );
 	}
 
@@ -515,8 +516,13 @@ class ASI_AI_Interpreter {
 			'exclude'  => $words( isset( $data['exclude'] ) ? $data['exclude'] : array(), 3 ),
 			'min'      => $amount( 'min' ),
 			'max'      => $amount( 'max' ),
+			'around'   => $amount( 'around' ),
 			'currency' => '',
 		);
+		if ( null !== $spec['around'] ) {
+			$spec['min'] = null;
+			$spec['max'] = null;
+		}
 		if ( null !== $spec['min'] && null !== $spec['max'] && $spec['min'] >= $spec['max'] ) {
 			$spec['min'] = null;
 		}
@@ -527,7 +533,7 @@ class ASI_AI_Interpreter {
 		} elseif ( preg_match( '/(quetzal|gtq|(^|[^a-z])q\.?\s?[0-9])/iu', $said ) ) {
 			$spec['currency'] = 'GTQ';
 		}
-		if ( '' === $spec['type'] && ! $spec['brands'] && '' === $spec['words'] && null === $spec['min'] && null === $spec['max'] ) {
+		if ( '' === $spec['type'] && ! $spec['brands'] && '' === $spec['words'] && null === $spec['min'] && null === $spec['max'] && null === $spec['around'] ) {
 			return null;
 		}
 		return $spec;
@@ -543,7 +549,9 @@ class ASI_AI_Interpreter {
 		$money  = function ( $v ) use ( $symbol ) {
 			return $symbol . (int) round( $v );
 		};
-		if ( null !== $spec['min'] && null !== $spec['max'] && isset( $phrases['search_range'] ) ) {
+		if ( ! empty( $spec['around'] ) && isset( $phrases['search_around'] ) ) {
+			$parts[] = str_replace( '{amount}', $money( $spec['around'] ), $phrases['search_around'] );
+		} elseif ( null !== $spec['min'] && null !== $spec['max'] && isset( $phrases['search_range'] ) ) {
 			$parts[] = str_replace( array( '{min}', '{max}' ), array( $money( $spec['min'] ), $money( $spec['max'] ) ), $phrases['search_range'] );
 		} elseif ( null !== $spec['max'] && isset( $phrases['search_max'] ) ) {
 			$parts[] = str_replace( '{amount}', $money( $spec['max'] ), $phrases['search_max'] );

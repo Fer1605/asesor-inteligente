@@ -59,6 +59,7 @@ return array(
 		'join'        => ' and ',
 		'search_range' => 'between {min} and {max}',
 		'search_max'  => 'up to {amount}',
+		'search_around' => 'around {amount}',
 		'search_min'  => 'over {amount}',
 		'search_not'  => 'except {words}',
 		'contact'     => 'contact',
