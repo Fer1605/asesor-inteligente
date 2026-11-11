@@ -833,3 +833,14 @@
 	font-size: 0.85em;
 	opacity: 0.7;
 }
+
+.asi-chat .asi-table .asi-table__info th,
+.asi-chat .asi-table .asi-table__info td {
+	font-weight: 500;
+	opacity: 0.8;
+	background: var(--asi-surface);
+}
+.asi-chat .asi-table .asi-table__info--last th,
+.asi-chat .asi-table .asi-table__info--last td {
+	border-bottom: 2px solid var(--asi-border);
+}

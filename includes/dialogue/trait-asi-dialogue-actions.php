@@ -374,12 +374,14 @@ trait ASI_Dialogue_Actions {
 		}
 		$offer  = 'quote' === $action ? array( 'action' => 'finance', 'ids' => $ids ) : array();
 		$table  = array();
+		$chips  = array();
 		$with   = isset( $state['pending']['with'] ) && 'finance' === $state['pending']['with'];
 		if ( $with ) {
 			$block = $this->finance_block( $ids, '', '' );
 			if ( $block ) {
 				$text[] = $block['text'];
 				$table  = $block['table'];
+				$chips  = $block['chips'];
 				$offer  = array();
 			}
 		}
@@ -395,9 +397,9 @@ trait ASI_Dialogue_Actions {
 			),
 			'cards'       => array(),
 			'table'       => $table,
-			'followup'    => $this->responder->say( 'compare' === $action ? 'action_after_compare' : ( $table ? 'action_after_quote_finance' : 'action_after_quote' ) ),
+			'followup'    => $table ? $this->responder->say( 'finance_other_down', array( 'rate' => '' ) ) : $this->responder->say( 'compare' === $action ? 'action_after_compare' : 'action_after_quote' ),
 			'links'       => array(),
-			'suggestions' => 'quote' === $action && ! $table ? (array) $this->lexicon->get_list( 'after_quote_chips' ) : array(),
+			'suggestions' => $table ? $chips : ( 'quote' === $action ? (array) $this->lexicon->get_list( 'after_quote_chips' ) : array() ),
 			'more'        => false,
 			'state'       => array_merge(
 				$clear,
@@ -431,9 +433,9 @@ trait ASI_Dialogue_Actions {
 			'text'        => $block['text'],
 			'table'       => $block['table'],
 			'cards'       => $this->cards( $block['rows'] ),
-			'followup'    => $this->responder->say( $offer ? 'finance_offer_quote' : 'finance_disclaimer', $block['vars'] ),
+			'followup'    => $this->sentences( array( $this->responder->say( 'finance_other_down', $block['vars'] ), $offer ? $this->responder->say( 'finance_offer_quote_short' ) : '' ) ),
 			'links'       => array(),
-			'suggestions' => $offer ? (array) $this->lexicon->get_list( 'finance_chips' ) : array(),
+			'suggestions' => array_merge( $offer ? array( $this->responder->say( 'finance_quote_chip' ) ) : array(), $block['chips'] ),
 			'more'        => false,
 			// Se conservan los resultados: después se puede seguir con "compara el primero y el segundo".
 			'state'       => array(
@@ -504,6 +506,10 @@ trait ASI_Dialogue_Actions {
 			$down      = $amount * $pct;
 			$columns[] = array(
 				'title'     => $row['card']['title'],
+				'price'     => ASI_Money::format( $amount, $currency ),
+				'down'      => ASI_Money::format( round( $down ), $currency ),
+				'pct'       => (int) round( $pct * 100 ),
+				'rules'     => $rules,
 				'currency'  => $currency,
 				'principal' => $amount - $down,
 				'monthly'   => (float) $rules['rate'] / 12,
@@ -533,18 +539,38 @@ trait ASI_Dialogue_Actions {
 
 		$rate  = rtrim( rtrim( number_format( $columns[0]['rate'] * 100, 2 ), '0' ), '.' ) . ' %';
 		$vars  = array( 'rate' => $rate, 'title' => $columns[0]['title'] );
+		$pcts  = array_unique( array_column( $columns, 'pct' ) );
+		$same  = 1 === count( $pcts );
+		// Precio y enganche van dentro de la tabla, arriba de las cuotas.
+		$price_row = array( $this->responder->say( 'finance_row_price' ) );
+		$down_row  = array( $this->responder->say( $same ? 'finance_row_down_pct' : 'finance_row_down', array( 'pct' => reset( $pcts ) . ' %' ) ) );
+		foreach ( $columns as $column ) {
+			$price_row[] = $column['price'];
+			$down_row[]  = $same ? $column['down'] : $column['down'] . ' (' . $column['pct'] . ' %)';
+		}
+		$rows  = array_merge( array( $price_row, $down_row ), $rows );
 		$intro = 1 === count( $columns )
-			? ( 1 === count( $rows )
-				? $this->responder->say( 'finance_single_part', array( 'part' => $parts[0], 'term' => $rows[0][0], 'payment' => $rows[0][1] ) )
-				: $this->responder->say( 'finance_table_part', array( 'part' => $parts[0] ) ) )
-			: $this->responder->say( 'finance_table_many', array( 'parts' => $this->responder->join_list( $parts, 'and' ) ) );
-		$head  = array( $this->responder->say( 'finance_head_term' ) );
+			? $this->responder->say( 'finance_intro_one', array( 'title' => $columns[0]['title'] ) )
+			: $this->responder->say( 'finance_intro_many' );
+		$head  = array( '' );
 		foreach ( $columns as $column ) {
 			$head[] = 1 === count( $columns ) ? $this->responder->say( 'finance_head_payment' ) : $this->short( $column['title'], 22 );
 		}
+		// Otros enganches para probar (los que caben en las reglas de todos y no son el actual).
+		$chips = array();
+		foreach ( array( 30, 40, 50, 20 ) as $option ) {
+			$fits = true;
+			foreach ( $columns as $column ) {
+				$fits = $fits && $option / 100 >= $column['rules']['down_min'] - 0.0001 && $option / 100 <= $column['rules']['down_max'] + 0.0001;
+			}
+			if ( $fits && ! in_array( $option, $pcts, true ) && count( $chips ) < 3 ) {
+				$chips[] = $this->responder->say( 'finance_down_chip', array( 'pct' => $option . ' %' ) );
+			}
+		}
 		return array(
 			'text'  => $this->sentences( array_merge( array( $intro ), array_unique( $notes ) ) ),
-			'table' => 1 === count( $columns ) && 1 === count( $rows ) ? array() : array( 'head' => $head, 'rows' => $rows ),
+			'chips' => $chips,
+			'table' => array( 'head' => $head, 'rows' => $rows, 'emphasis' => 2 ),
 			'rows'  => array_column( $ordered, 0 ),
 			'ids'   => array_map( 'intval', array_column( array_column( $ordered, 0 ), 'post_id' ) ),
 			'vars'  => $vars,

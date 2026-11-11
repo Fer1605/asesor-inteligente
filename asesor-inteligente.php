@@ -17,7 +17,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ASI_VERSION', '0.1.0-dev.13' );
+define( 'ASI_VERSION', '0.1.0-dev.14' );
 define( 'ASI_FILE', __FILE__ );
 define( 'ASI_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ASI_URL', plugin_dir_url( __FILE__ ) );

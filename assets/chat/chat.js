@@ -286,8 +286,10 @@
 			t.appendChild( thead );
 		}
 		const body = el( 'tbody' );
-		data.rows.forEach( function ( row ) {
-			const tr = el( 'tr' );
+		const info = data.emphasis || 0;
+		data.rows.forEach( function ( row, rowIndex ) {
+			// Las primeras filas son datos (precio, enganche); el resto, las cuotas.
+			const tr = el( 'tr', rowIndex < info ? 'asi-table__info' + ( rowIndex === info - 1 ? ' asi-table__info--last' : '' ) : '' );
 			row.forEach( function ( cell, index ) {
 				tr.appendChild( el( 0 === index ? 'th' : 'td', '', cell ) );
 			} );
