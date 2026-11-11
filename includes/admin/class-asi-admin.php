@@ -448,7 +448,7 @@ class ASI_Admin {
 			<p class="asi-muted">Por defecto solo se muestran los sellos que distinguen: los que tiene la mitad del catálogo o menos. Un sello que tienen casi todos (“Nuevo”, “Garantía activa”) no le dice nada al cliente. Aquí puedes elegirlos y cambiar cómo se llaman.</p>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<?php $this->hidden_fields( 'flags', 'contenido' ); ?>
-				<table class="widefat striped asi-table"><thead><tr><th>Mostrar</th><th>Sello del sitio</th><th>Lo tienen</th><th>Se muestra como</th></tr></thead><tbody>
+				<table class="widefat striped asi-table"><thead><tr><th>Mostrar</th><th>Campo del sitio</th><th>Lo tienen</th><th>Se muestra en la tarjeta como</th></tr></thead><tbody>
 				<?php foreach ( $shares as $label => $share ) : ?>
 					<?php
 					$rule = isset( $settings[ $label ] ) ? (array) $settings[ $label ] : array();
@@ -456,7 +456,10 @@ class ASI_Admin {
 					?>
 					<tr>
 						<td><input type="checkbox" name="card_flags[<?php echo esc_attr( $label ); ?>][show]" value="1" <?php checked( $show ); ?>></td>
-						<td><?php echo esc_html( $label ); ?></td>
+						<td><?php echo esc_html( $label ); ?>
+							<?php if ( $share > 0.5 ) : ?><br><span class="asi-muted">Lo tienen casi todos: no distingue a ningún vehículo.</span><?php endif; ?>
+							<?php if ( 0.0 === (float) $share ) : ?><br><span class="asi-muted">Hoy ningún producto lo tiene; aparecerá cuando alguno lo tenga.</span><?php endif; ?>
+						</td>
 						<td><?php echo esc_html( round( $share * 100 ) . ' %' ); ?></td>
 						<td><input type="text" name="card_flags[<?php echo esc_attr( $label ); ?>][as]" value="<?php echo esc_attr( isset( $rule['as'] ) ? $rule['as'] : '' ); ?>" placeholder="<?php echo esc_attr( $label ); ?>"></td>
 					</tr>
