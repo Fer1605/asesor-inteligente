@@ -707,14 +707,15 @@ trait ASI_Dialogue_Actions {
 		foreach ( $columns as $column ) {
 			$head[] = 1 === count( $columns ) ? $this->responder->say( 'finance_head_payment' ) : $this->short( $column['title'], 22 );
 		}
-		// Otros enganches para probar (los que caben en las reglas de todos y no son el actual).
+		// Los enganches básicos (20, 30, 40, 50 %) siempre a la vista, aunque esté usando otro que pidió
+		// (25 %, 33 %, 160 mil): así puede volver a uno básico con un toque. Solo los que permite el sitio.
 		$chips = array();
-		foreach ( array( 30, 40, 50, 20 ) as $option ) {
+		foreach ( array( 20, 30, 40, 50 ) as $option ) {
 			$fits = true;
 			foreach ( $columns as $column ) {
 				$fits = $fits && $option / 100 >= $column['rules']['down_min'] - 0.0001 && $option / 100 <= $column['rules']['down_max'] + 0.0001;
 			}
-			if ( $fits && ! in_array( $option, $pcts, true ) && count( $chips ) < 3 ) {
+			if ( $fits ) {
 				$chips[] = $this->responder->say( 'finance_down_chip', array( 'pct' => $option . ' %' ) );
 			}
 		}

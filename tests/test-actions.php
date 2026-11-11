@@ -412,3 +412,24 @@ $r = $say( 'a 48 meses', $sf );
 check( 'seguimiento: "a 48 meses" cambia la última tabla (la tercera), no las 4', array( 2, '48 meses', 22 ), array( count( $r['table']['head'] ?? array() ), $r['table']['rows'][2][0] ?? '', $r['cards'][0]['id'] ?? 0 ) );
 $r = $say( 'con 100 mil de enganche', $sf );
 check( 'seguimiento: "con 100 mil de enganche" también sobre la última tabla', array( 2, 'Q 100,000' ), array( count( $r['table']['head'] ?? array() ), $r['table']['rows'][1][1] ?? '' ) );
+
+// Botones de enganche: siempre 20, 30, 40 y 50 %, aunque use otro que pidió o recordó.
+$chips_of = function ( $r ) {
+	return array_values( array_filter( $r['suggestions'] ?? array(), function ( $c ) { return 0 === strpos( $c, 'Enganche de' ); } ) );
+};
+$basic = array( 'Enganche de 20 %', 'Enganche de 30 %', 'Enganche de 40 %', 'Enganche de 50 %' );
+$sc = $four;
+$r = $say( 'cuotas de la 1 al 33% de enganche', $sc );
+check( 'botones: con 33 % pedido, siguen los 4 básicos', array( 'Enganche (33 %)', $basic ), array( $r['table']['rows'][1][0] ?? '', $chips_of( $r ) ) );
+$r = $say( 'y las de la 2', $sc );
+check( 'botones: el siguiente vehículo al 33 % y con los 4 básicos', array( 'Enganche (33 %)', $basic ), array( $r['table']['rows'][1][0] ?? '', $chips_of( $r ) ) );
+$r = $say( 'Enganche de 20 %', $sc );
+check( 'botones: el de 20 % regresa al normal', 'Enganche (20 %)', $r['table']['rows'][1][0] ?? '' );
+$sc = $four;
+$say( 'cuotas de la 1, tengo 100 mil de enganche', $sc );
+$r = $say( 'y las de la 3', $sc );
+check( 'monto: "tengo 100 mil" vale para el siguiente vehículo', array( 'Q 100,000', $basic ), array( $r['table']['rows'][1][1] ?? '', $chips_of( $r ) ) );
+$sc = $four;
+$say( 'cuotas de la 2, tengo 160 mil de enganche', $sc );
+$r = $say( 'y las de la 3', $sc );
+check( 'monto: si pasa del máximo del sitio, usa el máximo y lo dice', array( 'Q 122,430', true ), array( $r['table']['rows'][1][1] ?? '', false !== strpos( $r['text'], 'máximo' ) ) );
