@@ -61,6 +61,9 @@ class ASI_Dialogue {
 	/** @var array<string,bool> ¿La página informativa de cada intención es una página (y no otro contenido)? */
 	private $info_is_page = array();
 
+	/** @var array Enganche y plazo que pidió el cliente: pct (%), amt (monto), term (meses). Se recuerdan. */
+	private $fin_memory = array();
+
 	/** @var array<int,array> Datos de la ficha ya leídos en esta petición. */
 	private $details_cache = array();
 
@@ -102,6 +105,7 @@ class ASI_Dialogue {
 	public function handle( $message, array $state = array() ) {
 		$message = trim( function_exists( 'mb_substr' ) ? mb_substr( (string) $message, 0, self::MAX_MESSAGE ) : substr( (string) $message, 0, self::MAX_MESSAGE ) );
 		$state   = $this->clean_state( $state );
+		$this->fin_memory = $state['fin'];
 
 		$this->lexicon   = ASI_Lexicon::get( $this->context['language'], $this->context['synonyms'] );
 		$this->vocab     = $this->repository->vocabulary( $this->context['lang'] );
@@ -126,6 +130,8 @@ class ASI_Dialogue {
 			isset( $response['state'] ) ? $response['state'] : array(),
 			array(
 				'recent' => $this->responder->recent(),
+				// Lo que pidió de enganche y plazo sigue valiendo en las próximas cuotas.
+				'fin'    => $this->fin_memory,
 				'turns'  => $state['turns'] + 1,
 				'lang'   => $this->context['lang'],
 			)
@@ -1493,6 +1499,24 @@ class ASI_Dialogue {
 		);
 	}
 
+	/**
+	 * Enganche y plazo recordados. Son solo para calcular la cuota aproximada: el servidor usa el precio
+	 * del sitio y las reglas de enganche mínimo y máximo, así que un valor raro no cambia ningún monto real.
+	 */
+	private static function clean_fin( $fin ) {
+		$fin = is_array( $fin ) ? $fin : array();
+		$out = array();
+		if ( isset( $fin['pct'] ) && is_numeric( $fin['pct'] ) && $fin['pct'] > 0 && $fin['pct'] < 100 ) {
+			$out['pct'] = round( (float) $fin['pct'], 1 );
+		} elseif ( isset( $fin['amt'] ) && is_numeric( $fin['amt'] ) && $fin['amt'] > 0 && $fin['amt'] < 1e9 ) {
+			$out['amt'] = (int) $fin['amt'];
+		}
+		if ( isset( $fin['term'] ) && is_numeric( $fin['term'] ) && $fin['term'] >= 6 && $fin['term'] <= 120 ) {
+			$out['term'] = (int) $fin['term'];
+		}
+		return $out;
+	}
+
 	private static function clean_customer_state( $customer ) {
 		$customer = is_array( $customer ) ? $customer : array();
 		$get      = static function ( $key, $max ) use ( $customer ) {
@@ -1528,10 +1552,11 @@ class ASI_Dialogue {
 			'last'     => isset( $state['last'] ) && in_array( $state['last'], array( 'quote', 'compare', 'finance' ), true ) ? $state['last'] : '',
 			'awaiting' => isset( $state['awaiting'] ) && 'compare' === $state['awaiting'] ? 'compare' : '',
 			'previewed' => self::clean_action( isset( $state['previewed'] ) ? $state['previewed'] : array(), $ints ),
+			'fin'       => self::clean_fin( isset( $state['fin'] ) ? $state['fin'] : array() ),
 		);
 		// Otra página de idioma o país: la conversación empieza de cero.
 		if ( '' !== $clean['lang'] && $clean['lang'] !== $this->context['lang'] ) {
-			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'], 'selected' => array(), 'quoted' => array(), 'last' => '', 'awaiting' => '', 'previewed' => array() );
+			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'], 'selected' => array(), 'quoted' => array(), 'last' => '', 'awaiting' => '', 'previewed' => array(), 'fin' => array() );
 		}
 		return $clean;
 	}

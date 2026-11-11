@@ -117,7 +117,9 @@ trait ASI_Dialogue_Actions {
 		}
 
 		// 4. Cuotas (de uno o de varios: los que nombra o los que está viendo).
-		if ( $this->words_in( $normalized, 'finance_words' ) && ! $this->words_in( $normalized, 'quote_words' ) ) {
+		// "A 48 meses", "y a 5 años" justo después de una tabla de cuotas: cambiar el plazo de esa tabla.
+		$tweak = in_array( $state['last'], array( 'finance', 'quote' ), true ) && str_word_count( $normalized ) <= 8 && preg_match( '/(^|\s)([0-9]{2}\s*(meses|months)|[1-9]\s*(anos|ano|years?)|todos los plazos|otros plazos)(\s|$)/', $normalized );
+		if ( ( $tweak || $this->words_in( $normalized, 'finance_words' ) ) && ! $this->words_in( $normalized, 'quote_words' ) ) {
 			// Lo que nombra; si no nombra nada, todo lo que está viendo; si no, el de la conversación.
 			$targets = $this->action_targets( $message, $normalized, $state, false );
 			// "Dije cuotas" justo cuando el chat pedía los datos para cotizar: las de esos vehículos.
@@ -587,6 +589,38 @@ trait ASI_Dialogue_Actions {
 			$terms = array( 12 * (int) $m[1] );
 		}
 
+		// Memoria: lo que dijo antes sigue valiendo ("al 45 %" vale también para el siguiente vehículo);
+		// lo que dice ahora lo reemplaza.
+		$remembered = array();
+		if ( null === $wanted_pct && ! $wanted_amt ) {
+			if ( isset( $this->fin_memory['pct'] ) ) {
+				$wanted_pct   = $this->fin_memory['pct'] / 100;
+				$remembered[] = 'down';
+			} elseif ( isset( $this->fin_memory['amt'] ) ) {
+				$wanted_amt   = (float) $this->fin_memory['amt'];
+				$remembered[] = 'down';
+			}
+		} else {
+			$this->fin_memory = array_diff_key( $this->fin_memory, array( 'pct' => 1, 'amt' => 1 ) );
+			if ( null !== $wanted_pct ) {
+				$this->fin_memory['pct'] = round( $wanted_pct * 100, 1 );
+			} else {
+				$this->fin_memory['amt'] = (int) round( $wanted_amt );
+			}
+		}
+		if ( null === $terms && isset( $this->fin_memory['term'] ) ) {
+			$terms        = array( (int) $this->fin_memory['term'] );
+			$remembered[] = 'term';
+		} elseif ( null !== $terms ) {
+			$this->fin_memory['term'] = (int) $terms[0];
+		}
+		// "Todos los plazos" vuelve a mostrar la tabla completa.
+		if ( preg_match( '/(todos los plazos|otros plazos|all terms|other terms)/', $text ) ) {
+			$terms = null;
+			unset( $this->fin_memory['term'] );
+			$remembered = array_diff( $remembered, array( 'term' ) );
+		}
+
 		$columns = array();
 		$notes   = array();
 		$parts   = array();
@@ -649,6 +683,17 @@ trait ASI_Dialogue_Actions {
 		$intro = 1 === count( $columns )
 			? $this->responder->say( 'finance_intro_one', array( 'title' => $columns[0]['title'] ) )
 			: $this->responder->say( 'finance_intro_many' );
+		// Que se note que se acordó de lo que pidió.
+		if ( $remembered ) {
+			$what = array();
+			if ( in_array( 'down', $remembered, true ) ) {
+				$what[] = $wanted_amt && null === $wanted_pct ? $this->responder->say( 'finance_memory_amount', array( 'down' => ASI_Money::format( round( $wanted_amt ), $columns[0]['currency'] ) ) ) : $this->responder->say( 'finance_memory_pct', array( 'pct' => reset( $pcts ) . ' %' ) );
+			}
+			if ( in_array( 'term', $remembered, true ) ) {
+				$what[] = $this->responder->say( 'finance_term', array( 'n' => (int) $terms[0] ) );
+			}
+			$notes[] = $this->responder->say( 'finance_memory', array( 'what' => $this->responder->join_list( $what, 'and' ) ) );
+		}
 		$head  = array( '' );
 		foreach ( $columns as $column ) {
 			$head[] = 1 === count( $columns ) ? $this->responder->say( 'finance_head_payment' ) : $this->short( $column['title'], 22 );

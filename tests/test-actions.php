@@ -369,3 +369,30 @@ check( 'mini chat 2: con los datos, cotiza y las cuotas van al 45 %', array( 'fi
 $sm = array_merge( $four, array( 'customer' => array( 'name' => 'Fer', 'email' => 'f@example.com', 'phone' => '' ) ) );
 $r = $say( 'cotizame la 2 con cuotas a 48 meses con 100 mil de enganche', $sm );
 check( 'mini chat 2: con datos ya dados, enganche y plazo que pidió', array( 'Q 100,000', '48 meses' ), array( $r['table']['rows'][1][1] ?? '', $r['table']['rows'][2][0] ?? '' ) );
+
+// Memoria de la conversación: lo que pidió de enganche y plazo no se pierde.
+$runner->calls = array();
+$mem = array_merge( $four, array( 'customer' => array( 'name' => 'Fer', 'email' => 'f@example.com', 'phone' => '' ) ) );
+$down_of = function ( $r ) {
+	return $r['table']['rows'][1][0] ?? '';
+};
+$r = $say( 'cuotas de la 1 con 45% de enganche', $mem );
+check( 'memoria: pide 45 %', 'Enganche (45 %)', $down_of( $r ) );
+$r = $say( 'y las cuotas de la 2', $mem );
+check( 'memoria: el siguiente vehículo también al 45 %', 'Enganche (45 %)', $down_of( $r ) );
+check( 'memoria: y dice que se acordó', true, false !== strpos( $r['text'], 'como me dijiste' ) );
+$r = $say( 'a 48 meses', $mem );
+check( 'memoria: cambia el plazo y conserva el 45 %', array( 'Enganche (45 %)', '48 meses', 3 ), array( $down_of( $r ), $r['table']['rows'][2][0] ?? '', count( $r['table']['rows'] ?? array() ) ) );
+$r = $say( 'cotizame la 3 con cuotas', $mem );
+check( 'memoria: la cotización con cuotas usa 45 % y 48 meses', array( 'file', 'Enganche (45 %)', '48 meses' ), array( $r['kind'], $down_of( $r ), $r['table']['rows'][2][0] ?? '' ) );
+$r = $say( 'con 100 mil de enganche', $mem );
+check( 'memoria: un monto reemplaza al porcentaje', 'Q 100,000', $r['table']['rows'][1][1] ?? '' );
+$r = $say( 'las cuotas de todas', $mem );
+check( 'memoria: el monto vale para todas', array( true, true ), array( 0 === strpos( $r['table']['rows'][1][1] ?? '', 'Q 100,000' ), 0 === strpos( $r['table']['rows'][1][2] ?? '', 'Q 100,000' ) ) );
+$r = $say( 'Enganche de 30 %', $mem );
+check( 'memoria: el botón cambia el enganche', 'Enganche (30 %)', $down_of( $r ) );
+$r = $say( 'muestrame las cuotas con todos los plazos', $mem );
+check( 'memoria: "todos los plazos" vuelve a la tabla completa con el 30 %', array( 'Enganche (30 %)', 8 ), array( $down_of( $r ), count( $r['table']['rows'] ?? array() ) ) );
+$fresh = $four;
+$r = $say( 'cuotas de la 1', $fresh );
+check( 'memoria: una conversación nueva empieza con el enganche normal', 'Enganche (20 %)', $down_of( $r ) );
