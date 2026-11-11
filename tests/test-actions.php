@@ -344,3 +344,18 @@ check( 'jefe: "dame la cosa esa pues" con opciones = pregunta', 'unclear', $r['k
 $sj = array( 'results' => array( 21, 20 ), 'shown' => array( 21, 20 ) );
 $r = $say( 'pero dame la cuoa de cada uno de la mazda', $sj );
 check( 'jefe: "de cada uno" gana aunque se cuele un nombre', 3, isset( $r['table']['head'] ) ? count( $r['table']['head'] ) : 0 );
+
+// Mini chat del 11-nov: tras recomendar o calcular, el chat ofrece cotizar; pedir cuotas sigue siendo cuotas.
+$offered = array_merge( $four, array( 'offer' => array( 'action' => 'quote', 'ids' => array( 21, 20, 22, 23 ) ) ) );
+$sm = $offered;
+$r = $say( 'dame las cuotas de todas', $sm );
+check( 'mini chat: "las cuotas de todas" tras ofrecer cotizar = cuotas (no cotización)', array( 'finance', 5, array() ), array( $r['kind'], count( $r['table']['head'] ?? array() ), $sm['pending'] ?? array() ) );
+$sm = $offered;
+$r = $say( 'queiro asl cuoa de la 3', $sm );
+check( 'mini chat: "la cuoa de la 3" tras ofrecer cotizar = cuotas de la 3', array( 'finance', 2, 22 ), array( $r['kind'], count( $r['table']['head'] ?? array() ), $r['cards'][0]['id'] ?? 0 ) );
+$sm = $offered;
+$r = $say( 'cotizame la 3', $sm );
+check( 'mini chat: "cotízame la 3" sigue cotizando', array( 22 ), $sm['pending']['ids'] ?? array() );
+$sm = array_merge( $four, array( 'pending' => array( 'action' => 'quote', 'ids' => array( 22 ), 'with' => '' ) ) );
+$r = $say( 'dije cuoas', $sm );
+check( 'mini chat: "dije cuotas" con la cotización a medias = cuotas de ese vehículo', array( 'finance', 2 ), array( $r['kind'], count( $r['table']['head'] ?? array() ) ) );

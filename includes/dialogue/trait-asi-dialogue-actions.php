@@ -46,7 +46,8 @@ trait ASI_Dialogue_Actions {
 			// No dio sus datos sino que pidió otra cosa ("quiero ver más opciones", "sugiéreme
 			// vehículos"): se deja la cotización y se atiende lo que pidió.
 			if ( ! $given || $this->words_in( $normalized, 'not_data_words' ) ) {
-				$state['pending'] = array();
+				$state['was_pending'] = (array) $state['pending']['ids']; // Solo para esta respuesta.
+				$state['pending']     = array();
 				$state['offer']   = array();
 				$reply            = $this->route( $message, $normalized, $state );
 				$reply['state']   = array_merge( isset( $reply['state'] ) ? $reply['state'] : array(), array( 'pending' => array() ) );
@@ -84,7 +85,9 @@ trait ASI_Dialogue_Actions {
 			// ofertas sigue el flujo normal.
 			// Solo en respuestas cortas: un mensaje largo es otra cosa (aclarar, contar su situación).
 			$comparing = (bool) preg_match( '/(^|\s)compar[a-z]*(\s|$)/', $normalized );
-			if ( ! $comparing && 'quote' === $state['offer']['action'] && count( $state['offer']['ids'] ) > 1 && ( str_word_count( $normalized ) <= 8 || $this->words_in( $normalized, 'quote_words' ) ) && ! $this->words_in( $normalized, 'not_data_words' ) ) {
+			// "Dame las cuotas de todas" tras "¿cuál te cotizo?" pide cuotas, no la cotización.
+			$financing = $this->words_in( $normalized, 'finance_words' ) && ! $this->words_in( $normalized, 'quote_words' );
+			if ( ! $comparing && ! $financing && 'quote' === $state['offer']['action'] && count( $state['offer']['ids'] ) > 1 && ( str_word_count( $normalized ) <= 8 || $this->words_in( $normalized, 'quote_words' ) ) && ! $this->words_in( $normalized, 'not_data_words' ) ) {
 				// Solo lo que nombra de verdad (nombre, número, grupo), nunca "el que está en foco".
 				$picked = $this->action_targets( $message, $normalized, $state, false );
 				if ( $picked ) {
@@ -116,6 +119,10 @@ trait ASI_Dialogue_Actions {
 		if ( $this->words_in( $normalized, 'finance_words' ) && ! $this->words_in( $normalized, 'quote_words' ) ) {
 			// Lo que nombra; si no nombra nada, todo lo que está viendo; si no, el de la conversación.
 			$targets = $this->action_targets( $message, $normalized, $state, false );
+			// "Dije cuotas" justo cuando el chat pedía los datos para cotizar: las de esos vehículos.
+			if ( ! $targets && ! empty( $state['was_pending'] ) ) {
+				$targets = array_map( 'intval', $state['was_pending'] );
+			}
 			if ( ! $targets && count( $state['selected'] ) > 1 ) {
 				$targets = $state['selected'];
 			}
