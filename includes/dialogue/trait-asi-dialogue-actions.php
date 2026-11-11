@@ -61,14 +61,16 @@ trait ASI_Dialogue_Actions {
 			// "El tercero", "la Frontier y la MG RX9" responden a "¿cuál te cotizo?"; después de otras
 			// ofertas sigue el flujo normal.
 			// Solo en respuestas cortas: un mensaje largo es otra cosa (aclarar, contar su situación).
-			if ( 'quote' === $state['offer']['action'] && count( $state['offer']['ids'] ) > 1 && ( str_word_count( $normalized ) <= 8 || $this->words_in( $normalized, 'quote_words' ) ) && ! $this->words_in( $normalized, 'not_data_words' ) ) {
-				$picked = $this->action_targets( $message, $normalized, $state );
+			$comparing = (bool) preg_match( '/(^|\s)compar[a-z]*(\s|$)/', $normalized );
+			if ( ! $comparing && 'quote' === $state['offer']['action'] && count( $state['offer']['ids'] ) > 1 && ( str_word_count( $normalized ) <= 8 || $this->words_in( $normalized, 'quote_words' ) ) && ! $this->words_in( $normalized, 'not_data_words' ) ) {
+				// Solo lo que nombra de verdad (nombre, número, grupo), nunca "el que está en foco".
+				$picked = $this->action_targets( $message, $normalized, $state, false );
 				if ( $picked ) {
 					$state['with_finance'] = $this->words_in( $normalized, 'finance_words' );
 					return $this->start_action( 'quote', $picked, $state );
 				}
 			}
-			if ( $this->words_in( $normalized, 'yes_words' ) && str_word_count( $normalized ) <= 5 ) {
+			if ( ! $comparing && $this->words_in( $normalized, 'yes_words' ) && str_word_count( $normalized ) <= 5 ) {
 				if ( 'finance' === $state['offer']['action'] ) {
 					$finance = $this->finance_flow( $state['offer']['ids'], $message, $normalized, $state );
 					if ( $finance ) {

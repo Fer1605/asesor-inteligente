@@ -227,3 +227,9 @@ $r = $say( 'fernanda f@example.com', $s14 );
 check( 'real: "con cuotas" tras una oferta y pidiendo datos, igual trae la tabla', 3, isset( $r['table']['head'] ) ? count( $r['table']['head'] ) : 0 );
 $r = $say( 'Calcular cuotas', $s14 );
 check( 'real: ya cotizados, no vuelve a ofrecer el PDF', array(), $s14['offer'] );
+// Frase real: "comparativa de estos vehículos" después de las cuotas de dos.
+$s15 = array( 'customer' => array( 'name' => 'Fernanda', 'email' => 'f@example.com', 'phone' => '' ), 'results' => array( 21, 20, 22, 23 ), 'shown' => array( 21, 20, 22, 23 ) );
+$say( 'cuánto pagaría al mes por la 2 y la 3', $s15 );
+$r = $say( 'puedes darme una comparativa de estos vehiculos', $s15 );
+check( 'real: "comparativa de estos vehículos" compara los que estaba viendo', array( 'compare', array( 20, 22 ) ), array( $r['kind'], asi_card_ids( $r ) ) );
+check( 'real: y ofrece el PDF de la comparación', true, false !== strpos( $r['followup'], 'PDF' ) );

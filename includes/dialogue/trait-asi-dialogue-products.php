@@ -169,6 +169,12 @@ trait ASI_Dialogue_Products {
 	private function compare_flow( $normalized, array $state ) {
 		$marker = ASI_Lexicon::find_phrase( $normalized, (array) $this->lexicon->get_list( 'compare_markers' ) );
 		$both   = ASI_Lexicon::find_phrase( $normalized, (array) $this->lexicon->get_list( 'compare_both' ) );
+		// Cualquier forma de "comparar" (comparativa, comparativo, compárame, compare…).
+		if ( '' === $marker && preg_match( '/(^|\s)(compar[a-z]*)(\s|$)/', $normalized, $stem ) ) {
+			$marker = $stem[2];
+		}
+		// "Estos", "ambos", "los dos": lo que está viendo.
+		$these = (bool) preg_match( '/(^|\s)(estos|estas|esos|esas|ambos|ambas|los dos|las dos|both|these|those)(\s|$)/', $normalized );
 		if ( '' === $marker && '' === $both ) {
 			return null;
 		}
@@ -202,7 +208,12 @@ trait ASI_Dialogue_Products {
 				$pair = array( $focus, $other );
 			}
 		}
-		if ( ! $pair && count( $state['results'] ) >= 2 && ( '' !== $both || count( $tokens ) <= 1 ) ) {
+		// Sin nombres: la selección (lo último cotizado, con cuotas o comparado); si no, los primeros.
+		if ( ! $pair && isset( $state['selected'] ) && count( $state['selected'] ) >= 2 && ( $these || '' !== $both || count( $tokens ) <= 4 ) ) {
+			$rows = $this->repository->rows( $this->context['lang'], array_slice( $state['selected'], 0, 2 ) );
+			$pair = 2 === count( $rows ) ? $rows : null;
+		}
+		if ( ! $pair && count( $state['results'] ) >= 2 && ( '' !== $both || $these || count( $tokens ) <= 1 ) ) {
 			$rows = $this->repository->rows( $this->context['lang'], array_slice( $state['results'], 0, 2 ) );
 			$pair = 2 === count( $rows ) ? $rows : null;
 		}
@@ -230,6 +241,15 @@ trait ASI_Dialogue_Products {
 	private function answer_compare( array $a, array $b ) {
 		$facts_a = $this->facts_by_key( $this->facts_of( $a ), false );
 		$facts_b = $this->facts_by_key( $this->facts_of( $b ), false );
+		// El precio como en las tarjetas: con su moneda ("Q 249,900", "$ 47,900").
+		foreach ( array( array( &$facts_a, $a ), array( &$facts_b, $b ) ) as $pair ) {
+			if ( isset( $pair[0]['price'] ) ) {
+				$shown = $this->money_card( (array) $pair[1]['card'] );
+				if ( '' !== (string) $shown['price'] ) {
+					$pair[0]['price'][1] = $shown['price'];
+				}
+			}
+		}
 
 		$keys = array();
 		foreach ( array( 'price', 'brand', 'category' ) as $key ) {
