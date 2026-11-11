@@ -89,6 +89,7 @@ return array(
 		'between'      => array( 'between', 'from' ),
 		'between_join' => array( 'and', 'to' ),
 		'budget'       => array( 'budget', 'my budget', 'i have', 'i can spend', 'i can pay', 'i want to spend', 'spend' ),
+		'negate'       => array( 'that are not', 'that is not', 'that arent', 'that isnt', 'not' ),
 		'around'       => array( 'around', 'about', 'roughly', 'approximately', 'approx', 'close to' ),
 	),
 
@@ -148,6 +149,7 @@ return array(
 
 	'refine_markers' => array( 'and', 'only', 'just', 'but', 'in', 'with', 'without', 'brand', 'color', 'colour', 'that are' ),
 
+	'negation_stops'   => array( 'i want', 'i need', 'only', 'just', 'but', 'rather' ),
 	'negation_markers' => array( 'that is not', 'that are not', 'that isnt', 'that arent', 'not the', 'except', 'excluding', 'other than', 'but not', 'i dont want' ),
 
 	'evidence' => array(

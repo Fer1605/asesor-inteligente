@@ -113,6 +113,8 @@ return array(
 		'between'      => array( 'entre', 'de', 'desde' ),
 		'between_join' => array( 'y', 'a', 'hasta' ),
 		'budget'       => array( 'presupuesto', 'mi presupuesto', 'tengo', 'cuento con', 'dispongo de', 'puedo pagar', 'puedo gastar', 'quiero gastar', 'pienso gastar', 'pagar' ),
+		// Una negación antes de "mayor a / menos de" invierte el sentido: "que no sean mayor a 100 mil" = tope.
+		'negate'       => array( 'que no sean de', 'que no sea de', 'que no sean', 'que no sea', 'que no esten', 'que no este', 'que no cuesten', 'que no cueste', 'que no salgan', 'que no salga', 'que no pasen de', 'no sean de', 'no sea de', 'no sean', 'no sea', 'no esten', 'no este', 'no cuesten', 'no cueste', 'no' ),
 		'around'       => array( 'alrededor de', 'aproximadamente', 'aprox', 'como de', 'unos', 'unas', 'cerca de', 'por ahi de', 'mas o menos' ),
 	),
 
@@ -185,6 +187,8 @@ return array(
 	'refine_markers' => array( 'y', 'solo', 'solamente', 'nada mas', 'pero', 'que sea', 'que sean', 'mejor', 'y en', 'de marca', 'en color', 'con', 'sin' ),
 
 	// "Que no sea eléctrico", "excepto los usados": lo que sigue se excluye de los resultados.
+	// Dónde termina lo que se niega: "que no sean eléctricos, solo diésel".
+	'negation_stops'   => array( 'quiero', 'quisiera', 'busco', 'solo', 'solamente', 'unicamente', 'pero', 'mejor', 'que sean', 'que sea' ),
 	'negation_markers' => array( 'que no sea', 'que no sean', 'que no tenga', 'que no tengan', 'no quiero', 'no me muestres', 'no me interesan', 'no me interesa', 'excepto', 'salvo', 'menos los', 'menos las', 'menos el', 'menos la', 'pero no', 'no sea', 'no sean', 'sin incluir' ),
 
 	// Palabras que suelen estar en la frase que responde cada pregunta informativa.

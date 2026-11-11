@@ -78,3 +78,14 @@ check( 'solo presupuesto: primero lo más cercano al tope', 1, $r['cards'][0]['i
 check( 'solo presupuesto: lo dice en la moneda del cliente', true, false !== strpos( $r['text'], 'entre $ 60,000 y $ 70,000' ) );
 $r = $agency_bot()->handle( 'tengo como 200 mil' );
 check( 'presupuesto en Q sin tipo: lo que cabe, del más cercano al tope', array( 2, 3 ), asi_card_ids( $r ) );
+
+// Negación antes del monto (lo que probó el jefe): invierte el sentido.
+check( 'que no sean mayor a 100 mil = tope', array( null, 100000.0, '' ), $b( 'pero que no sean mayor a 100 mil' ) );
+check( 'que no sea de más de 200 mil = tope', array( null, 200000.0, '' ), $b( 'que no sea de mas de 200 mil' ) );
+check( 'que no cueste más de Q150,000 = tope', array( null, 150000.0, 'GTQ' ), $b( 'que no cueste más de Q150,000' ) );
+check( 'que no sea menos de 50 mil = piso', array( 50000.0, null, '' ), $b( 'que no sea menos de 50 mil' ) );
+check( 'no mayor a = tope', array( null, 80000.0, '' ), $b( 'no mayor a 80 mil' ) );
+check( 'no menos de = piso', array( 60000.0, null, '' ), $b( 'no menos de 60 mil' ) );
+check( 'mayor a sin negación sigue siendo piso', array( 100000.0, null, '' ), $b( 'mayor a 100 mil' ) );
+$neg = ASI_Money::extract_budget( 'pero que no sean mayor a 100 mil', $words, $cfg );
+check( 'la negación sale junto con el monto', true, false !== strpos( $neg['spans'][0], 'que no sean' ) );

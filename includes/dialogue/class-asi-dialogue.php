@@ -290,6 +290,10 @@ class ASI_Dialogue {
 
 		// Solo un presupuesto ("algo de 60 a 70 mil dólares"): es una búsqueda, diga lo que diga el clasificador.
 		if ( empty( $query['groups'] ) && ASI_Search::has_hard_filter( $query ) && ! in_array( $intent['intent'], array( 'contact', 'location', 'hours', 'jobs', 'about' ), true ) ) {
+			// Tras una búsqueda, "pero que no pasen de 100 mil" afina esa búsqueda: no empieza otra.
+			if ( '' !== $state['q'] && $this->has_price( $query ) ) {
+				return $this->refine( $stripped, $query, $state );
+			}
 			return $this->search_flow( $stripped, $query, $state );
 		}
 
@@ -546,7 +550,18 @@ class ASI_Dialogue {
 	 * "Solo John Deere", "y eléctricos": se suma a la búsqueda anterior.
 	 */
 	private function refine( $message, array $query, array $state ) {
-		$combined_text  = $state['q'] . ' ' . $message;
+		$previous = $state['q'];
+		// Un monto nuevo reemplaza al anterior: "tengo 300 mil" y luego "mejor hasta 200 mil".
+		if ( $this->has_price( $query ) ) {
+			$old = ASI_Money::extract_budget( $previous, (array) $this->lexicon->get_list( 'money_words' ), (array) $this->context['money'] );
+			if ( $old['spans'] ) {
+				$previous = trim( preg_replace( '/\s+/u', ' ', str_replace( $old['spans'], ' ', ASI_Money::fold( $previous ) ) ) );
+			}
+		}
+		if ( '' === trim( (string) $query['label'] ) && $this->has_price( $query ) ) {
+			$query['label'] = preg_replace( '/^(?:de|of)\s+/u', '', $this->budget_text( $query ) );
+		}
+		$combined_text  = trim( $previous . ' ' . $message );
 		$combined_query = $this->analyzer->analyze( $combined_text );
 		$combined       = $this->search->search( $this->context['lang'], $combined_query, array( 'roles' => array( 'catalog' ) ) );
 
@@ -1222,7 +1237,13 @@ class ASI_Dialogue {
 				return false;
 			}
 		}
-		$first_words = implode( ' ', array_slice( explode( ' ', $normalized ), 0, 2 ) );
+		// "Quiero solo Toyota", "dame solo las rojas": la petición no cuenta para ver cómo empieza.
+		$words   = explode( ' ', $normalized );
+		$request = array_map( array( 'ASI_Normalizer', 'normalize' ), (array) $this->lexicon->get_list( 'request_words' ) );
+		while ( count( $words ) > 1 && in_array( $words[0], $request, true ) ) {
+			array_shift( $words );
+		}
+		$first_words = implode( ' ', array_slice( $words, 0, 2 ) );
 		foreach ( $this->lexicon->get_list( 'refine_markers' ) as $marker ) {
 			if ( 0 === strpos( $first_words . ' ', ASI_Normalizer::normalize( $marker ) . ' ' ) ) {
 				return true;
@@ -1234,6 +1255,13 @@ class ASI_Dialogue {
 			}
 		}
 		return true;
+	}
+
+	/**
+	 * ¿El mensaje trae un monto (tope, piso o presupuesto)?
+	 */
+	private function has_price( array $query ) {
+		return null !== $query['price_max'] || null !== $query['price_min'];
 	}
 
 	/**

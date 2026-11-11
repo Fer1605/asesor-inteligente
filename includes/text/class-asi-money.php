@@ -326,12 +326,20 @@ final class ASI_Money {
 			'budget' => isset( $words['budget'] ) ? $words['budget'] : array(),
 			'around' => isset( $words['around'] ) ? $words['around'] : array(),
 		);
+		// "Que no sean mayor a 100 mil" es un tope; "que no sea menos de 50 mil", un piso.
+		$negate = isset( $words['negate'] ) ? $alt( $words['negate'] ) : '(?!)';
 		foreach ( $kinds as $kind => $list ) {
-			$pattern = '/(?:^|[^a-z])(' . $alt( $list ) . ')' . $filler . '\s*' . $amount . $end . '/u';
+			$prefix  = in_array( $kind, array( 'max', 'min' ), true ) ? '(?:(' . $negate . ')\s+)?' : '()';
+			$pattern = '/(?:^|[^a-z])' . $prefix . '(' . $alt( $list ) . ')' . $filler . '\s*' . $amount . $end . '/u';
 			if ( ! preg_match( $pattern, $text, $m ) ) {
 				continue;
 			}
-			$m     = array_pad( $m, 6, '' );
+			$m = array_pad( $m, 7, '' );
+			if ( '' !== $m[1] ) {
+				$kind = 'max' === $kind ? 'min' : 'max';
+			}
+			// Sin el grupo de la negación quedan los índices de siempre; el tramo completo se conserva.
+			$m     = array_merge( array( $m[0] ), array_slice( $m, 2 ) );
 			$value = self::read_amount( $m[2], $m[3], $m[4], $m[5] );
 			// Con "menos de / hasta / más de" cualquier número es precio ("camisas de menos de 200").
 			// Con "tengo", "unos", "como" hace falta moneda, multiplicador o un monto grande ("tengo 3").

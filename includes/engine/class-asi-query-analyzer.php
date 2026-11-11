@@ -513,12 +513,22 @@ class ASI_Query_Analyzer {
 		$position = strpos( ' ' . $text . ' ', ' ' . $marker . ' ' );
 		$before   = trim( substr( $text, 0, $position ) );
 		$after    = trim( substr( $text, $position + strlen( $marker ) ) );
+		// La negación llega hasta que empieza otra idea: "que no sean eléctricos, solo diésel"
+		// o, al sumar mensajes, "que no sean caros quiero solo toyota". Lo que sigue se busca normal.
+		$rest = '';
+		foreach ( (array) $this->lexicon->get_list( 'negation_stops' ) as $stop ) {
+			$at = strpos( ' ' . $after . ' ', ' ' . $stop . ' ' );
+			if ( false !== $at && $at > 0 ) {
+				$rest  = trim( substr( $after, $at ) . ' ' . $rest );
+				$after = trim( substr( $after, 0, $at ) );
+			}
+		}
 		if ( '' === $after ) {
-			return $text;
+			return trim( $before . ' ' . $rest );
 		}
 		$negated = ( new self( $this->lexicon, $this->vocab ) )->analyze( $after );
 		if ( ! $negated['groups'] ) {
-			return $text;
+			return '' === $rest ? $text : trim( $before . ' ' . $rest );
 		}
 		// Como lo escribió ("eléctricos"), sin palabras vacías.
 		$label = array();
@@ -529,7 +539,7 @@ class ASI_Query_Analyzer {
 		}
 		$result['exclude']       = $negated['groups'];
 		$result['exclude_label'] = $label ? implode( ' ', $label ) : $negated['label'];
-		return $before;
+		return trim( $before . ' ' . $rest );
 	}
 
 	/**
