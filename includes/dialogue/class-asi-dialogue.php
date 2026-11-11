@@ -979,6 +979,12 @@ class ASI_Dialogue {
 	 * ¿Pide más resultados? ("más", "ver más", "otras opciones").
 	 */
 	private function is_more_request( $normalized ) {
+		// Sin las palabras de pedido: "puedes mostrarme más opciones porfavor" → "mas opciones".
+		$request    = array_map( array( 'ASI_Normalizer', 'normalize' ), (array) $this->lexicon->get_list( 'request_words' ) );
+		$kept       = array_values( array_filter( explode( ' ', $normalized ), static function ( $w ) use ( $request ) {
+			return '' !== $w && ! in_array( $w, $request, true );
+		} ) );
+		$normalized = $kept ? implode( ' ', $kept ) : $normalized;
 		$more = $this->lexicon->get_list( 'more' );
 		if ( in_array( $normalized, array_map( array( 'ASI_Normalizer', 'normalize' ), $more ), true ) ) {
 			return true;

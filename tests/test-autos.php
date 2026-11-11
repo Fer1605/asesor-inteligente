@@ -102,3 +102,16 @@ check( 'frase: "camioneta" queda como palabra blanda', array( 'camioneta' ), $au
 $r = $lot_bot()->handle( 'camioneta del 2026' );
 check( 'conv: "camioneta" (SUV, pickup o van) no exige la palabra si la carrocería cumple', array( 1, 3 ), $ids( $r ) );
 check( 'conv: frase de solo atributos sin "con de"', false, strpos( $lot_bot()->handle( 'algo para 7 personas' )['text'], 'con de' ) );
+// Frase real: palabras de cortesía no se buscan; solo híbridos, sin "no encontré algo exacto".
+$v( 7, 'BYD Song Plus DM-i', 'SUV', 249900, array( 'body' => 'suv', 'seats' => 5, 'fuel' => 'hybrid', 'year' => 2027 ) );
+$v( 8, 'Toyota RAV4 Hybrid', 'SUV', 329900, array( 'body' => 'suv', 'seats' => 5, 'fuel' => 'hybrid', 'year' => 2026 ) );
+$s = array();
+$r = $lot_bot()->handle( 'puedes mostrarme opciones híbridas porfavor', $s );
+check( 'real: "opciones híbridas" trae solo híbridos', array( 7, 8 ), $ids( $r ) );
+check( 'real: y no dice "no encontré algo exacto"', false, false !== strpos( $r['text'], 'exacto' ) );
+$s = $r['state'];
+$r = $lot_bot()->handle( 'puedes mostrarme más opciones porfavor', $s );
+check( 'real: "puedes mostrarme más opciones porfavor" es pedir más', true, in_array( $r['kind'], array( 'more', 'no_more' ), true ) );
+foreach ( array( 'híbridas' => 'hybrid', 'híbridos' => 'hybrid', 'eléctricas' => 'electric', 'eléctricos' => 'electric', 'diésel' => 'diesel' ) as $word => $fuel ) {
+	check( "frase: \"{$word}\"", array( 'in' => array( $fuel ) ), $autos->parse_query( 'opciones ' . $word, 'es' )['constraints']['fuel'] ?? null );
+}

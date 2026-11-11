@@ -79,6 +79,8 @@ return array(
 
 	'generic_product_words' => array( 'suv', 'pickup', 'pick', 'up', 'pick up', 'carro', 'carros', 'auto', 'autos', 'camioneta', 'camionetas', 'vehiculo', 'vehiculos', 'modelo', 'opcion', 'numero', 'la', 'el', 'ese', 'esa', 'este', 'esta', 'sedan', 'microbus', 'panel', 'camion' ),
 
+	'request_words'     => array( 'puedes', 'puede', 'podrias', 'podria', 'pueden', 'mostrarme', 'muestrame', 'mostrar', 'enseñame', 'ensename', 'ensenarme', 'darme', 'dame', 'sugerirme', 'sugiereme', 'recomendarme', 'recomiendame', 'opcion', 'opciones', 'alternativas', 'porfavor', 'porfa', 'favor', 'quiero', 'quisiera', 'ver', 'mmm', 'oye', 'mira', 'hola', 'gracias' ),
+
 	'money_words' => array(
 		'max'          => array( 'menos de', 'menor a', 'menor de', 'hasta', 'maximo', 'max', 'no mas de', 'por debajo de', 'que no pase de', 'que no pase los', 'abajo de', 'tope de', 'que no supere', 'que no supere los', 'no mayor a' ),
 		'min'          => array( 'mas de', 'mayor a', 'mayor de', 'desde', 'minimo', 'arriba de', 'por encima de', 'no menos de' ),

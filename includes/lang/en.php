@@ -55,6 +55,8 @@ return array(
 
 	'generic_product_words' => array( 'suv', 'pickup', 'truck', 'car', 'cars', 'vehicle', 'vehicles', 'model', 'option', 'number', 'the', 'that', 'this', 'sedan', 'van' ),
 
+	'request_words'     => array( 'can', 'could', 'show', 'me', 'please', 'options', 'option', 'want', 'see', 'give', 'suggest', 'recommend', 'hi', 'hello', 'thanks' ),
+
 	'money_words' => array(
 		'max'          => array( 'under', 'less than', 'below', 'up to', 'max', 'maximum', 'no more than', 'at most', 'not over', 'cheaper than' ),
 		'min'          => array( 'over', 'more than', 'above', 'at least', 'minimum', 'starting at' ),

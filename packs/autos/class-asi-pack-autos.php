@@ -334,10 +334,10 @@ final class ASI_Pack_Autos implements ASI_Pack, ASI_Advisor, ASI_Similarity {
 		}
 		// Combustible.
 		$fuels = array(
-			'diesel'   => '(diesel|disel)',
-			'hybrid'   => '(hibrido|hibrida|hibridos|hybrid)',
-			'electric' => '(electrico|electrica|electricos|electric|ev)',
-			'gasoline' => '(gasolina|gasoline|petrol)',
+			'diesel'   => '(diesel|disel|diesels)',
+			'hybrid'   => '(hibrid[oa]s?|hybrids?|enchufables?|plug in)',
+			'electric' => '(electric[oa]s?|electrics?|ev)',
+			'gasoline' => '(gasolinas?|gasoline|petrol|a gasolina)',
 		);
 		foreach ( $fuels as $fuel => $pattern ) {
 			if ( preg_match( '/[^a-z]' . $pattern . '[^a-z]/', $text, $m ) ) {

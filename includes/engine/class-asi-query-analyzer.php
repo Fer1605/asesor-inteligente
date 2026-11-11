@@ -45,10 +45,14 @@ class ASI_Query_Analyzer {
 	/** @var ASI_Pack[] Packs activos (atributos del giro). */
 	private $packs;
 
+	/** @var string[] Palabras de pedido que se ignoran siempre. */
+	private $request_words = array();
+
 	public function __construct( ASI_Lexicon $lexicon, array $vocab, array $money = array(), array $packs = array() ) {
 		$this->lexicon = $lexicon;
 		$this->money   = ASI_Money::config( $money );
 		$this->packs   = $packs;
+		$this->request_words = array_map( array( 'ASI_Normalizer', 'normalize' ), (array) $lexicon->get_list( 'request_words' ) );
 		$this->vocab   = array_merge( array( 'docs' => 0, 'tokens' => array(), 'phrases' => array() ), $vocab );
 
 		foreach ( $this->vocab['phrases'] as $normal => $info ) {
@@ -108,6 +112,11 @@ class ASI_Query_Analyzer {
 			// "producto", "precio", "info"… son palabras de petición, salvo que el sitio las use en sus
 			// nombres: en una tienda donde los productos se llaman "Producto 2", "producto" sí se busca.
 			if ( $this->lexicon->is_filler( $token ) && ! isset( $this->vocab['tokens'][ ASI_Normalizer::singular( $token ) ] ) ) {
+				continue;
+			}
+			// Palabras de pedido que nunca son lo que se busca, aunque el sitio las use en algún texto
+			// ("puedes mostrarme opciones híbridas por favor" busca solo "híbridas").
+			if ( in_array( $token, $this->request_words, true ) ) {
 				continue;
 			}
 			if ( 1 === strlen( $token ) && ! ctype_digit( $token ) ) {
