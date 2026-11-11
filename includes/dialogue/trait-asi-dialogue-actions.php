@@ -123,6 +123,10 @@ trait ASI_Dialogue_Actions {
 				$one     = $this->action_target( $normalized, $state );
 				$targets = $one ? array( $one ) : array();
 			}
+			// "¿Cómo es el financiamiento?" con opciones a la vista: las cuotas de esas opciones.
+			if ( ! $targets && count( $state['results'] ) > 1 ) {
+				$targets = $state['results'];
+			}
 			if ( $targets ) {
 				$finance = $this->finance_flow( $targets, $message, $normalized, $state );
 				if ( $finance ) {
@@ -250,6 +254,15 @@ trait ASI_Dialogue_Actions {
 			return array_map( 'intval', array_slice( $state['results'], 0, $counts[ $m[1] ] ) );
 		}
 
+		// 4. Todo lo que está viendo: "de cada una", "de todas", "de estas", "de estos carros".
+		if ( $state['results'] && $this->means_all_visible( $normalized ) && count( $named ) < 2 ) {
+			// "De estos" justo después de cotizar o calcular dos: esos dos. "De cada una", todas.
+			if ( count( $state['selected'] ) >= 2 && ! preg_match( '/(^|\s)(todas|todos|cada|all|each)(\s|$)/', $normalized ) ) {
+				return array_map( 'intval', $state['selected'] );
+			}
+			return array_map( 'intval', $state['results'] );
+		}
+
 		if ( $named ) {
 			return $named;
 		}
@@ -258,6 +271,13 @@ trait ASI_Dialogue_Actions {
 		}
 		$one = $this->action_target( $normalized, $state );
 		return $one ? array( $one ) : array();
+	}
+
+	/**
+	 * ¿Habla de todas las opciones a la vista? "cada una", "cada uno", "de todas", "de estas".
+	 */
+	private function means_all_visible( $normalized ) {
+		return (bool) preg_match( '/(?:^|\s)(?:cada\s+un[oa]|(?:de|a|para|con)\s+(?:todas|todos|estas|estos|esas|esos|ellas|ellos)|todas\s+(?:las|estas|esas)\s+opciones|each\s+(?:one|of\s+them)|(?:of|for)\s+(?:all|these|those|them))(?:\s|$)/', $normalized );
 	}
 
 	/**
@@ -455,9 +475,18 @@ trait ASI_Dialogue_Actions {
 	 */
 	private function finance_flow( $ids, $message, $normalized, array $state ) {
 		$ids   = array_values( array_unique( array_filter( array_map( 'intval', (array) $ids ) ) ) );
+		// Hasta 4 columnas: más no se leen en el chat. Las demás, si las pide.
+		$left  = max( 0, count( $ids ) - self::FINANCE_COLUMNS );
+		$ids   = array_slice( $ids, 0, self::FINANCE_COLUMNS );
 		$block = $this->finance_block( $ids, $message, $normalized );
 		if ( ! $block ) {
 			return null;
+		}
+		// "¿Cómo es el financiamiento?": además de las cuotas, la página del sitio.
+		$links = array();
+		if ( preg_match( '/(^|\s)(financ|credit)[a-z]*/', $normalized ) ) {
+			$page  = $this->info_page( 'financing' );
+			$links = $page ? array( $page ) : array();
 		}
 		$available = $this->runner()->available();
 		$quoted    = ! array_diff( $block['ids'], $state['quoted'] );
@@ -467,8 +496,8 @@ trait ASI_Dialogue_Actions {
 			'text'        => $block['text'],
 			'table'       => $block['table'],
 			'cards'       => $this->cards( $block['rows'] ),
-			'followup'    => $this->sentences( array( $this->responder->say( 'finance_other_down', $block['vars'] ), $offer ? $this->responder->say( 'finance_offer_quote_short' ) : '' ) ),
-			'links'       => array(),
+			'followup'    => $this->sentences( array( $left ? $this->responder->say( 'finance_more_columns', array( 'n' => $left ) ) : '', $this->responder->say( 'finance_other_down', $block['vars'] ), $offer ? $this->responder->say( 'finance_offer_quote_short' ) : '' ) ),
+			'links'       => $links,
 			'suggestions' => array_merge( $offer ? array( $this->responder->say( 'finance_quote_chip' ) ) : array(), $block['chips'] ),
 			'more'        => false,
 			// Se conservan los resultados: después se puede seguir con "compara el primero y el segundo".

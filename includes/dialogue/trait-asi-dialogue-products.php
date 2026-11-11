@@ -178,6 +178,15 @@ trait ASI_Dialogue_Products {
 		if ( '' === $marker && '' === $both ) {
 			return null;
 		}
+		// "La comparativa de todas / de cada una" con 3 o más a la vista: el PDF con varias.
+		// "De estos" justo después de cotizar o calcular cuotas de dos habla de esos dos.
+		$every = (bool) preg_match( '/(^|\s)(todas|todos|cada|all|each)(\s|$)/', $normalized );
+		if ( '' !== $marker && count( $state['results'] ) >= 3 && ( $every || ( $this->means_all_visible( $normalized ) && count( $state['selected'] ) < 2 ) ) ) {
+			$many = $this->compare_many( $state['results'] );
+			if ( $many ) {
+				return $many;
+			}
+		}
 		$splitters = $this->lexicon->normal_list( 'compare_splitters' );
 
 		// Lo que queda sin la frase de comparar ("vs" también separa, así que se deja).
@@ -237,6 +246,58 @@ trait ASI_Dialogue_Products {
 			);
 		}
 		return $this->answer_compare( $pair[0], $pair[1] );
+	}
+
+	/**
+	 * Comparativa de varias opciones (hasta las que acepta el comparador del sitio): el PDF completo
+	 * en el chat, sin pedir datos; enviarla por correo se ofrece aparte. null si el sitio no tiene
+	 * comparador en PDF (entonces se comparan las dos primeras, como siempre).
+	 */
+	private function compare_many( array $ids ) {
+		$runner = $this->runner();
+		$have   = $runner ? $runner->available() : array();
+		if ( ! isset( $have['compare'] ) ) {
+			return null;
+		}
+		$max  = isset( $have['compare']['max_items'] ) ? (int) $have['compare']['max_items'] : 4;
+		$rows = $this->repository->rows( $this->context['lang'], array_slice( array_map( 'intval', $ids ), 0, $max ) );
+		$ids  = array_map( 'intval', array_column( $rows, 'post_id' ) );
+		if ( count( $ids ) < 2 ) {
+			return null;
+		}
+		$preview = $runner->preview( 'compare', $ids );
+		if ( ! is_array( $preview ) || empty( $preview['url'] ) ) {
+			return null;
+		}
+		$titles = array_map(
+			function ( $row ) {
+				return $row['card']['title'];
+			},
+			$rows
+		);
+		return array(
+			'kind'        => 'compare',
+			'text'        => $this->sentences( array( $this->responder->say( 'compare_many', array( 'list' => $this->responder->join_list( $titles, 'and' ) ) ), $this->responder->say( 'compare_full_pdf_many' ) ) ),
+			'file'        => array(
+				'url'      => (string) $preview['url'],
+				'name'     => (string) $preview['filename'],
+				'label'    => $this->responder->say( 'file_label_compare' ),
+				'open'     => $this->responder->say( 'file_open' ),
+				'download' => $this->responder->say( 'file_download' ),
+			),
+			'followup'    => $this->responder->say( 'compare_offer_email' ),
+			'cards'       => array(),
+			'links'       => array(),
+			'suggestions' => array(),
+			'more'        => false,
+			'state'       => array(
+				'focus'     => 0,
+				'selected'  => $ids,
+				'last'      => 'compare',
+				'previewed' => array( 'action' => 'compare', 'ids' => $ids ),
+				'offer'     => array( 'action' => 'compare', 'ids' => $ids ),
+			),
+		);
 	}
 
 	/**

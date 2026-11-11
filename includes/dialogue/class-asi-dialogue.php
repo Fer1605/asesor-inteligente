@@ -26,6 +26,9 @@ class ASI_Dialogue {
 	use ASI_Dialogue_Actions;
 
 	const MAX_MESSAGE = 300;
+
+	// Columnas de la tabla de cuotas en el chat.
+	const FINANCE_COLUMNS = 4;
 	const MAX_SHOWN   = 300;
 
 	/** @var ASI_Repository */
@@ -107,6 +110,8 @@ class ASI_Dialogue {
 		$this->responder = new ASI_Responder( $this->lexicon, $this->context, $state['recent'], $this->random );
 
 		$normalized = ASI_Normalizer::normalize( $message );
+		// Errores de dedo en las palabras de acción ("cuoa", "cotisacion"), antes de buscar.
+		list( $message, $normalized ) = $this->fix_action_typos( $message, $normalized );
 		$response   = $this->route( $message, $normalized, $state );
 		// Clave de la pregunta para el aprendizaje (la usa el endpoint; no se envía al navegador).
 		$response['qkey'] = self::content_key( $this->analyzer, $this->lexicon, $message );
@@ -126,6 +131,57 @@ class ASI_Dialogue {
 			)
 		);
 		return $response;
+	}
+
+	/**
+	 * Corrige las palabras de acción mal escritas ("cuoa" → cuota, "comparatiba" → comparativa,
+	 * "enganch" → enganche) con 1 letra de tolerancia (2 en palabras largas). No toca palabras del
+	 * catálogo ni palabras comunes: "cuoa" no es un vehículo, pero "costa" sí podría ser algo.
+	 *
+	 * @return array { mensaje, normalizado }
+	 */
+	private function fix_action_typos( $message, $normalized ) {
+		$vocab = array_map( array( 'ASI_Normalizer', 'normalize' ), (array) $this->lexicon->get_list( 'action_vocab' ) );
+		if ( ! $vocab || '' === $normalized ) {
+			return array( $message, $normalized );
+		}
+		$fixes  = array();
+		$tokens = explode( ' ', $normalized );
+		foreach ( $tokens as $i => $token ) {
+			$length = strlen( $token );
+			if ( $length < 4 || ctype_digit( $token ) || in_array( $token, $vocab, true ) || isset( $this->vocab['tokens'][ $token ] ) || $this->lexicon->is_stopword( $token ) || $this->lexicon->synonyms( $token ) ) {
+				continue;
+			}
+			$max  = $length <= 6 ? 1 : 2;
+			$best = '';
+			$dist = PHP_INT_MAX;
+			foreach ( $vocab as $word ) {
+				if ( $word[0] !== $token[0] || abs( strlen( $word ) - $length ) > $max ) {
+					continue;
+				}
+				$d = levenshtein( $token, $word );
+				if ( $d <= $max && $d < $dist ) {
+					$best = $word;
+					$dist = $d;
+				}
+			}
+			if ( '' !== $best ) {
+				$tokens[ $i ]    = $best;
+				$fixes[ $token ] = $best;
+			}
+		}
+		if ( ! $fixes ) {
+			return array( $message, $normalized );
+		}
+		// El mensaje original también, palabra por palabra (conserva el resto como lo escribió).
+		$words = preg_split( '/(\s+)/u', $message, -1, PREG_SPLIT_DELIM_CAPTURE );
+		foreach ( $words as $i => $word ) {
+			$key = ASI_Normalizer::normalize( $word );
+			if ( isset( $fixes[ $key ] ) ) {
+				$words[ $i ] = $fixes[ $key ];
+			}
+		}
+		return array( implode( '', $words ), implode( ' ', $tokens ) );
 	}
 
 	/**
@@ -151,6 +207,13 @@ class ASI_Dialogue {
 		$learned = $this->learned_flow( $message );
 		if ( $learned ) {
 			return $learned;
+		}
+
+		// "Buscar otra cosa" (el botón de la pregunta "no estoy seguro de haberte entendido").
+		if ( '' !== ASI_Lexicon::find_phrase( $normalized, (array) $this->lexicon->get_list( 'search_else_words' ) ) && str_word_count( $normalized ) <= 5 ) {
+			$help          = $this->smalltalk( 'help' );
+			$help['state'] = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'offer' => array() );
+			return $help;
 		}
 
 		// Cerrar la venta: datos del cliente, "sí", cuotas, cotización, comparación en PDF.
@@ -268,7 +331,8 @@ class ASI_Dialogue {
 	 */
 	private function search_flow( $text, array $query, array $state, array $options = array() ) {
 		if ( ! $this->is_searchable( $query ) ) {
-			return $this->smalltalk( 'help' );
+			// "Dame la cosa esa pues" con opciones a la vista: pregunta qué quiere hacer con ellas.
+			return $state['results'] && ! $options ? $this->unclear( $state ) : $this->smalltalk( 'help' );
 		}
 
 		$boosts  = $this->repository->boosts( $this->context['lang'], self::content_key( $this->analyzer, $this->lexicon, $text ) );
@@ -281,6 +345,11 @@ class ASI_Dialogue {
 		}
 		if ( $query['corrections'] ) {
 			$intro[] = $this->responder->say( 'corrected', array( 'fixed' => implode( ' ', array_values( $query['corrections'] ) ) ) );
+		}
+
+		// Hay opciones a la vista y no entendió bien lo que pide: pregunta en vez de adivinar.
+		if ( $this->is_unclear( $query, $catalog, $state, $options ) ) {
+			return $this->unclear( $state );
 		}
 
 		if ( ! $catalog['items'] && ! $pages['items'] ) {
@@ -719,6 +788,58 @@ class ASI_Dialogue {
 	/**
 	 * Sin resultados: se dice con honestidad y se ofrecen caminos.
 	 */
+	/**
+	 * ¿Conviene preguntar? Solo con opciones a la vista (está a media conversación), sin filtros
+	 * claros (presupuesto, atributos) y cuando la búsqueda no encontró nada o salió "parecida" por
+	 * una palabra que el catálogo no conoce ("cuoa", "dame eso pues"). Una búsqueda bien escrita que
+	 * solo coincide en parte ("rav4 roja") sigue mostrando lo más parecido.
+	 */
+	private function is_unclear( array $query, array $catalog, array $state, array $options ) {
+		if ( ! $state['results'] || $options || ASI_Search::has_hard_filter( $query ) || ! empty( $query['attrs'] ) ) {
+			return false;
+		}
+		if ( ! $catalog['items'] ) {
+			return true;
+		}
+		if ( 'exact' === $catalog['quality'] || ! empty( $catalog['named'] ) ) {
+			return false;
+		}
+		foreach ( explode( ' ', (string) $query['content'] ) as $word ) {
+			if ( strlen( $word ) >= 3 && ! ctype_digit( $word ) && ! isset( $this->vocab['tokens'][ $word ] ) && ! $this->lexicon->is_stopword( $word ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * "No estoy seguro de haberte entendido": con botones para lo que suele seguir. Las opciones a la
+	 * vista se conservan. Queda en Aprendizaje para enseñarlo desde el panel.
+	 */
+	private function unclear( array $state ) {
+		$chips  = array( $this->responder->say( 'unclear_chip_finance' ) );
+		$runner = $this->runner();
+		$have   = $runner ? $runner->available() : array();
+		if ( isset( $have['quote'] ) ) {
+			$chips[] = $this->responder->say( 'unclear_chip_quote' );
+		}
+		if ( isset( $have['compare'] ) && count( $state['results'] ) >= 2 ) {
+			$chips[] = $this->responder->say( 'unclear_chip_compare' );
+		}
+		$chips[] = $this->responder->say( 'unclear_chip_other' );
+		return array(
+			'kind'        => 'unclear',
+			'learn'       => 'none',
+			'text'        => $this->responder->say( 'unclear_visible' ),
+			'followup'    => '',
+			'cards'       => array(),
+			'links'       => array(),
+			'suggestions' => $chips,
+			'more'        => false,
+			'state'       => array(),
+		);
+	}
+
 	private function none( $text, array $intro ) {
 		$intro[]  = $this->responder->say( 'none', array( 'query' => $this->short( $text ) ) );
 		$followup = array( $this->responder->say( 'none_followup' ) );
