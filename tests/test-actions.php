@@ -433,3 +433,9 @@ $sc = $four;
 $say( 'cuotas de la 2, tengo 160 mil de enganche', $sc );
 $r = $say( 'y las de la 3', $sc );
 check( 'monto: si pasa del máximo del sitio, usa el máximo y lo dice', array( 'Q 122,430', true ), array( $r['table']['rows'][1][1] ?? '', false !== strpos( $r['text'], 'máximo' ) ) );
+foreach ( array( 'tengo 100 mil para el enganche', 'puedo dar 100 mil como enganche', 'tengo 100 mil de enganche', 'de enganche tengo 100 mil', 'q100,000 para la prima' ) as $phrase ) {
+	$sc = $four;
+	$say( 'cuotas de la 1', $sc );
+	$r = $say( $phrase, $sc );
+	check( 'monto: "' . $phrase . '"', 'Q 100,000', $r['table']['rows'][1][1] ?? '' );
+}

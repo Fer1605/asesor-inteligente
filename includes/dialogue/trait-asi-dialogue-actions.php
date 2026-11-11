@@ -550,7 +550,7 @@ trait ASI_Dialogue_Actions {
 		$parts = array();
 		$patterns = array(
 			'/[0-9]{1,2}(?:[.,][0-9])?\s*%/',
-			'/(?:enganche|prima|inicial|down payment)\D{0,12}?(?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?|(?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?\s*(?:de\s+)?(?:enganche|prima|inicial)/',
+			'/(?:enganche|prima|inicial|down payment)\D{0,12}?(?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?|(?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?\s*(?:(?:de|para|como|en)\s+(?:el\s+|la\s+|mi\s+)?)?(?:enganche|prima|inicial)/',
 			'/[0-9]{2}\s*(?:meses|months)|[1-9]\s*(?:anos|ano|years?)/',
 		);
 		foreach ( $patterns as $pattern ) {
@@ -587,7 +587,7 @@ trait ASI_Dialogue_Actions {
 		$wanted_amt = null;
 		if ( preg_match( '/([0-9]{1,2}(?:[.,][0-9])?)\s*%/', $text, $m ) ) {
 			$wanted_pct = (float) str_replace( ',', '.', $m[1] ) / 100;
-		} elseif ( preg_match( '/(?:enganche|prima|inicial|down payment)\D{0,12}?((?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)|((?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)\s*(?:de\s+)?(?:enganche|prima|inicial)/', $text, $m ) ) {
+		} elseif ( preg_match( '/(?:enganche|prima|inicial|down payment)\D{0,12}?((?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)|((?:q|\$)?\s*[0-9][0-9.,]*\s*(?:mil|k)?)\s*(?:(?:de|para|como|en)\s+(?:el\s+|la\s+|mi\s+)?)?(?:enganche|prima|inicial)/', $text, $m ) ) {
 			$raw        = '' !== trim( $m[1] ) ? $m[1] : $m[2];
 			$wanted_amt = (float) ASI_Money::parse_display_price( $raw ) * ( preg_match( '/(mil|k)\s*$/', trim( $raw ) ) ? 1000 : 1 );
 		}

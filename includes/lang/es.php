@@ -82,7 +82,7 @@ return array(
 		'financing'   => 'como es el financiamiento',
 	),
 	'action_vocab'      => array( 'cuota', 'cuotas', 'mensualidad', 'mensualidades', 'cotizar', 'cotizacion', 'cotizaciones', 'cotizame', 'cotizamela', 'cotizamelas', 'comparar', 'comparativa', 'comparacion', 'comparame', 'comparalas', 'comparalos', 'enganche', 'financiar', 'financiamiento', 'financiado', 'credito' ),
-	'finance_words'     => array( 'cuota', 'cuotas', 'mensualidad', 'mensualidades', 'al mes', 'mensual', 'mensuales', 'financiamiento', 'financiar', 'financiado', 'enganche', 'a plazos', 'plazo', 'credito', 'cuanto pagaria', 'cuanto pagaria al mes', 'calcular cuotas', 'calcula las cuotas', 'calculame', 'monthly' ),
+	'finance_words'     => array( 'cuota', 'cuotas', 'prima', 'pago inicial', 'mensualidad', 'mensualidades', 'al mes', 'mensual', 'mensuales', 'financiamiento', 'financiar', 'financiado', 'enganche', 'a plazos', 'plazo', 'credito', 'cuanto pagaria', 'cuanto pagaria al mes', 'calcular cuotas', 'calcula las cuotas', 'calculame', 'monthly' ),
 	'yes_words'         => array( 'si', 'sii', 'si por favor', 'si porfa', 'si dale', 'dale', 'va', 'sale', 'ok', 'okay', 'claro', 'claro que si', 'me parece', 'me parece bien', 'perfecto', 'de una', 'por favor', 'porfa', 'esta bien', 'si me interesa', 'enviamela', 'mandamela', 'si enviamela', 'si mandamela', 'hagale', 'yes', 'sure', 'please' ),
 	'cancel_words'      => array( 'cancelar', 'cancela', 'mejor no', 'no gracias', 'ya no', 'olvidalo', 'despues', 'luego', 'cancel', 'never mind' ),
 	'which_chips'       => array( 'El primero', 'El segundo', 'El tercero' ),
