@@ -260,3 +260,29 @@ check( 'filtro: "pero" sí', true, $gate( 'pero automatica' ) );
 check( 'filtro: mensaje largo sí', true, $gate( 'quiero algo comodo para viajar con mi familia los domingos' ) );
 check( 'filtro: resultado aproximado sí', true, ASI_AI_Interpreter::reviewable( array( 'kind' => 'results', 'learn' => 'weak', 'state' => array( 'q' => 'x' ) ), array(), 'suv morada', $sig ) );
 check( 'filtro: lo que no entendió siempre', true, ASI_AI_Interpreter::reviewable( array( 'kind' => 'unclear' ), array(), 'las de la marca del triangulo', $sig ) );
+
+// "Presupuesto" = cuánto quiere gastar, no una cotización (lo que probó el jefe).
+foreach ( array(
+	'quiero camionetas con un presupuesto no mayor a 500 mil',
+	'tengo un presupuesto de 300 mil para una suv',
+	'mi presupuesto es de 250 mil',
+	'suv con presupuesto de hasta 300 mil',
+) as $m ) {
+	$s = array();
+	$r = $chat( $m, $s );
+	check( "presupuesto es búsqueda: $m", 'results', $r['kind'] );
+}
+$s = array();
+$r = $chat( 'quiero camionetas con un presupuesto no mayor a 300 mil', $s );
+check( 'presupuesto: camionetas dentro del monto', true, (bool) $r['cards'] && ! array_filter( $r['cards'], function ( $c ) { return ASI_Money::parse_display_price( $c['price'] ) > 300000; } ) );
+$s = array();
+$r = $chat( 'quiero una cotizacion', $s );
+check( 'cotizar sin monto sigue siendo cotización', 'info', $r['kind'] );
+check( 'filtro: info con monto se revisa', true, ASI_AI_Interpreter::reviewable( array( 'kind' => 'info' ), array(), 'quiero camionetas con un presupuesto no mayor a 500 mil', $sig ) );
+check( 'filtro: info simple no gasta', false, ASI_AI_Interpreter::reviewable( array( 'kind' => 'info' ), array(), 'horario', $sig ) );
+// Si las reglas hubieran mandado a cotizar, la IA lo convierte en búsqueda.
+$s = array();
+$fake_info = array( 'kind' => 'info', 'state' => array( 'q' => '' ), 'cards' => array() );
+list( $ask ) = $said( '{"search":true,"type":"suv","brands":[],"words":"","exclude":[],"min":null,"max":300000,"around":null}' );
+$out = ASI_AI_Interpreter::review( $bot, $an, 'quiero camionetas con un presupuesto no mayor a 300 mil', $s, $fake_info, $es_ai, $ask );
+check( 'lee todo: de "pide tu cotización" a opciones', 'results', $out['response']['kind'] );

@@ -421,7 +421,7 @@ class ASI_AI_Interpreter {
 	// ------------------------------------------------------------------
 
 	/** Respuestas que la IA revisa en modo "lee todo": búsquedas y lo que las reglas no entendieron. */
-	const REVIEW_KINDS = array( 'results', 'unclear', 'none' );
+	const REVIEW_KINDS = array( 'results', 'info', 'unclear', 'none' );
 
 	/**
 	 * ¿Esta respuesta se revisa con la IA? Búsquedas normales: no un formulario a medias (datos
@@ -431,7 +431,9 @@ class ASI_AI_Interpreter {
 		if ( ! isset( $response['kind'] ) || ! in_array( $response['kind'], self::REVIEW_KINDS, true ) ) {
 			return false;
 		}
-		if ( 'results' === $response['kind'] && ! self::worth_asking( $message, $response, $signals ) ) {
+		// Búsquedas y respuestas de información ("pide tu cotización aquí") solo con señales de riesgo:
+		// "camionetas con presupuesto no mayor a 500 mil" no es pedir una cotización.
+		if ( in_array( $response['kind'], array( 'results', 'info' ), true ) && ! self::worth_asking( $message, $response, $signals ) ) {
 			return false;
 		}
 		if ( ! empty( $state['pending'] ) ) {

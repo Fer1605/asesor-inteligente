@@ -297,9 +297,28 @@ class ASI_Dialogue {
 			return $this->search_flow( $stripped, $query, $state );
 		}
 
+		// "Camionetas con un presupuesto no mayor a 500 mil": "presupuesto" aquí es cuánto quiere gastar,
+		// no una cotización. Con un monto y algo que buscar, es una búsqueda (y afina la anterior si la hay).
+		if ( in_array( $intent['intent'], array( 'quote', 'financing', 'human' ), true ) ) {
+			// Sin la palabra "presupuesto" (no es un producto); el monto se lee de la frase completa.
+			$full = $query;
+			if ( ! $this->has_price( $full ) ) {
+				$money = $this->analyzer->analyze( $message );
+				foreach ( array( 'price_min', 'price_max', 'price_currency', 'budget' ) as $key ) {
+					$full[ $key ] = $money[ $key ];
+				}
+			}
+			if ( $this->has_price( $full ) && ( $this->is_searchable( $full ) || '' !== $state['q'] ) ) {
+				if ( '' !== $state['q'] && ! $this->has_critical( $full ) && empty( $full['attrs'] ) ) {
+					return $this->refine( $stripped, $full, $state );
+				}
+				return $this->search_flow( $stripped, $full, $state );
+			}
+		}
+
 		if ( 'search' !== $intent['intent'] ) {
 			// "Cotizar montacargas eléctricos": se busca y se ofrece la página de cotización.
-			if ( $searchable && $this->has_critical( $query ) && in_array( $intent['intent'], array( 'quote', 'financing', 'human' ), true ) ) {
+			if ( $searchable && ( $this->has_critical( $query ) || ! empty( $query['attrs'] ) ) && in_array( $intent['intent'], array( 'quote', 'financing', 'human' ), true ) ) {
 				return $this->search_flow( $stripped, $query, $state, array( 'cta' => $intent['intent'] ) );
 			}
 			return $this->info( $intent['intent'], $query, $normalized );
