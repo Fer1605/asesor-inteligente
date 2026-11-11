@@ -94,8 +94,8 @@ class ASI_AI_Interpreter {
 		$lines[] = '';
 		$lines[] = 'Acciones posibles:';
 		$help = array(
-			'finance' => 'finance: quiere cuotas, pagos mensuales, enganche o financiamiento de opciones en pantalla.',
-			'quote'   => 'quote: quiere una cotización de opciones en pantalla.',
+			'finance' => 'finance: quiere saber cuánto pagaría: cuotas (también mal escrito: cuoa, cuots, cutoas), pagos al mes, a plazos, enganche, crédito o financiamiento de opciones en pantalla.',
+			'quote'   => 'quote: pide expresamente una cotización o proforma (cotizar, cotízame, mándame la cotización). Pedir cuotas NO es cotizar.',
 			'compare' => 'compare: quiere comparar opciones en pantalla.',
 			'detail'  => 'detail: quiere más información de UNA opción en pantalla.',
 			'search'  => 'search: busca otro producto. En "query" pon de 1 a ' . self::MAX_QUERY . ' palabras clave (tipo, marca, modelo, uso, presupuesto), sin datos personales.',

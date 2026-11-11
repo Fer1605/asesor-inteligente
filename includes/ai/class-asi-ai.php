@@ -31,7 +31,7 @@ class ASI_AI {
 			'endpoint' => 'https://api.groq.com/openai/v1/chat/completions',
 			'models'   => 'https://api.groq.com/openai/v1/models',
 			'console'  => 'https://console.groq.com/keys',
-			'default'  => 'openai/gpt-oss-20b, llama-3.1-8b-instant, openai/gpt-oss-120b',
+			'default'  => 'openai/gpt-oss-120b, openai/gpt-oss-20b, qwen/qwen3.8-27b',
 		),
 		'google' => array(
 			'label'    => 'Google AI Studio (Gemma)',

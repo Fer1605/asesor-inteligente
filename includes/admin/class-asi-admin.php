@@ -1510,6 +1510,10 @@ class ASI_Admin {
 		foreach ( array_keys( ASI_AI::PROVIDERS ) as $provider ) {
 			$text                = isset( $_POST['ai_models'][ $provider ] ) ? sanitize_text_field( wp_unslash( $_POST['ai_models'][ $provider ] ) ) : '';
 			$models[ $provider ] = implode( ', ', array_filter( array_map( 'trim', preg_split( '/[\s,]+/', preg_replace( '#[^A-Za-z0-9_./:,\s\-]#', '', $text ) ) ) ) );
+			// Si deja los de fábrica, no se congelan: así toma los nuevos cuando se actualice el plugin.
+			if ( $models[ $provider ] === implode( ', ', array_map( 'trim', explode( ',', ASI_AI::PROVIDERS[ $provider ]['default'] ) ) ) ) {
+				$models[ $provider ] = '';
+			}
 			if ( ! empty( $_POST['ai_drop'][ $provider ] ) ) {
 				ASI_AI::save_key( $provider, '' );
 			}
