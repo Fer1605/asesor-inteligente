@@ -166,3 +166,10 @@ check( 'ia fin e2e: una búsqueda normal sin cuotas antes no se marca', false, !
 // Excluir 4 marcas o más: antes se cortaba en 3 y la cuarta (Mercedes) seguía saliendo.
 $spec = ASI_AI_Interpreter::parse_review( '{"search":true,"type":["suv"],"brands":[],"words":"gasolina","exclude":["jeep","hyundai","land rover","mercedes benz"],"min":null,"max":250000,"around":null,"currency":""}', 'no queiro jeep ni hyundai ni land rover ni mercedez', 'camioneta gasolina hasta 250000' );
 check( 'ia: excluye las 4 marcas que pidió', 4, count( $spec['exclude'] ) );
+
+// Listas largas: no se recorta lo que pide el cliente.
+$long = array( 'jeep', 'hyundai', 'land rover', 'mercedes benz', 'bmw', 'audi', 'kia', 'nissan', 'mazda', 'chevrolet', 'ford', 'honda' );
+$spec = ASI_AI_Interpreter::parse_review( json_encode( array( 'search' => true, 'type' => array( 'suv' ), 'brands' => array(), 'words' => '', 'exclude' => $long, 'min' => null, 'max' => null, 'around' => null, 'currency' => '' ) ), 'no quiero ' . implode( ' ni ', $long ), '' );
+check( 'ia: excluye las 12 marcas', 12, count( $spec['exclude'] ) );
+check( 'ia: un monto no se borra como teléfono', 'hasta 1.500.000', ASI_AI_Interpreter::scrub( 'hasta 1.500.000' ) );
+check( 'ia: un teléfono sí', 'llamame al [numero]', ASI_AI_Interpreter::scrub( 'llamame al 5555 1234' ) );

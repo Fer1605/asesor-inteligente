@@ -31,7 +31,7 @@ class ASI_Dialogue {
 	use ASI_Dialogue_Similar;
 	use ASI_Dialogue_Actions;
 
-	const MAX_MESSAGE = 300;
+	const MAX_MESSAGE = 1000; // Un mensaje largo (una lista de lo que no quiere) se lee entero.
 
 	// Columnas de la tabla de cuotas en el chat.
 	const FINANCE_COLUMNS = 4;
@@ -584,7 +584,7 @@ class ASI_Dialogue {
 			// del sitio): en modo "lee todo", la IA interpreta. No se envía al navegador.
 			'guessed'     => $this->had_to_guess( $query ),
 			'state'       => array(
-				'q'       => $this->short( $text, 200 ),
+				'q'       => $this->short( $text, self::MAX_MESSAGE ),
 				'focus'   => $single ? $shown[0] : 0,
 				'shown'   => $shown,
 				// "El segundo" cuenta en el orden en que se ven: primero lo pedido, luego los similares.
@@ -1798,7 +1798,7 @@ class ASI_Dialogue {
 			return array_slice( array_values( array_filter( array_map( 'intval', is_array( $list ) ? $list : array() ) ) ), -$max );
 		};
 		$clean = array(
-			'q'       => isset( $state['q'] ) && is_string( $state['q'] ) ? $this->short( $state['q'], 200 ) : '',
+			'q'       => isset( $state['q'] ) && is_string( $state['q'] ) ? $this->short( $state['q'], self::MAX_MESSAGE ) : '',
 			'shown'   => $ints( isset( $state['shown'] ) ? $state['shown'] : array(), self::MAX_SHOWN ),
 			'results' => $ints( isset( $state['results'] ) ? $state['results'] : array(), 8 ),
 			'focus'   => isset( $state['focus'] ) ? max( 0, (int) $state['focus'] ) : 0,

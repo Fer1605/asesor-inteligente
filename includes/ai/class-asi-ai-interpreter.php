@@ -22,7 +22,8 @@ class ASI_AI_Interpreter {
 	const ACTIONS      = array( 'finance', 'quote', 'compare', 'detail', 'search', 'info', 'none' );
 	const TOPICS       = array( 'contact', 'location', 'hours', 'financing' );
 	const MAX_VISIBLE  = 8;
-	const MAX_QUERY    = 6;
+	const MAX_QUERY    = 30;  // Palabras de una búsqueda de la IA (solo contra basura, no para recortar lo que pidió).
+	const MAX_ITEMS    = 50;  // Marcas, tipos o exclusiones que se aceptan de la IA (antes 3: se perdía la cuarta).
 	const MAX_PLAIN_WORDS = 5; // Más palabras que esto: la IA revisa (hay más formas de malinterpretar).
 
 	/** Respuestas de las reglas en las que vale la pena preguntarle a la IA. */
@@ -59,7 +60,14 @@ class ASI_AI_Interpreter {
 	public static function scrub( $text ) {
 		$text = preg_replace( '/[^\s@]+@[^\s@]+\.[^\s@]+/u', '[correo]', (string) $text );
 		$text = preg_replace( '#https?://\S+#u', '[enlace]', $text );
-		$text = preg_replace( '/\+?\d[\d\s\-\.]{6,}\d/u', '[numero]', $text );
+		// Teléfonos y documentos (8 dígitos o más); un monto como "1.500.000" se queda.
+		$text = preg_replace_callback(
+			'/\+?\d[\d\s\-\.]{6,}\d/u',
+			function ( $m ) {
+				return strlen( preg_replace( '/\D/', '', $m[0] ) ) >= 8 ? '[numero]' : $m[0];
+			},
+			$text
+		);
 		return trim( preg_replace( '/\s+/u', ' ', $text ) );
 	}
 
@@ -99,7 +107,7 @@ class ASI_AI_Interpreter {
 			'quote'   => 'quote: pide expresamente una cotización o proforma (cotizar, cotízame, mándame la cotización). Pedir cuotas NO es cotizar.',
 			'compare' => 'compare: quiere comparar opciones en pantalla.',
 			'detail'  => 'detail: quiere más información de UNA opción en pantalla.',
-			'search'  => 'search: busca otro producto. En "query" pon de 1 a ' . self::MAX_QUERY . ' palabras clave (tipo, marca, modelo, uso, presupuesto), sin datos personales.',
+			'search'  => 'search: busca otro producto. En "query" pon todo lo que pide en palabras clave (tipo, marca, modelo, uso, presupuesto y lo que no quiere con "que no sea"), sin datos personales.',
 			'info'    => 'info: pregunta por datos del negocio. En "topic" pon contact (teléfono, correo, whatsapp), location (dirección, sucursales), hours (horario) o financing (cómo funciona el financiamiento en general).',
 			'none'    => 'none: no se entiende o no tiene que ver con el sitio.',
 		);
@@ -326,7 +334,7 @@ class ASI_AI_Interpreter {
 		$query = preg_replace( '/[^\p{L}\p{N}\s\-]+/u', ' ', $query );
 		$words = array_slice( preg_split( '/\s+/u', trim( $query ), -1, PREG_SPLIT_NO_EMPTY ), 0, self::MAX_QUERY );
 		$query = implode( ' ', $words );
-		return function_exists( 'mb_substr' ) ? mb_substr( $query, 0, 60 ) : substr( $query, 0, 60 );
+		return function_exists( 'mb_substr' ) ? mb_substr( $query, 0, 300 ) : substr( $query, 0, 300 );
 	}
 
 	/**
@@ -489,14 +497,14 @@ class ASI_AI_Interpreter {
 			}
 			arsort( $counts[ $key ] );
 			$parts = array();
-			foreach ( array_slice( $counts[ $key ], 0, 8, true ) as $word => $n ) {
+			foreach ( array_slice( $counts[ $key ], 0, 20, true ) as $word => $n ) {
 				$parts[] = $word . ' (' . $n . ')';
 			}
 			$lines[] = $label . ': ' . implode( ', ', $parts );
 		}
 		if ( $brands && isset( $labels['brand'] ) ) {
 			arsort( $brands );
-			$lines[] = $labels['brand'] . ': ' . implode( ', ', array_keys( array_slice( $brands, 0, 30, true ) ) );
+			$lines[] = $labels['brand'] . ': ' . implode( ', ', array_keys( array_slice( $brands, 0, 120, true ) ) );
 		}
 		return implode( "\n", $lines );
 	}
@@ -674,11 +682,11 @@ class ASI_AI_Interpreter {
 			return null;
 		};
 		$spec = array(
-			'type'     => implode( ' ', $words( isset( $data['type'] ) ? $data['type'] : '', 3 ) ),
+			'type'     => implode( ' ', $words( isset( $data['type'] ) ? $data['type'] : '', self::MAX_ITEMS ) ),
 			'assumed'  => self::assumed_word( isset( $data['assumed'] ) ? $data['assumed'] : '' ),
-			'brands'   => $words( isset( $data['brands'] ) ? $data['brands'] : array(), 10 ),
-			'words'    => implode( ' ', $words( isset( $data['words'] ) ? $data['words'] : '', 8 ) ),
-			'exclude'  => $words( isset( $data['exclude'] ) ? $data['exclude'] : array(), 10 ),
+			'brands'   => $words( isset( $data['brands'] ) ? $data['brands'] : array(), self::MAX_ITEMS ),
+			'words'    => implode( ' ', $words( isset( $data['words'] ) ? $data['words'] : '', self::MAX_ITEMS ) ),
+			'exclude'  => $words( isset( $data['exclude'] ) ? $data['exclude'] : array(), self::MAX_ITEMS ),
 			'min'      => $amount( 'min' ),
 			'max'      => $amount( 'max' ),
 			'around'   => $amount( 'around' ),

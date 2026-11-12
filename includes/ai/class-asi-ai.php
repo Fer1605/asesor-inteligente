@@ -382,7 +382,8 @@ class ASI_AI {
 			'model'       => $model,
 			'messages'    => array( array( 'role' => 'user', 'content' => $prompt ) ),
 			'temperature' => 0,
-			'max_tokens'  => 'groq' === $provider && 0 === strpos( $model, 'openai/gpt-oss' ) ? 400 : 120,
+			// Tope de respuesta: solo se cobra lo que escribe; alto para que una lista larga no se corte.
+			'max_tokens'  => 'groq' === $provider && 0 === strpos( $model, 'openai/gpt-oss' ) ? 1500 : 500,
 		);
 		// Los modelos que "razonan" gastan menos y tardan menos con el razonamiento corto.
 		if ( 'groq' === $provider && 0 === strpos( $model, 'openai/gpt-oss' ) ) {
