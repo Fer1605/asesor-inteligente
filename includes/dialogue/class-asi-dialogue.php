@@ -400,7 +400,14 @@ class ASI_Dialogue {
 
 		// Lo que se corrigió antes de leer el mensaje también se dice ("Lo busqué como …").
 		if ( $this->typos ) {
-			$query['corrections'] = array_merge( $this->typos, (array) $query['corrections'] );
+			// Solo se menciona lo que importa para la búsqueda ("camioneta"), no "quiero" o "hablar".
+			$shown = array();
+			foreach ( $this->typos as $typed => $fixed ) {
+				if ( ! in_array( $fixed, $this->lexicon->known_words(), true ) && ! $this->lexicon->is_stopword( $fixed ) && ! in_array( $fixed, array_map( array( 'ASI_Normalizer', 'normalize' ), (array) $this->lexicon->get_list( 'request_words' ) ), true ) ) {
+					$shown[ $typed ] = $fixed;
+				}
+			}
+			$query['corrections'] = array_merge( $shown, (array) $query['corrections'] );
 		}
 		$boosts  = $this->repository->boosts( $this->context['lang'], self::content_key( $this->analyzer, $this->lexicon, $text ) );
 		$catalog = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'catalog' ), 'boosts' => $boosts ) );

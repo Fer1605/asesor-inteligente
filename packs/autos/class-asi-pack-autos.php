@@ -307,7 +307,7 @@ final class ASI_Pack_Autos implements ASI_Pack, ASI_Advisor, ASI_Similarity {
 	 * @return string[]
 	 */
 	public function query_words() {
-		$words = array( 'automatica', 'automatico', 'mecanica', 'mecanico', 'manual', 'estandar', 'diesel', 'gasolina', 'hibrido', 'hibrida', 'electrico', 'electrica', 'pasajeros', 'puertas', 'traccion', 'usado', 'usada', 'seminuevo', 'nuevo', 'nueva', 'pickup', 'camioneta', 'sedan', 'hatchback', 'microbus', 'camion', 'panel', 'motocicleta' );
+		$words = array( 'carro', 'auto', 'automovil', 'vehiculo', 'automatica', 'automatico', 'mecanica', 'mecanico', 'manual', 'estandar', 'diesel', 'gasolina', 'hibrido', 'hibrida', 'electrico', 'electrica', 'pasajeros', 'puertas', 'traccion', 'usado', 'usada', 'seminuevo', 'nuevo', 'nueva', 'pickup', 'camioneta', 'sedan', 'hatchback', 'microbus', 'camion', 'panel', 'motocicleta' );
 		// Solo los tipos de una palabra: "camioneta familiar" no hace de "familia" un error de dedo.
 		foreach ( self::BODIES as $list ) {
 			foreach ( (array) $list as $phrase ) {

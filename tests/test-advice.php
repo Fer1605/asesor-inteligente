@@ -463,3 +463,10 @@ check( 'mal escrita: "ruedas" no se vuelve "buenas"', 'que es negocios sobre rue
 check( 'mal escrita: "cuatro" no se vuelve "cuanto"', 'somos cuatro', $an->fix_typos( 'somos cuatro', $tt ) );
 $r = $sb->handle( 'orario de atencion', array() );
 check( 'horario: "atención" no es un lugar', false, false !== mb_strpos( $r['text'], 'Atencion' ) || false !== mb_strpos( $r['text'], 'Atención' ) );
+$rp = ASI_AI_Interpreter::review_prompt( 'quieor una camiooneeta automatica', '', 'Agencia', 'quiero una camioneta automatica' );
+check( 'prompt: lleva la lectura del chat', true, false !== strpos( $rp, 'quiero una camioneta automatica' ) );
+check( 'prompt: camioneta nunca es camión', true, false !== strpos( $rp, 'NUNCA un camión' ) );
+$tt = array();
+check( 'diminutivo: carrito = carro', 'un carro pequeño', $an->fix_typos( 'un carrito pequeño', $tt ) );
+$tt = array();
+check( 'no "carreton": dos cambios en palabra corta no se corrigen', false, false !== strpos( $an->fix_typos( 'un carrito', $tt ), 'carreton' ) );

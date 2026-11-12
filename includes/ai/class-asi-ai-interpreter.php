@@ -512,14 +512,19 @@ class ASI_AI_Interpreter {
 	 * @param string $current Lo que venía buscando (texto acumulado), o ''.
 	 * @param string $site    Nombre del sitio.
 	 */
-	public static function review_prompt( $message, $current, $site = '' ) {
+	public static function review_prompt( $message, $current, $site = '', $reading = '' ) {
 		$lines   = array();
 		$lines[] = 'Eres el intérprete de un chat de ventas de vehículos' . ( '' !== $site ? ' del sitio "' . $site . '"' : '' ) . '. NO le respondes al cliente: traduces lo que busca a filtros.';
 		$lines[] = 'El cliente escribe en español o inglés, con errores de dedo y modismos de Guatemala.';
 		$lines[] = '';
 		$lines[] = '' !== trim( $current ) ? 'Lo que venía buscando (mensajes anteriores juntos): """' . str_replace( '"""', '"', $current ) . '"""' : 'No venía buscando nada.';
 		$lines[] = 'Mensaje nuevo: """' . str_replace( '"""', '"', $message ) . '"""';
+		if ( '' !== trim( $reading ) ) {
+			$lines[] = 'El chat ya lo leyó así (con los errores de dedo corregidos): """' . str_replace( '"""', '"', $reading ) . '"""';
+			$lines[] = 'Si esa lectura es correcta, devuelve esos mismos filtros. Corrígela solo si el chat entendió mal.';
+		}
 		$lines[] = '';
+		$lines[] = 'Vocabulario de Guatemala: "camioneta" es una SUV o una pickup, NUNCA un camión (camión es un vehículo de carga grande). "Carro" es cualquier automóvil. "Picop"/"palangana" es pickup. "Troca" es pickup o camión pequeño. Con errores de dedo, quédate con la palabra más parecida ("camiooneeta" = camioneta).';
 		$lines[] = 'Devuelve la búsqueda COMPLETA como queda después del mensaje nuevo:';
 		$lines[] = '- Si el mensaje afina ("solo toyota", "que no pase de 100 mil", "y diésel"), conserva lo anterior y suma lo nuevo.';
 		$lines[] = '- Si cambia de tema ("ahora busco un pickup"), empieza de cero.';
@@ -528,7 +533,7 @@ class ASI_AI_Interpreter {
 		$lines[] = '- Montos en número completo: 100 mil = 100000, 1.5 millones = 1500000.';
 		$lines[] = '- Si da un monto aproximado ("unos 250 mil", "alrededor de", "como de", "más o menos"), ponlo en "around" y deja min y max en null.';
 		$lines[] = '';
-		$lines[] = 'Campos: "type" tipo de vehículo (suv, pickup, sedan, hatchback, camion, microbus, panel, moto…) o vacío; "brands" marcas que quiere; "words" otras características (4x4, diesel, automatica, hibrido, 7 pasajeros, año, modelo) o vacío; "exclude" marcas o tipos que NO quiere; "min" y "max" montos o null; "around" monto aproximado o null; "currency" "USD" si dice dólares/$, "GTQ" si dice quetzales/Q, si no vacío.';
+		$lines[] = 'Campos: "type" tipo de vehículo (camioneta, suv, pickup, sedan, hatchback, microbus, panel, camion…; si dice "camioneta" pon "camioneta") o vacío; "brands" marcas que quiere; "words" otras características (4x4, diesel, automatica, hibrido, 7 pasajeros, año, modelo) o vacío; "exclude" marcas o tipos que NO quiere; "min" y "max" montos o null; "around" monto aproximado o null; "currency" "USD" si dice dólares/$, "GTQ" si dice quetzales/Q, si no vacío.';
 		$lines[] = 'Si el mensaje no es una búsqueda (pregunta cuotas, cotizar, horario, saludo…), responde {"search":false}.';
 		$lines[] = 'Responde SOLO con JSON en una línea, sin explicación: {"search":true,"type":"suv","brands":["toyota"],"words":"","exclude":[],"min":null,"max":100000,"around":null,"currency":""}';
 		return implode( "\n", $lines );
@@ -672,7 +677,8 @@ class ASI_AI_Interpreter {
 		if ( null !== $cached ) {
 			$phrase = (string) $cached;
 		} else {
-			$answer = call_user_func( $ask, self::review_prompt( self::scrub( $message ), $current, $site ) );
+			$reading = isset( $response['state']['q'] ) ? self::scrub( (string) $response['state']['q'] ) : '';
+			$answer  = call_user_func( $ask, self::review_prompt( self::scrub( $message ), $current, $site, $reading ) );
 			if ( ! is_array( $answer ) || empty( $answer['text'] ) ) {
 				return $out;
 			}

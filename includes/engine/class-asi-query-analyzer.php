@@ -449,6 +449,12 @@ class ASI_Query_Analyzer {
 			'/\p{L}{5,}/u',
 			function ( $m ) use ( &$typos ) {
 				$word = ASI_Normalizer::normalize( $m[0] );
+				// Diminutivos de algo del catálogo o del giro: "carrito" = carro, "camionetita" = camioneta.
+				$plain = $this->undiminish( $word );
+				if ( $plain !== $word ) {
+					$typos[ $m[0] ] = $plain;
+					return $plain;
+				}
 				$base = ASI_Lexicon::normal_form( $word );
 				// Los números en letras no se corrigen ("cuatro" no es "cuanto").
 				if ( in_array( $word, (array) $this->lexicon->get_list( 'number_words' ), true ) ) {
@@ -466,6 +472,22 @@ class ASI_Query_Analyzer {
 			},
 			(string) $message
 		);
+	}
+
+	/**
+	 * La palabra sin diminutivo si esa palabra se conoce (sitio, giro o chat); si no, igual.
+	 */
+	private function undiminish( $word ) {
+		if ( ! preg_match( '/^(.{3,}?)(c?it[oa]s?)$/', $word, $m ) ) {
+			return $word;
+		}
+		$stem = $m[1];
+		foreach ( array( $stem . 'o', $stem . 'a', $stem, rtrim( $stem, 'c' ) . 'o', rtrim( $stem, 'c' ) . 'a', rtrim( $stem, 'c' ) ) as $base ) {
+			if ( strlen( $base ) >= 3 && ( isset( $this->vocab['tokens'][ $base ] ) || isset( $this->pack_words[ $base ] ) ) ) {
+				return $base;
+			}
+		}
+		return $word;
 	}
 
 	/**
@@ -533,7 +555,9 @@ class ASI_Query_Analyzer {
 			return $word;
 		}
 
-		$max_distance = $length <= 5 ? 1 : 2;
+		// Dos errores solo en palabras largas: en una de 7 letras, dos cambios ya es otra palabra
+		// ("carrito" no es "carreton").
+		$max_distance = $length <= 7 ? 1 : 2;
 		$best         = $word;
 		$best_score   = PHP_INT_MAX;
 
