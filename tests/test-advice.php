@@ -392,7 +392,7 @@ foreach ( array( 'quiero una camioneeta automatica', 'quiero una camioneta autom
 	check( "camioneta trae resultados: \"$m\"", true, (bool) $bodies );
 }
 $q = $an->analyze( 'quiero una camioneeta automatica' );
-check( 'typo: se lee el tipo aunque esté mal escrito', array( 'suv', 'pickup', 'van' ), $q['attrs']['body']['in'] );
+check( 'typo: se lee el tipo aunque esté mal escrito', array( 'suv' ), $q['attrs']['body']['in'] );
 check( 'typo: y la transmisión', array( 'auto' ), $q['attrs']['transmission']['in'] );
 check( 'typo: "picup 4x4"', array( '4x4' ), $an->analyze( 'picup 4x4' )['attrs']['traction']['in'] );
 check( 'typo: no corrige montos ni negaciones', array( null, 300000.0 ), array( $an->analyze( 'que no pasen de 300 mil quetzales' )['price_min'], $an->analyze( 'que no pasen de 300 mil quetzales' )['price_max'] ) );
@@ -465,7 +465,8 @@ $r = $sb->handle( 'orario de atencion', array() );
 check( 'horario: "atención" no es un lugar', false, false !== mb_strpos( $r['text'], 'Atencion' ) || false !== mb_strpos( $r['text'], 'Atención' ) );
 $rp = ASI_AI_Interpreter::review_prompt( 'quieor una camiooneeta automatica', '', 'Agencia', 'quiero una camioneta automatica' );
 check( 'prompt: lleva la lectura del chat', true, false !== strpos( $rp, 'quiero una camioneta automatica' ) );
-check( 'prompt: camioneta nunca es camión', true, false !== strpos( $rp, 'NUNCA un camión' ) );
+check( 'prompt: camioneta nunca es camión', true, false !== strpos( $rp, 'ni un camión' ) );
+check( 'prompt: camioneta nunca es pickup', true, false !== strpos( $rp, 'NUNCA una pickup' ) );
 $tt = array();
 check( 'diminutivo: carrito = carro', 'un carro pequeño', $an->fix_typos( 'un carrito pequeño', $tt ) );
 $tt = array();

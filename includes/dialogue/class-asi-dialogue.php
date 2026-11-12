@@ -479,7 +479,7 @@ class ASI_Dialogue {
 			$options['opening'] = ! empty( $catalog['budget'] ) ? ( ! empty( $query['attr_labels'] ) ? 'results_budget_attrs' : 'results_budget' ) : 'results_attrs';
 		}
 		$vars  = array(
-			'budget' => ASI_Search::has_price_filter( $query ) ? $this->budget_text( $query ) : '',
+			'budget' => isset( $options['budget'] ) ? $options['budget'] : ( ASI_Search::has_price_filter( $query ) ? $this->budget_text( $query ) : '' ),
 			'wanted' => $this->responder->join_list( isset( $query['attr_labels'] ) ? (array) $query['attr_labels'] : array(), 'and' ),
 			'n'      => $this->responder->count_options( $total ),
 			'label'  => $query['label'],
@@ -647,7 +647,23 @@ class ASI_Dialogue {
 		if ( $combined['items'] && 'exact' === $combined['quality'] ) {
 			return $this->search_flow( $combined_text, $combined_query, $state, array( 'opening' => 'results_refined', 'refine' => $query['label'] ) );
 		}
-		// Sumado no da nada: se busca solo lo nuevo y se dice con honestidad.
+		// Sumado no da nada. Si había presupuesto, no se suelta en silencio: lo nuevo se busca dentro
+		// de ese monto ("quiero toyota" tras "hasta 250 mil"); si no alcanza, se dice.
+		if ( ! $this->has_price( $query ) ) {
+			$old = ASI_Money::extract_budget( $state['q'], (array) $this->lexicon->get_list( 'money_words' ), (array) $this->context['money'] );
+			if ( $old['spans'] ) {
+				$budget_text  = trim( $message . ' ' . implode( ' ', $old['spans'] ) );
+				$budget_query = $this->analyzer->analyze( $budget_text );
+				if ( $this->has_price( $budget_query ) ) {
+					$within = $this->search->search( $this->context['lang'], $budget_query, array( 'roles' => array( 'catalog' ) ) );
+					if ( $within['items'] && 'exact' === $within['quality'] ) {
+						return $this->search_flow( $budget_text, $budget_query, $state, array( 'opening' => 'refine_budget', 'refine' => $query['label'] ) );
+					}
+					return $this->search_flow( $message, $query, $state, array( 'opening' => 'refine_over_budget', 'refine' => $query['label'], 'budget' => $this->budget_text( $budget_query ) ) );
+				}
+			}
+		}
+		// Se busca solo lo nuevo y se dice con honestidad.
 		return $this->search_flow( $message, $query, $state, array( 'opening' => 'refine_empty', 'refine' => $query['label'] ) );
 	}
 

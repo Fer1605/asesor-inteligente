@@ -577,6 +577,12 @@ return array(
 			'Listo, filtré por {refine}. Tengo {n}.',
 			'Hecho: con {refine} encontré {n}.',
 		),
+		'refine_budget' => array(
+			'Con “{refine}” y todo lo anterior no me quedó ninguna opción. Dentro de tu presupuesto {budget}, esto es lo que tengo de {refine}:',
+		),
+		'refine_over_budget' => array(
+			'De {refine} no tengo nada dentro de tu presupuesto {budget}. Te muestro lo que hay de {refine}, por si te sirve:',
+		),
 		'refine_empty' => array(
 			'Con “{refine}” no me quedó ninguna opción, así que busqué solo eso:',
 			'No hay coincidencias sumando “{refine}” a lo anterior; te muestro lo que tengo de {refine}:',

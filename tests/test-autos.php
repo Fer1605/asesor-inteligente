@@ -113,7 +113,20 @@ check( 'agrícola: Hilux es pickup', 'pickup', $agri( 'TOYOTA HILUX 2019' ) );
 check( 'frase: etiqueta en femenino plural', array( 'automáticas', 'usadas' ), $autos->parse_query( 'automático usado', 'es' )['labels'] );
 check( 'frase: "camioneta" queda como palabra blanda', array( 'camioneta' ), $autos->parse_query( 'camioneta del 2024', 'es' )['soft'] );
 $r = $lot_bot()->handle( 'camioneta del 2026' );
-check( 'conv: "camioneta" (SUV, pickup o van) no exige la palabra si la carrocería cumple', array( 1, 3 ), $ids( $r ) );
+check( 'conv: "camioneta" es SUV y no exige la palabra si la carrocería cumple', array( 3 ), $ids( $r ) );
+check( 'frase: "camioneta" es SUV, no pickup', array( 'suv' ), $autos->parse_query( 'quiero camionetas', 'es' )['constraints']['body']['in'] );
+check( 'frase: "camioneta para la finca" también pickup', array( 'suv', 'pickup' ), $autos->parse_query( 'camioneta para la finca', 'es' )['constraints']['body']['in'] );
+check( 'frase: "camioneta para ir al trabajo" es SUV', array( 'suv' ), $autos->parse_query( 'camioneta para ir al trabajo', 'es' )['constraints']['body']['in'] );
+// "suv pickup" guardado + marca: una Hilux cumple "SUV o pickup" sin decir "suv".
+$r = $lot_bot()->handle( 'solo toyota', array( 'q' => 'suv pickup hasta 400000', 'turns' => 2 ) );
+check( 'refinar: marca sobre "suv pickup" con presupuesto', array( 1 ), $ids( $r ) );
+// Sumado no da nada: lo nuevo se busca dentro del presupuesto, no se suelta en silencio.
+$r = $lot_bot()->handle( 'solo toyota', array( 'q' => 'suv hasta 400000', 'turns' => 2 ) );
+check( 'refinar: sin Toyota SUV en 400 mil, Toyota dentro del presupuesto', array( 1 ), $ids( $r ) );
+check( 'refinar: lo dice', true, false !== strpos( $r['text'], 'Dentro de tu presupuesto de hasta Q 400,000' ) );
+check( 'refinar: conserva el presupuesto', true, false !== strpos( $r['state']['q'], '400' ) );
+$r = $lot_bot()->handle( 'solo toyota', array( 'q' => 'suv hasta 200000', 'turns' => 2 ) );
+check( 'refinar: si no alcanza, lo dice', true, false !== strpos( $r['text'], 'no tengo nada dentro de tu presupuesto de hasta Q 200,000' ) );
 check( 'conv: frase de solo atributos sin "con de"', false, strpos( $lot_bot()->handle( 'algo para 7 personas' )['text'], 'con de' ) );
 // Frase real: palabras de cortesía no se buscan; solo híbridos, sin "no encontré algo exacto".
 $v( 7, 'BYD Song Plus DM-i', 'SUV', 249900, array( 'body' => 'suv', 'seats' => 5, 'fuel' => 'hybrid', 'year' => 2027 ) );

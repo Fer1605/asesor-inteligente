@@ -263,6 +263,16 @@ class ASI_AI_Interpreter {
 		return $out;
 	}
 
+	/**
+	 * ¿El mensaje pone un tope? "no más de", "n oquiero invertir ms de", "que no pase de", "máximo",
+	 * "hasta", "menos de". Con errores de dedo y sin acentos.
+	 */
+	public static function says_cap( $message ) {
+		$text = ' ' . preg_replace( '/[^a-z0-9 ]+/', ' ', strtr( mb_strtolower( (string) $message, 'UTF-8' ), array( 'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ñ' => 'n' ) ) ) . ' ';
+		return (bool) preg_match( '/\s(no|n|ni)\s(?:\S+\s){0,5}?(mas|ms|mayor|mayores|pase|pasen|pasar|exceda|excedan|arriba)\s(de|a|del)\s/', $text )
+			|| (bool) preg_match( '/\s(hasta|maximo|maxim|max|tope|menos de|no mas)\s/', $text );
+	}
+
 	/** Números escritos en el mensaje ("160", "160,000", "1.5", "ciento sesenta mil"). */
 	public static function numbers_in( $message ) {
 		preg_match_all( '/[0-9]+(?:[.,][0-9]+)*/', (string) $message, $m );
@@ -631,7 +641,7 @@ class ASI_AI_Interpreter {
 			$lines[] = 'Si lo que pide sí es una característica del sitio, "assumed" va vacío.';
 			$lines[] = '';
 		}
-		$lines[] = 'Vocabulario de Guatemala: "camioneta" es una SUV o una pickup, NUNCA un camión (camión es un vehículo de carga grande). "Carro" es cualquier automóvil. "Picop"/"palangana" es pickup. "Troca" es pickup o camión pequeño. Con errores de dedo, quédate con la palabra más parecida ("camiooneeta" = camioneta).';
+		$lines[] = 'Vocabulario de Guatemala: "camioneta" es una SUV: NUNCA una pickup ni un camión. Pickup solo si el cliente la nombra ("pickup", "picop", "palangana", "doble cabina"); camión es un vehículo de carga grande. "Carro" es cualquier automóvil. "Picop"/"palangana" es pickup. "Troca" es pickup o camión pequeño. Con errores de dedo, quédate con la palabra más parecida ("camiooneeta" = camioneta).';
 		if ( is_array( $base ) ) {
 			$lines[] = 'Devuelve SOLO lo que CAMBIA con el mensaje nuevo; todo lo demás de la búsqueda actual se queda igual (lo que no quiere, el presupuesto, el tipo…).';
 			$lines[] = '- "type": la lista de tipos SOLO si el mensaje pide otro tipo; si no, lista vacía.';
@@ -654,7 +664,7 @@ class ASI_AI_Interpreter {
 		$lines[] = '- Montos en número completo: 100 mil = 100000, 1.5 millones = 1500000.';
 		$lines[] = '- Si da un monto aproximado ("unos 250 mil", "alrededor de", "como de", "más o menos"), ponlo en "around" y deja min y max en null.';
 		$lines[] = '';
-		$lines[] = 'Campos: "type" lista de 1 a 3 tipos de vehículo (camioneta, suv, pickup, sedan, hatchback, microbus, panel, camion…; si dice "camioneta" pon "camioneta") o vacía; "assumed" la palabra de uso o perfil que tradujiste, o vacío; "brands" marcas que quiere; "words" otras características (4x4, diesel, automatica, hibrido, 7 pasajeros, año, modelo) o vacío; "exclude" marcas o tipos que NO quiere; "min" y "max" montos o null; "around" monto aproximado o null; "currency" "USD" si dice dólares/$, "GTQ" si dice quetzales/Q, si no vacío.';
+		$lines[] = 'Campos: "type" lista de 1 a 3 tipos de vehículo (camioneta, suv, pickup, sedan, hatchback, microbus, panel, camion…; si dice "camioneta" pon "suv", nunca "pickup") o vacía; "assumed" la palabra de uso o perfil que tradujiste, o vacío; "brands" marcas que quiere; "words" otras características (4x4, diesel, automatica, hibrido, 7 pasajeros, año, modelo) o vacío; "exclude" marcas o tipos que NO quiere; "min" y "max" montos o null; "around" monto aproximado o null; "currency" "USD" si dice dólares/$, "GTQ" si dice quetzales/Q, si no vacío.';
 		$lines[] = 'Si el mensaje no es una búsqueda (pregunta cuotas, cotizar, horario, saludo…), responde {"search":false}.';
 		$lines[] = 'Responde SOLO con JSON en una línea, sin explicación: {"search":true,"type":["suv"],"assumed":"","brands":["toyota"],"words":"","exclude":[],"min":null,"max":100000,"around":null,"currency":""}';
 		return implode( "\n", $lines );
@@ -716,6 +726,11 @@ class ASI_AI_Interpreter {
 			$spec['max'] = null;
 		}
 		if ( null !== $spec['min'] && null !== $spec['max'] && $spec['min'] >= $spec['max'] ) {
+			$spec['min'] = null;
+		}
+		// "No quiero invertir más de 250 mil", "máximo 250": ese monto es un tope, nunca un piso.
+		if ( null !== $spec['min'] && null === $spec['max'] && self::says_cap( $message ) ) {
+			$spec['max'] = $spec['min'];
 			$spec['min'] = null;
 		}
 		// La moneda la deciden las palabras del cliente, no la IA.

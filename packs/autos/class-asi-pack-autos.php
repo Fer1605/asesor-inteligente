@@ -422,8 +422,9 @@ final class ASI_Pack_Autos implements ASI_Pack, ASI_Advisor, ASI_Similarity {
 					continue; // "hb", "ton": solo al leer fichas.
 				}
 				if ( preg_match( '/[^a-z]' . preg_quote( $word, '/' ) . 's?[^a-z]/', $text ) ) {
-					// "Camioneta" en Centroamérica puede ser SUV, pickup o van.
-					$bodies        = array_merge( $bodies, 'camioneta' === $word ? array( 'suv', 'pickup', 'van' ) : self::QUERY_BODIES[ $body ] );
+					// "Camioneta" es una SUV: la pickup se pide por su nombre (pickup, picop, palangana),
+					// salvo que sea para trabajar o cargar ("camioneta para la finca" → también pickup).
+					$bodies        = array_merge( $bodies, 'camioneta' === $word && self::work_use( $text ) ? array( 'suv', 'pickup' ) : self::QUERY_BODIES[ $body ] );
 					$names[]       = $labels[ $body ];
 					$out['soft'][] = $word;
 					break;
@@ -558,5 +559,11 @@ final class ASI_Pack_Autos implements ASI_Pack, ASI_Advisor, ASI_Similarity {
 		$text = function_exists( 'mb_strtolower' ) ? mb_strtolower( (string) $text, 'UTF-8' ) : strtolower( (string) $text );
 		$text = strtr( $text, array( 'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n' ) );
 		return preg_replace( '/[^a-z0-9%.,\/ -]+/', ' ', $text );
+	}
+
+	/** ¿El mensaje habla de trabajo, carga o finca? ("para ir al trabajo" no cuenta.) */
+	private static function work_use( $text ) {
+		$text = preg_replace( '/(para ir al trabajo|ir a trabajar|ir a la oficina)/', ' ', ' ' . $text . ' ' );
+		return (bool) preg_match( '/[^a-z](trabaj[a-z]*|negocios?|carga|cargar|mercaderia|herramientas?|reparto|construccion|obras?|fincas?|campos?|terracerias?|work|hauling|farms?)[^a-z]/', $text );
 	}
 }

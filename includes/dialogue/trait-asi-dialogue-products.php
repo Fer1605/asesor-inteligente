@@ -187,6 +187,17 @@ trait ASI_Dialogue_Products {
 				return $many;
 			}
 		}
+		// "Compara la 1, 2, 3 y 4": tres o más por número o nombre, la comparativa con todas
+		// (las mismas reglas que leen "cuotas de la 1, 2, 3 y 4").
+		if ( '' !== $marker && count( $state['results'] ) >= 3 ) {
+			$listed = $this->action_targets( $normalized, $normalized, $state, false );
+			if ( count( $listed ) >= 3 ) {
+				$many = $this->compare_many( $listed );
+				if ( $many ) {
+					return $many;
+				}
+			}
+		}
 		$splitters = $this->lexicon->normal_list( 'compare_splitters' );
 
 		// Lo que queda sin la frase de comparar ("vs" también separa, así que se deja).

@@ -598,3 +598,17 @@ $ask = function () {
 };
 $out = ASI_AI_Interpreter::review_action( $bot8, 'cuotas de la 2, 6 y 1', $s, $fin2, array_values( $titles8 ), array( 'finance', 'quote', 'compare', 'detail' ), $ph, $ask );
 check( 'acciones: corregida con la IA = tres columnas', 4, count( $out['response']['table']['head'] ) );
+// "Compara la 1, 2, 3 y 4": las cuatro (el comparador acepta hasta 4).
+$s18 = array( 'results' => array( 21, 20, 22, 23 ), 'shown' => array( 21, 20, 22, 23 ) );
+$r   = $say( 'compara la 1, 2, 3 y 4', $s18 );
+check( 'comparar: "la 1, 2, 3 y 4" compara las cuatro', array( 'compare', array( 21, 20, 22, 23 ) ), array( $r['kind'], $runner->previews ? end( $runner->previews )[1] : array() ) );
+$runner->calls = array();
+$r = $say( 'cotizame esas', $s18 );
+check( 'comparar 4 → "cotízame esas" cotiza las cuatro', array( 'quote', array( 21, 20, 22, 23 ) ), array( $s18['pending']['action'] ?? '', $s18['pending']['ids'] ?? array() ) );
+// Si "compara" no se entendió (pregunta cuáles), "cotízame esas" es cotizar, no comparar.
+$s19 = array( 'results' => array( 21, 20, 22, 23 ), 'shown' => array( 21, 20, 22, 23 ), 'awaiting' => 'compare' );
+$r = $say( 'cotizame esas', $s19 );
+check( 'tras "¿cuáles comparo?", "cotízame esas" no compara (pregunta cuál cotizar)', true, 'compare' !== $r['kind'] && false === strpos( $r['text'], 'compar' ) );
+$s20 = array( 'results' => array( 21, 20, 22, 23 ), 'shown' => array( 21, 20, 22, 23 ), 'awaiting' => 'compare' );
+$r   = $say( 'la 1, 2, 3 y 4', $s20 );
+check( 'tras "¿cuáles comparo?", "la 1, 2, 3 y 4" compara las cuatro', array( 'compare', array( 21, 20, 22, 23 ) ), array( $r['kind'], end( $runner->previews )[1] ) );

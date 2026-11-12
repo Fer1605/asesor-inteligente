@@ -431,6 +431,11 @@ class ASI_Search {
 				$critical++;
 			}
 			if ( $best <= 0 ) {
+				// Una palabra de tipo que ya controla un atributo ("suv pickup" → carrocería SUV o
+				// pickup) no falta: una Hilux no tiene que decir "suv" para cumplir "SUV o pickup".
+				if ( ! empty( $group['soft'] ) ) {
+					$matched[] = $index;
+				}
 				continue;
 			}
 			// Un término del sitio (categoría, marca, código) solo se cumple en el título o en los términos:

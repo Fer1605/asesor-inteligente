@@ -199,3 +199,14 @@ check( 'delta: si las reglas cambiaron la búsqueda, ya no vale', null, ASI_AI_I
 $p = ASI_AI_Interpreter::review_prompt( 'tampoco kia', 'suv gasolina', 'Agencia', '', '', $base );
 check( 'delta: la IA ve lo que no quiere', true, false !== strpos( $p, 'NO quiere: geely, gwm, bmw, mercedes benz, isuzu, land rover' ) );
 check( 'delta: y se le pide solo el cambio', true, false !== strpos( $p, 'SOLO lo que CAMBIA' ) );
+// Frase real: la IA leyó "desde 250 mil" en "no quiero invertir más de 250 mil": es un tope.
+$spec = ASI_AI_Interpreter::parse_review( '{"search":true,"type":["suv"],"brands":[],"words":"","exclude":[],"min":250000,"max":null,"around":null,"currency":""}', 'n oquiero invertir ms de 250 mil y de preferncia camioneta', '' );
+check( 'IA: "no quiero invertir más de 250 mil" es tope, no piso', array( null, 250000.0 ), array( $spec['min'], $spec['max'] ) );
+$spec = ASI_AI_Interpreter::parse_review( '{"search":true,"type":["suv"],"brands":[],"words":"","exclude":[],"min":250000,"max":null,"around":null,"currency":""}', 'quiero una suv de más de 250 mil', '' );
+check( 'IA: "de más de 250 mil" sigue siendo piso', array( 250000.0, null ), array( $spec['min'], $spec['max'] ) );
+foreach ( array( 'que no pase de 200 mil', 'maximo 200 mil', 'hasta 200 mil', 'no mas de 200 mil', 'que no sean mayores a 200 mil' ) as $m ) {
+	check( "IA: tope en \"$m\"", true, ASI_AI_Interpreter::says_cap( $m ) );
+}
+foreach ( array( 'de mas de 200 mil', 'desde 200 mil', 'arriba de 200 mil' ) as $m ) {
+	check( "IA: no es tope \"$m\"", false, ASI_AI_Interpreter::says_cap( $m ) );
+}

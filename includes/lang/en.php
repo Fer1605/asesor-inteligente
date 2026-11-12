@@ -463,6 +463,12 @@ return array(
 			'Done, I narrowed it down with “{refine}”: {n} left.',
 			'Got it, filtered by {refine}. I have {n}.',
 		),
+		'refine_budget' => array(
+			'Adding “{refine}” to everything else left nothing. Within your budget {budget}, this is what I have for {refine}:',
+		),
+		'refine_over_budget' => array(
+			'I have nothing for {refine} within your budget {budget}. Here is what I have for {refine}, in case it helps:',
+		),
 		'refine_empty' => array(
 			'Adding “{refine}” left nothing, so I searched just for that:',
 		),

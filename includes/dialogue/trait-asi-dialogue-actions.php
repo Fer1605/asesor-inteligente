@@ -59,8 +59,20 @@ trait ASI_Dialogue_Actions {
 
 		// 1b. El chat preguntó "¿cuáles comparo?": esta es la respuesta ("la 1 y la 3", "la tank y la
 		// d-max", "los que me acabas de cotizar").
-		if ( 'compare' === $state['awaiting'] ) {
+		// "Cotízame esas" o "las cuotas de la 2" no responden esa pregunta: son otro pedido.
+		// "De los que me acabas de cotizar" sí la responde.
+		$other_request = ( $this->words_in( $normalized, 'quote_words' ) || $this->words_in( $normalized, 'finance_words' ) || preg_match( '/(^|\s)(cotiz|quot|proforma)[a-z]*(\s|$)/', $normalized ) )
+			&& ! preg_match( '/(acabas?|acaban) de cotiz|cotizaste|cotizad[oa]s?|quoted/', $normalized );
+		if ( 'compare' === $state['awaiting'] && ! $other_request ) {
 			$ids = $this->action_targets( $message, $normalized, $state, false );
+			// "La 1, 2, 3 y 4": la comparativa con todas.
+			if ( count( $ids ) >= 3 ) {
+				$many = $this->compare_many( $ids );
+				if ( $many ) {
+					$many['state'] = array_merge( isset( $many['state'] ) ? $many['state'] : array(), array( 'awaiting' => '' ) );
+					return $many;
+				}
+			}
 			if ( count( $ids ) < 2 ) {
 				foreach ( array( $state['selected'], array_slice( $state['quoted'], -2 ), $state['results'] ) as $candidates ) {
 					if ( count( $candidates ) >= 2 ) {
