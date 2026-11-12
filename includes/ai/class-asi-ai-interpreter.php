@@ -676,9 +676,9 @@ class ASI_AI_Interpreter {
 		$spec = array(
 			'type'     => implode( ' ', $words( isset( $data['type'] ) ? $data['type'] : '', 3 ) ),
 			'assumed'  => self::assumed_word( isset( $data['assumed'] ) ? $data['assumed'] : '' ),
-			'brands'   => $words( isset( $data['brands'] ) ? $data['brands'] : array(), 3 ),
-			'words'    => implode( ' ', $words( isset( $data['words'] ) ? $data['words'] : '', 4 ) ),
-			'exclude'  => $words( isset( $data['exclude'] ) ? $data['exclude'] : array(), 3 ),
+			'brands'   => $words( isset( $data['brands'] ) ? $data['brands'] : array(), 10 ),
+			'words'    => implode( ' ', $words( isset( $data['words'] ) ? $data['words'] : '', 8 ) ),
+			'exclude'  => $words( isset( $data['exclude'] ) ? $data['exclude'] : array(), 10 ),
 			'min'      => $amount( 'min' ),
 			'max'      => $amount( 'max' ),
 			'around'   => $amount( 'around' ),

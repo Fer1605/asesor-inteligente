@@ -162,3 +162,7 @@ list( $ask ) = $fake( '{"action":"finance","down_amount":100}' );
 $res = ASI_AI_Interpreter::rescue( $abot, 'y si le doy 100 al principio?', $sa, $titles4, $acts, $es_phrases, $ask, '', true );
 check( 'ia fin e2e: "y si le doy 100 al principio?" = Q 100,000 en la misma tabla', array( 'Q 100,000', 2 ), array( substr( $res['response']['table']['rows'][1][1] ?? '', 0, 9 ), count( $res['response']['table']['head'] ?? array() ) ) );
 check( 'ia fin e2e: una búsqueda normal sin cuotas antes no se marca', false, ! empty( $abot->handle( 'pickup de 2024', array() )['fin_unread'] ) );
+
+// Excluir 4 marcas o más: antes se cortaba en 3 y la cuarta (Mercedes) seguía saliendo.
+$spec = ASI_AI_Interpreter::parse_review( '{"search":true,"type":["suv"],"brands":[],"words":"gasolina","exclude":["jeep","hyundai","land rover","mercedes benz"],"min":null,"max":250000,"around":null,"currency":""}', 'no queiro jeep ni hyundai ni land rover ni mercedez', 'camioneta gasolina hasta 250000' );
+check( 'ia: excluye las 4 marcas que pidió', 4, count( $spec['exclude'] ) );
