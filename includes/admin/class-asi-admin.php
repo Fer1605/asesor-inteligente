@@ -1364,6 +1364,83 @@ class ASI_Admin {
 		?>
 
 		<div class="<?php echo $ver ? '' : 'asi-grid'; ?>">
+			<?php
+			// Todo lo que la IA interpretó queda guardado y se aplica solo: si alguien vuelve a escribir lo
+			// mismo, el chat ya sabe qué hacer sin consultar a la IA. Se puede corregir o quitar.
+			$ai_rows = class_exists( 'ASI_AI' ) ? ASI_AI::cache() : array();
+			uasort(
+				$ai_rows,
+				function ( $a, $b ) {
+					return $b['last'] - $a['last'];
+				}
+			);
+			$ai_list = $this->list_slice( 'ia', $ai_rows, function ( $row ) { return $row['message'] . ' ' . $row['phrase'] . ' ' . ( isset( $row['context'] ) ? $row['context'] : '' ); } );
+			?>
+			<?php if ( ! $ver || 'ia' === $ver ) : ?>
+			<?php $this->card_open( 'Aprendido de la IA (automático)', 'dashicons-lightbulb', 'purple' ); ?>
+				<p class="asi-muted">Cada mensaje que el chat no tenía claro y revisó la IA queda aquí y <strong>se aplica solo</strong>: si alguien vuelve a escribir lo mismo, el chat ya sabe qué hacer <strong>sin volver a consultar a la IA</strong>. Si una está mal, corrígela o quítala.</p>
+				<p class="asi-muted">
+					<span class="asi-tag asi-tag--warn">Corrigió al chat</span> el chat había entendido otra cosa y la IA lo corrigió.
+					<span class="asi-tag asi-tag--ok">Confirmó al chat</span> el chat lo tenía bien; la IA lo confirmó.
+					<strong>Veces</strong>: cuántas veces lo escribieron; solo la primera consultó a la IA, las demás salieron de aquí, gratis.
+				</p>
+				<?php $this->list_search( 'aprendizaje', 'ia', $ai_list, 'Buscar lo que escribieron o cómo se entendió…' ); ?>
+				<?php if ( ! $ai_list['rows'] ) : ?>
+					<div class="asi-empty"><span class="dashicons dashicons-lightbulb" aria-hidden="true"></span><?php echo '' !== $ai_list['query'] ? 'Nada coincide con esa búsqueda.' : 'Todavía nada.'; ?></div>
+				<?php else : ?>
+					<table class="asi-table asi-table--fit asi-ai-learned">
+						<colgroup><col><col class="asi-col-actions"></colgroup>
+						<thead><tr><th>Lo que escribió → cómo lo entendió</th><th><span class="screen-reader-text">Acciones</span></th></tr></thead>
+						<tbody>
+						<?php foreach ( $ai_list['rows'] as $key => $row ) : ?>
+							<?php
+							$changed = ! isset( $row['changed'] ) ? '' !== (string) $row['phrase'] : (bool) $row['changed'];
+							$times   = (int) $row['hits'] + 1;
+							?>
+							<tr>
+								<td>
+									<strong><?php echo esc_html( $row['message'] ); ?></strong>
+									<?php if ( ! empty( $row['context'] ) ) : ?><span class="asi-muted"> · después de: <?php echo esc_html( $row['context'] ); ?></span><?php endif; ?>
+									<div class="asi-ai-learned__meaning">→ <?php echo esc_html( '' !== (string) $row['phrase'] ? $row['phrase'] : '(lo que entendió el chat)' ); ?></div>
+									<div class="asi-ai-learned__meta">
+										<?php if ( ! empty( $row['edited'] ) ) : ?>
+											<span class="asi-tag">Corregido a mano</span>
+										<?php else : ?>
+											<span class="asi-tag asi-tag--<?php echo $changed ? 'warn' : 'ok'; ?>"><?php echo $changed ? 'Corrigió al chat' : 'Confirmó al chat'; ?></span>
+										<?php endif; ?>
+										<span class="asi-muted"><?php echo 1 === $times ? '1 vez' : (int) $times . ' veces'; ?></span>
+									</div>
+									<details class="asi-teach asi-ai-edit">
+										<summary class="button button-small">Editar</summary>
+										<div class="asi-teach__box">
+											<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="asi-teach__form">
+												<?php $this->hidden_fields( 'ai_edit', 'aprendizaje' ); ?>
+												<input type="hidden" name="key" value="<?php echo esc_attr( $key ); ?>">
+												<label><strong>¿Qué significa?</strong> Escríbelo como lo pediría alguien, con palabras que el chat entiende (ej.: “suv toyota hasta 300000”, “cuotas de la 2 y la 3”).</label>
+												<span class="asi-teach__row"><input type="text" name="phrase" class="regular-text" value="<?php echo esc_attr( $row['phrase'] ); ?>" required> <button class="button button-primary">Guardar</button></span>
+											</form>
+										</div>
+									</details>
+								</td>
+								<td class="asi-ai-learned__actions">
+									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="asi-inline-form">
+										<?php $this->hidden_fields( 'ai_forget', 'aprendizaje' ); ?>
+										<input type="hidden" name="key" value="<?php echo esc_attr( $key ); ?>">
+										<button class="button-link asi-link-danger">Quitar</button>
+									</form>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+						</tbody>
+					</table>
+					<?php $this->list_footer( 'aprendizaje', 'ia', $ai_list ); ?>
+					<?php if ( $ai_list['full'] ) : ?>
+						<div class="asi-actions"><?php $this->action_button( 'ai_clear', 'Vaciar todo lo aprendido de la IA', 'aprendizaje', 'button', 'dashicons-trash' ); ?></div>
+					<?php endif; ?>
+				<?php endif; ?>
+			<?php $this->card_close(); ?>
+			<?php endif; ?>
+
 			<?php if ( ! $ver || 'ensenadas' === $ver ) : ?>
 			<?php $this->card_open( 'Respuestas enseñadas', 'dashicons-yes-alt', 'green' ); ?>
 				<?php $this->list_search( 'aprendizaje', 'ensenadas', $t_list, 'Buscar una pregunta enseñada…' ); ?>
@@ -1396,78 +1473,6 @@ class ASI_Admin {
 						</tbody>
 					</table>
 					<?php $this->list_footer( 'aprendizaje', 'ensenadas', $t_list ); ?>
-				<?php endif; ?>
-			<?php $this->card_close(); ?>
-			<?php endif; ?>
-
-			<?php
-			// Todo lo que la IA interpretó queda guardado y se aplica solo: si alguien vuelve a escribir lo
-			// mismo, el chat ya sabe qué hacer sin consultar a la IA. Se puede corregir o quitar.
-			$ai_rows = class_exists( 'ASI_AI' ) ? ASI_AI::cache() : array();
-			uasort(
-				$ai_rows,
-				function ( $a, $b ) {
-					return $b['last'] - $a['last'];
-				}
-			);
-			$ai_list = $this->list_slice( 'ia', $ai_rows, function ( $row ) { return $row['message'] . ' ' . $row['phrase'] . ' ' . ( isset( $row['context'] ) ? $row['context'] : '' ); } );
-			?>
-			<?php if ( ! $ver || 'ia' === $ver ) : ?>
-			<?php $this->card_open( 'Aprendido de la IA (automático)', 'dashicons-lightbulb', 'purple' ); ?>
-				<p class="asi-muted">Cada mensaje que el chat no tenía claro y revisó la IA queda aquí y <strong>se aplica solo</strong>: si alguien vuelve a escribir lo mismo, el chat ya sabe qué hacer <strong>sin volver a consultar a la IA</strong>. Si una está mal, corrígela o quítala.</p>
-				<p class="asi-muted">
-					<span class="asi-tag asi-tag--warn">Corrigió al chat</span> el chat había entendido otra cosa y la IA lo corrigió.
-					<span class="asi-tag asi-tag--ok">Confirmó al chat</span> el chat lo tenía bien; la IA lo confirmó.
-					<strong>Veces</strong>: cuántas veces lo escribieron. Solo la primera consultó a la IA; las demás salieron de aquí, gratis.
-				</p>
-				<?php $this->list_search( 'aprendizaje', 'ia', $ai_list, 'Buscar lo que escribieron o cómo se entendió…' ); ?>
-				<?php if ( ! $ai_list['rows'] ) : ?>
-					<div class="asi-empty"><span class="dashicons dashicons-lightbulb" aria-hidden="true"></span><?php echo '' !== $ai_list['query'] ? 'Nada coincide con esa búsqueda.' : 'Todavía nada.'; ?></div>
-				<?php else : ?>
-					<table class="asi-table">
-						<thead><tr><th>Lo que escribió</th><th>Lo entendió como</th><th>Veces</th><th></th></tr></thead>
-						<tbody>
-						<?php foreach ( $ai_list['rows'] as $key => $row ) : ?>
-							<?php
-							$changed = ! isset( $row['changed'] ) ? '' !== (string) $row['phrase'] : (bool) $row['changed'];
-							?>
-							<tr>
-								<td><?php echo esc_html( $row['message'] ); ?><?php if ( ! empty( $row['context'] ) ) : ?><br><span class="asi-muted">después de: <?php echo esc_html( $row['context'] ); ?></span><?php endif; ?></td>
-								<td>
-									<strong><?php echo esc_html( '' !== (string) $row['phrase'] ? $row['phrase'] : '(lo que entendió el chat)' ); ?></strong><br>
-									<?php if ( ! empty( $row['edited'] ) ) : ?>
-										<span class="asi-tag">Corregido a mano</span>
-									<?php else : ?>
-										<span class="asi-tag asi-tag--<?php echo $changed ? 'warn' : 'ok'; ?>"><?php echo $changed ? 'Corrigió al chat' : 'Confirmó al chat'; ?></span>
-									<?php endif; ?>
-								</td>
-								<td><strong><?php echo (int) $row['hits'] + 1; ?></strong></td>
-								<td class="asi-learning__actions">
-									<details class="asi-teach">
-										<summary class="button button-small">Editar</summary>
-										<div class="asi-teach__box">
-											<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="asi-teach__form">
-												<?php $this->hidden_fields( 'ai_edit', 'aprendizaje' ); ?>
-												<input type="hidden" name="key" value="<?php echo esc_attr( $key ); ?>">
-												<label><strong>¿Qué significa?</strong> Escríbelo como lo pediría alguien, con palabras que el chat entiende (ej.: “suv toyota hasta 300000”, “cuotas de la 2 y la 3”).</label>
-												<span class="asi-teach__row"><input type="text" name="phrase" class="regular-text" value="<?php echo esc_attr( $row['phrase'] ); ?>" required> <button class="button button-primary">Guardar</button></span>
-											</form>
-										</div>
-									</details>
-									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="asi-inline-form">
-										<?php $this->hidden_fields( 'ai_forget', 'aprendizaje' ); ?>
-										<input type="hidden" name="key" value="<?php echo esc_attr( $key ); ?>">
-										<button class="button-link asi-link-danger">Quitar</button>
-									</form>
-								</td>
-							</tr>
-						<?php endforeach; ?>
-						</tbody>
-					</table>
-					<?php $this->list_footer( 'aprendizaje', 'ia', $ai_list ); ?>
-					<?php if ( $ai_list['full'] ) : ?>
-						<div class="asi-actions"><?php $this->action_button( 'ai_clear', 'Vaciar todo lo aprendido de la IA', 'aprendizaje', 'button', 'dashicons-trash' ); ?></div>
-					<?php endif; ?>
 				<?php endif; ?>
 			<?php $this->card_close(); ?>
 			<?php endif; ?>
@@ -1805,7 +1810,7 @@ class ASI_Admin {
 
 	// ---------- Listas largas: 5 a la vista y "Ver todas" con páginas y buscador ----------
 
-	const LIST_PREVIEW  = 5;
+	const LIST_PREVIEW  = 3;
 	const LIST_PER_PAGE = 20;
 
 	/** ¿Se está viendo esta lista completa? */
