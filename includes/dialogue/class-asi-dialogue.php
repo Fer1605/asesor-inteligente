@@ -231,7 +231,13 @@ class ASI_Dialogue {
 			return $closing;
 		}
 
-		// 1. Seguimientos.
+		// 1. Seguimientos. Respuesta a "¿sigues con tu presupuesto?".
+		if ( 'budget' === $state['awaiting'] && '' !== $state['q'] ) {
+			$answer = $this->budget_answer( $message, $normalized, $state );
+			if ( $answer ) {
+				return $answer;
+			}
+		}
 		if ( '' !== $state['q'] && $this->is_more_request( $normalized ) ) {
 			return $this->more( $state );
 		}
@@ -358,7 +364,134 @@ class ASI_Dialogue {
 		if ( $this->is_refinement( $normalized, $query, $state ) ) {
 			return $this->refine( $message, $query, $state );
 		}
+		// Búsqueda nueva ("ahora quiero ver camionetas"): el presupuesto y lo que no quiere siguen
+		// valiendo. Si con ese presupuesto no hay nada, se dice (y se pregunta por otro).
+		list( $carried_text, $carried ) = $this->carry_over( $message, $query, $state );
+		if ( $carried_text !== $message ) {
+			$within = $this->search->search( $this->context['lang'], $carried, array( 'roles' => array( 'catalog' ) ) );
+			if ( $within['items'] && 'exact' === $within['quality'] ) {
+				return $this->search_flow( $carried_text, $carried, $state );
+			}
+			if ( $this->has_price( $carried ) ) {
+				return $this->search_flow( $message, $query, $state, array( 'opening' => 'new_over_budget', 'budget' => $this->budget_text( $carried ) ) );
+			}
+		}
 		return $this->search_flow( $message, $query, $state );
+	}
+
+	/**
+	 * Lo que sigue valiendo de la búsqueda anterior en una nueva: el presupuesto (si el mensaje no
+	 * trae otro) y las marcas o tipos que no quiere (menos lo que ahora sí pide).
+	 *
+	 * @return array [texto, consulta]
+	 */
+	private function carry_over( $message, array $query, array $state ) {
+		if ( '' === trim( (string) $state['q'] ) ) {
+			return array( $message, $query );
+		}
+		$extra = array();
+		if ( ! $this->has_price( $query ) ) {
+			$old = ASI_Money::extract_budget( $state['q'], (array) $this->lexicon->get_list( 'money_words' ), (array) $this->context['money'] );
+			if ( $old['spans'] ) {
+				$extra[] = implode( ' ', $old['spans'] );
+			}
+		}
+		$prev = $this->analyzer->analyze( $state['q'] );
+		if ( ! empty( $prev['exclude'] ) ) {
+			$said = ' ' . ASI_Normalizer::normalize( $message ) . ' ';
+			$keep = array();
+			foreach ( (array) $prev['exclude'] as $group ) {
+				$word = ASI_Normalizer::normalize( (string) $group['text'] );
+				if ( '' !== $word && false === strpos( $said, ' ' . $word ) ) {
+					$keep[] = $word;
+				}
+			}
+			if ( $keep ) {
+				$extra[] = 'que no sea ' . implode( ' ', $keep );
+			}
+		}
+		if ( ! $extra ) {
+			return array( $message, $query );
+		}
+		$text = trim( $message . ' ' . implode( ' ', $extra ) );
+		return array( $text, $this->analyzer->analyze( $text ) );
+	}
+
+	/**
+	 * Cambió el tipo de vehículo (de camiones a camionetas) sin decir monto: el presupuesto se
+	 * conservó, pero puede que para esto sea otro. Se pregunta. Lo llama el endpoint con el mensaje
+	 * original (después de la IA), para que valga igual si respondió la IA o las reglas.
+	 */
+	public function budget_check( array $response, array $before, $message ) {
+		if ( ! $this->analyzer || empty( $response['kind'] ) || 'results' !== $response['kind'] || empty( $before['q'] ) || empty( $response['state']['q'] ) ) {
+			return $response;
+		}
+		if ( preg_match( '/[0-9]|(^|\s)(mil|millon|millones|presupuesto|budget)(\s|$)/', ASI_Normalizer::normalize( $message ) ) ) {
+			return $response;
+		}
+		$prev = $this->analyzer->analyze( (string) $before['q'] );
+		if ( ! $this->has_price( $prev ) ) {
+			return $response;
+		}
+		$now   = $this->analyzer->analyze( (string) $response['state']['q'] );
+		$types = function ( array $query ) {
+			$out = isset( $query['attrs']['body']['in'] ) ? (array) $query['attrs']['body']['in'] : array();
+			sort( $out );
+			return $out;
+		};
+		if ( ! $types( $prev ) || ! $types( $now ) || $types( $prev ) === $types( $now ) ) {
+			return $response;
+		}
+		$label  = $this->responder->join_list( isset( $now['attr_labels'] ) ? array_slice( (array) $now['attr_labels'], 0, 1 ) : array(), 'or' );
+		$budget = $this->budget_text( $prev );
+		$same   = $this->has_price( $now ) && $now['price_max'] === $prev['price_max'] && $now['price_min'] === $prev['price_min'];
+		$response['followup']    = $this->responder->say( $same ? 'budget_keep' : 'budget_other', array( 'budget' => $budget, 'label' => $label ) );
+		$response['suggestions'] = $same ? array( $this->lexicon->word( 'budget_same_chip' ), $this->lexicon->word( 'budget_none_chip' ) ) : array();
+		$response['state']['awaiting'] = $same ? 'budget' : '';
+		return $response;
+	}
+
+	/**
+	 * Respuesta a "¿sigues con tu presupuesto?": "sí, el mismo" lo confirma; "sin presupuesto" lo
+	 * quita; un monto nuevo lo cambia (lo hace el flujo normal). null si es otra cosa.
+	 */
+	private function budget_answer( $message, $normalized, array $state ) {
+		$old = ASI_Money::extract_budget( $state['q'], (array) $this->lexicon->get_list( 'money_words' ), (array) $this->context['money'] );
+		if ( ! $old['spans'] || preg_match( '/[0-9]/', $normalized ) ) {
+			return null;
+		}
+		if ( preg_match( '/(^|\s)(sin (presupuesto|limite|tope)|no tengo (presupuesto|limite|tope)|quit[a-z]* (el )?(presupuesto|limite|tope)|cualquier precio|no importa (el precio|cuanto)|no budget|any price|remove (the )?budget)(\s|$)/', $normalized ) ) {
+			$text  = trim( preg_replace( '/\s+/u', ' ', str_replace( $old['spans'], ' ', ASI_Money::fold( $state['q'] ) ) ) );
+			$query = $this->analyzer->analyze( $text );
+			return $this->search_flow( $text, $query, $state, array( 'opening' => 'budget_removed' ) );
+		}
+		$yes = $this->words_in( $normalized, 'yes_words' ) || preg_match( '/(^|\s)(el mismo|la misma|mismo|igual|same)(\s|$)/', $normalized );
+		if ( $yes && count( explode( ' ', $normalized ) ) <= 5 ) {
+			$prev = $this->analyzer->analyze( $state['q'] );
+			return array(
+				'kind'        => 'smalltalk',
+				'text'        => $this->responder->say( 'budget_kept', array( 'budget' => $this->budget_text( $prev ) ) ),
+				'followup'    => '',
+				'cards'       => array(),
+				'links'       => array(),
+				'suggestions' => array(),
+				'more'        => false,
+				'state'       => array(),
+			);
+		}
+		if ( preg_match( '/^(no|nop|nel|otro|es otro|no es el mismo)$/', $normalized ) ) {
+			return array(
+				'kind'        => 'clarify',
+				'text'        => $this->responder->say( 'budget_ask' ),
+				'followup'    => '',
+				'cards'       => array(),
+				'links'       => array(),
+				'suggestions' => array( $this->lexicon->word( 'budget_none_chip' ) ),
+				'more'        => false,
+				'state'       => array( 'awaiting' => 'budget' ),
+			);
+		}
+		return null;
 	}
 
 	/**
@@ -640,12 +773,35 @@ class ASI_Dialogue {
 		if ( '' === trim( (string) $query['label'] ) && ! empty( $query['attr_labels'] ) ) {
 			$query['label'] = preg_replace( '/^(?:de|of)\s+/u', '', implode( ', ', (array) $query['attr_labels'] ) );
 		}
+		// "¿Y Honda tienes?" tras Toyota: otra marca reemplaza a la anterior (salvo "también").
+		$switched = false;
+		$brands   = array_filter(
+			(array) $query['groups'],
+			function ( $group ) {
+				return 'brand' === $group['term_kind'];
+			}
+		);
+		if ( $brands && ! preg_match( '/(^|\s)(tambien|ademas|junto con|aparte|also|as well)(\s|$)/', ASI_Normalizer::normalize( $message ) ) ) {
+			$new_brands = array_map( 'ASI_Normalizer::normalize', array_column( $brands, 'text' ) );
+			$old_query  = $this->analyzer->analyze( $previous );
+			$folded     = ' ' . ASI_Normalizer::normalize( $previous ) . ' ';
+			foreach ( (array) $old_query['groups'] as $group ) {
+				$word = ASI_Normalizer::normalize( (string) $group['text'] );
+				if ( 'brand' === $group['term_kind'] && '' !== $word && ! in_array( $word, $new_brands, true ) ) {
+					$folded   = preg_replace( '/\s' . preg_quote( $word, '/' ) . '(s|es)?(?=\s)/', ' ', $folded );
+					$switched = true;
+				}
+			}
+			if ( $switched ) {
+				$previous = trim( preg_replace( '/\s+/', ' ', $folded ) );
+			}
+		}
 		$combined_text  = trim( $previous . ' ' . $message );
 		$combined_query = $this->analyzer->analyze( $combined_text );
 		$combined       = $this->search->search( $this->context['lang'], $combined_query, array( 'roles' => array( 'catalog' ) ) );
 
 		if ( $combined['items'] && 'exact' === $combined['quality'] ) {
-			return $this->search_flow( $combined_text, $combined_query, $state, array( 'opening' => 'results_refined', 'refine' => $query['label'] ) );
+			return $this->search_flow( $combined_text, $combined_query, $state, array( 'opening' => $switched ? 'results_switch' : 'results_refined', 'refine' => $query['label'] ) );
 		}
 		// Sumado no da nada. Si había presupuesto, no se suelta en silencio: lo nuevo se busca dentro
 		// de ese monto ("quiero toyota" tras "hasta 250 mil"); si no alcanza, se dice.
@@ -1839,7 +1995,7 @@ class ASI_Dialogue {
 			'selected' => $ints( isset( $state['selected'] ) ? $state['selected'] : array(), 8 ),
 			'quoted'   => $ints( isset( $state['quoted'] ) ? $state['quoted'] : array(), 20 ),
 			'last'     => isset( $state['last'] ) && in_array( $state['last'], array( 'quote', 'compare', 'finance' ), true ) ? $state['last'] : '',
-			'awaiting' => isset( $state['awaiting'] ) && 'compare' === $state['awaiting'] ? 'compare' : '',
+			'awaiting' => isset( $state['awaiting'] ) && in_array( $state['awaiting'], array( 'compare', 'budget' ), true ) ? $state['awaiting'] : '',
 			'previewed' => self::clean_action( isset( $state['previewed'] ) ? $state['previewed'] : array(), $ints ),
 			'fin'       => self::clean_fin( isset( $state['fin'] ) ? $state['fin'] : array() ),
 			'fin_ids'   => $ints( isset( $state['fin_ids'] ) ? $state['fin_ids'] : array(), 8 ),

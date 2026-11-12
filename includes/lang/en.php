@@ -282,6 +282,8 @@ return array(
 		'afternoon' => 'Good afternoon',
 		'evening'   => 'Good evening',
 		'in'        => 'in',
+		'budget_same_chip' => 'Yes, the same',
+		'budget_none_chip' => 'No budget',
 		'more_chip' => 'Show more options',
 		'or'        => 'or',
 		'price'     => 'Price',
@@ -463,6 +465,27 @@ return array(
 			'Done, I narrowed it down with “{refine}”: {n} left.',
 			'Got it, filtered by {refine}. I have {n}.',
 		),
+		'new_over_budget' => array(
+			'Within your budget {budget} I have no {label}; here is what there is:',
+		),
+		'budget_keep' => array(
+			'I kept your budget {budget}. Is it the same for {label}, or a different one? If different, tell me the amount.',
+		),
+		'budget_other' => array(
+			'Do you have a different budget for {label}? Tell me the amount and I will adjust.',
+		),
+		'budget_kept' => array(
+			'Great, I will keep your budget {budget}. Tell me another detail (brand, fuel…) to narrow it down.',
+		),
+		'budget_ask' => array(
+			'What is your budget? For example, “up to 30 thousand”. If you have none, type “no budget”.',
+		),
+		'budget_removed' => array(
+			'Done, no budget limit: I have {n}.',
+		),
+		'results_switch' => array(
+			'Yes, for {refine} I have {n}.',
+		),
 		'refine_budget' => array(
 			'Adding “{refine}” to everything else left nothing. Within your budget {budget}, this is what I have for {refine}:',
 		),
@@ -470,7 +493,7 @@ return array(
 			'I have nothing for {refine} within your budget {budget}. Here is what I have for {refine}, in case it helps:',
 		),
 		'refine_empty' => array(
-			'Adding “{refine}” left nothing, so I searched just for that:',
+			'I have no {refine} that also matches everything else; here is all I have for {refine}:',
 		),
 		'more' => array(
 			'Here are {n} more:',

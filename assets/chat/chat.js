@@ -453,12 +453,27 @@
 		if ( config.nonce ) {
 			headers[ 'X-WP-Nonce' ] = config.nonce;
 		}
-		fetch( config.endpoint, {
-			method: 'POST',
-			credentials: 'same-origin',
-			headers: headers,
-			body: JSON.stringify( { message: message, lang: config.lang, state: state } ),
-		} )
+		// Si la red corta el mensaje (no llegó respuesta), se reintenta una vez solo. No mientras pide
+		// datos para una cotización: ese envío podría haber llegado y se duplicaría el aviso a ventas.
+		const body  = JSON.stringify( { message: message, lang: config.lang, state: state } );
+		const retry = ! ( state && state.pending && state.pending.action );
+		const post  = function () {
+			return fetch( config.endpoint, {
+				method: 'POST',
+				credentials: 'same-origin',
+				headers: headers,
+				body: body,
+			} );
+		};
+		post()
+			.catch( function ( error ) {
+				if ( ! retry ) {
+					throw error;
+				}
+				return new Promise( function ( resolve ) {
+					setTimeout( resolve, 1500 );
+				} ).then( post );
+			} )
 			.then( function ( response ) {
 				return response.json().then( function ( data ) {
 					return { status: response.status, data: data };

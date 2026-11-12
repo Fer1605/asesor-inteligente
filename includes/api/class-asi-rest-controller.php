@@ -189,6 +189,9 @@ class ASI_REST_Controller {
 			}
 		}
 
+		// Cambió de tipo de vehículo sin decir monto: se conservó el presupuesto y se pregunta si sigue.
+		$response = $dialogue->budget_check( $response, $state, $message );
+
 		if ( ! empty( $response['learn'] ) ) {
 			ASI_Learning::log_question( $message, $context->lang, isset( $response['qkey'] ) ? $response['qkey'] : '', $response['learn'] );
 		}

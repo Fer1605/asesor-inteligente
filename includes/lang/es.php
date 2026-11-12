@@ -38,7 +38,7 @@ return array(
 
 	// Palabras de petición: indican intención de buscar, pero no son lo que se busca.
 	'fillers' => array(
-		'quiero', 'quisiera', 'queria', 'busco', 'buscaba', 'buscando', 'necesito', 'necesitaba', 'ocupo', 'tienen', 'tiene', 'tendran', 'tendra',
+		'quiero', 'quisiera', 'queria', 'busco', 'buscaba', 'buscando', 'necesito', 'necesitaba', 'ocupo', 'tienen', 'tiene', 'tienes', 'tenes', 'tendran', 'tendra', 'tendras',
 		'venden', 'vende', 'manejan', 'ofrecen', 'hay', 'ver', 'mostrar', 'muestrame', 'muestreme', 'ensename', 'dame', 'deme', 'me', 'gustaria',
 		'interesa', 'interesan', 'saber', 'informacion', 'info', 'disponible', 'disponibles', 'opcion', 'opciones', 'producto', 'productos',
 		'podrian', 'puede', 'pueden', 'podria', 'ayudar', 'ayudame', 'ayudeme', 'conseguir', 'encontrar', 'comprar', 'adquirir', 'cotizar', 'precio', 'precios',
@@ -365,6 +365,8 @@ return array(
 		'afternoon' => 'Buenas tardes',
 		'evening'  => 'Buenas noches',
 		'in'       => 'en',
+		'budget_same_chip' => 'Sí, el mismo',
+		'budget_none_chip' => 'Sin presupuesto',
 		'more_chip' => 'Ver más opciones',
 		'or'        => 'o',
 		'price'     => 'Precio',
@@ -577,6 +579,28 @@ return array(
 			'Listo, filtré por {refine}. Tengo {n}.',
 			'Hecho: con {refine} encontré {n}.',
 		),
+		'new_over_budget' => array(
+			'Dentro de tu presupuesto {budget} no tengo {label}; te muestro lo que hay:',
+		),
+		'budget_keep' => array(
+			'Seguí con tu presupuesto {budget}. ¿Para {label} sigue siendo el mismo, o es otro? Si es otro, dime el monto.',
+		),
+		'budget_other' => array(
+			'¿Para {label} tienes otro presupuesto? Dime el monto y lo ajusto.',
+		),
+		'budget_kept' => array(
+			'Perfecto, sigo con tu presupuesto {budget}. Si quieres, dime otro detalle (marca, combustible…) para afinar.',
+		),
+		'budget_ask' => array(
+			'¿Cuál es tu presupuesto? Por ejemplo, “hasta 300 mil”. Si no tienes uno, escribe “sin presupuesto”.',
+		),
+		'budget_removed' => array(
+			'Listo, sin tope de presupuesto: tengo {n}.',
+		),
+		'results_switch' => array(
+			'Sí, de {refine} tengo {n}.',
+			'Claro, de {refine} hay {n}.',
+		),
 		'refine_budget' => array(
 			'Con “{refine}” y todo lo anterior no me quedó ninguna opción. Dentro de tu presupuesto {budget}, esto es lo que tengo de {refine}:',
 		),
@@ -584,8 +608,8 @@ return array(
 			'De {refine} no tengo nada dentro de tu presupuesto {budget}. Te muestro lo que hay de {refine}, por si te sirve:',
 		),
 		'refine_empty' => array(
-			'Con “{refine}” no me quedó ninguna opción, así que busqué solo eso:',
-			'No hay coincidencias sumando “{refine}” a lo anterior; te muestro lo que tengo de {refine}:',
+			'No tengo {refine} que cumpla también lo anterior; estos son los {refine} que tengo:',
+			'Con todo lo anterior no hay {refine}; te muestro todo lo que tengo de {refine}:',
 		),
 		'more' => array(
 			'Aquí van {n} más:',

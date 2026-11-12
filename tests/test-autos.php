@@ -127,6 +127,46 @@ check( 'refinar: lo dice', true, false !== strpos( $r['text'], 'Dentro de tu pre
 check( 'refinar: conserva el presupuesto', true, false !== strpos( $r['state']['q'], '400' ) );
 $r = $lot_bot()->handle( 'solo toyota', array( 'q' => 'suv hasta 200000', 'turns' => 2 ) );
 check( 'refinar: si no alcanza, lo dice', true, false !== strpos( $r['text'], 'no tengo nada dentro de tu presupuesto de hasta Q 200,000' ) );
+// Cambio de tipo sin monto: se conserva el presupuesto y se pregunta si sigue.
+$bot   = $lot_bot();
+$prev  = array( 'q' => 'pickup hasta 400000', 'turns' => 2 );
+$r     = $bot->handle( 'ahora quiero ver suv', $prev );
+check( 'tipo nuevo: conserva el presupuesto', array( 4, 5 ), array_values( array_intersect( array( 3, 4, 5 ), $ids( $r ) ) ) );
+$r     = $bot->budget_check( $r, $prev, 'ahora quiero ver suv' );
+check( 'tipo nuevo: pregunta si el presupuesto sigue', true, false !== strpos( $r['followup'], 'sigue siendo el mismo' ) && 'budget' === $r['state']['awaiting'] );
+check( 'tipo nuevo: botones', array( 'Sí, el mismo', 'Sin presupuesto' ), $r['suggestions'] );
+$r2 = $bot->handle( 'si, el mismo', $r['state'] );
+check( 'presupuesto: "sí, el mismo" lo confirma', true, false !== strpos( $r2['text'], 'sigo con tu presupuesto de hasta Q 400,000' ) );
+$r3 = $bot->handle( 'Sin presupuesto', $r['state'] );
+check( 'presupuesto: "sin presupuesto" lo quita', array( true, true ), array( in_array( 3, $ids( $r3 ), true ), false === strpos( $r3['state']['q'], '400' ) ) );
+$r4 = $bot->handle( 'hasta 200 mil', $r['state'] );
+check( 'presupuesto: un monto nuevo lo cambia', array( 4 ), array_values( array_intersect( array( 3, 4, 5 ), $ids( $r4 ) ) ) );
+$same = $bot->budget_check( $bot->handle( 'que sea 4x4', $prev ), $prev, 'que sea 4x4' );
+check( 'mismo tipo: no pregunta por el presupuesto', '', $same['state']['awaiting'] ?? '' );
+$prev = array( 'q' => 'pickup hasta 100000', 'turns' => 2 );
+$r    = $bot->handle( 'quiero ver suv', $prev );
+check( 'tipo nuevo sin nada en el presupuesto: lo dice', true, false !== strpos( $r['text'], 'Dentro de tu presupuesto de hasta Q 100,000 no tengo' ) );
+$r    = $bot->budget_check( $r, $prev, 'quiero ver suv' );
+check( 'tipo nuevo sin nada en el presupuesto: pregunta por otro', true, false !== strpos( $r['followup'], 'otro presupuesto' ) );
+$r = $bot->handle( 'quiero ver suv', array( 'q' => 'pickup que no sea mazda', 'turns' => 2 ) );
+check( 'tipo nuevo: sigue sin lo que no quiere', true, false !== strpos( $r['state']['q'], 'que no sea mazda' ) );
+// "¿Y Honda tienes?" tras Toyota: cambia la marca y se queda el tipo y el presupuesto.
+$lot2 = new ASI_Test_Repository();
+foreach ( array( array( 41, 'Toyota RAV4', 'Toyota', 'suv', 200000 ), array( 42, 'Honda CR-V', 'Honda', 'suv', 210000 ), array( 43, 'Honda Pilot', 'Honda', 'suv', 450000 ), array( 44, 'Toyota Hilux', 'Toyota', 'pickup', 250000 ) ) as $p ) {
+	$lot2->add( $p[0], 'es', 'catalog', $p[1], array( 'category' => array( 'pickup' === $p[3] ? 'Pick up' : 'SUV' ), 'brand' => array( $p[2] ) ), '.', array(), array( 'price' => (string) $p[4], 'currency_raw' => '2', 'attrs' => array( 'body' => $p[3] ) ) );
+}
+$bot2 = new ASI_Dialogue( $lot2, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'money' => array( 'base' => 'GTQ', 'map' => array( '2' => 'GTQ' ) ), 'packs' => array( $autos ) ), function () {
+	return 0;
+} );
+$r = $bot2->handle( 'y hondas tienes', array( 'q' => 'camionetas toyota hasta 300000', 'turns' => 2 ) );
+check( 'marca: "¿y hondas tienes?" cambia de Toyota a Honda', array( 42 ), $ids( $r ) );
+check( 'marca: lo dice sin "no me quedó ninguna"', array( true, false ), array( 0 === strpos( $r['text'], 'Sí, de' ) || 0 === strpos( $r['text'], 'Claro, de' ), false !== strpos( $r['text'], 'ninguna' ) ) );
+check( 'marca: no corrige "tienes"', false, false !== strpos( $r['text'], 'Supongo' ) );
+check( 'marca: conserva tipo y presupuesto', true, false !== strpos( $r['state']['q'], '300000' ) && false === strpos( $r['state']['q'], 'toyota' ) );
+$spec = ASI_AI_Interpreter::switch_brands( array( 'brands' => array( 'toyota', 'honda' ) ), 'y hondas tienes' );
+check( 'IA: "y hondas tienes" deja solo Honda', array( 'honda' ), $spec['brands'] );
+$spec = ASI_AI_Interpreter::switch_brands( array( 'brands' => array( 'toyota', 'honda' ) ), 'tambien quiero ver honda' );
+check( 'IA: "también honda" deja las dos', array( 'toyota', 'honda' ), $spec['brands'] );
 check( 'conv: frase de solo atributos sin "con de"', false, strpos( $lot_bot()->handle( 'algo para 7 personas' )['text'], 'con de' ) );
 // Frase real: palabras de cortesía no se buscan; solo híbridos, sin "no encontré algo exacto".
 $v( 7, 'BYD Song Plus DM-i', 'SUV', 249900, array( 'body' => 'suv', 'seats' => 5, 'fuel' => 'hybrid', 'year' => 2027 ) );

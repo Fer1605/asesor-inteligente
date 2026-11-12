@@ -645,6 +645,7 @@ class ASI_AI_Interpreter {
 		if ( is_array( $base ) ) {
 			$lines[] = 'Devuelve SOLO lo que CAMBIA con el mensaje nuevo; todo lo demás de la búsqueda actual se queda igual (lo que no quiere, el presupuesto, el tipo…).';
 			$lines[] = '- "type": la lista de tipos SOLO si el mensaje pide otro tipo; si no, lista vacía.';
+			$lines[] = '- Si pregunta por OTRA marca ("¿y Honda tienes?", "mejor Nissan"), es cambiar de marca: pon la anterior en "remove_brands", salvo que diga "también".';
 			$lines[] = '- "add_brands" / "remove_brands": marcas que ahora pide / que ya no pide. "add_words" / "remove_words": características (4x4, diesel, gasolina, automatica, 7 pasajeros, año…).';
 			$lines[] = '- "add_exclude": lo que ahora dice que NO quiere ("no quiero X", "tampoco X", "sin X", "te dije que X no"). "remove_exclude": lo que antes no quería y ahora sí acepta.';
 			$lines[] = '- "min", "max", "around": SOLO si da un monto nuevo; si no, null. "clear_budget": true solo si dice que ya no tiene tope.';
@@ -789,6 +790,31 @@ class ASI_AI_Interpreter {
 			if ( '' === $spec['currency'] && ! empty( $prev['price_currency'] ) ) {
 				$spec['currency'] = 'USD' === $prev['price_currency'] ? 'USD' : '';
 			}
+		}
+		return $spec;
+	}
+
+	/**
+	 * "¿Y Honda tienes?" después de Toyota es cambiar de marca, no pedir un vehículo Toyota y Honda
+	 * a la vez: si el mensaje nombra alguna marca, quedan solo las que nombra (salvo "también").
+	 */
+	public static function switch_brands( array $spec, $message ) {
+		if ( count( $spec['brands'] ) < 2 ) {
+			return $spec;
+		}
+		$said = ' ' . ASI_Normalizer::normalize( (string) $message ) . ' ';
+		if ( preg_match( '/\s(tambien|ademas|junto con|aparte|also|as well)\s/', $said ) ) {
+			return $spec;
+		}
+		$named = array();
+		foreach ( $spec['brands'] as $brand ) {
+			$word = ASI_Normalizer::normalize( (string) $brand );
+			if ( '' !== $word && preg_match( '/\s' . preg_quote( $word, '/' ) . '(s|es)?\s/', $said ) ) {
+				$named[] = $brand;
+			}
+		}
+		if ( $named && count( $named ) < count( $spec['brands'] ) ) {
+			$spec['brands'] = $named;
 		}
 		return $spec;
 	}
@@ -1009,6 +1035,7 @@ class ASI_AI_Interpreter {
 				$spec = self::parse_review( $answer['text'], self::scrub( $message ), $current );
 				$spec = $spec ? self::keep_previous( $spec, $analyzer, $current, self::scrub( $message ) ) : null;
 			}
+			$spec = $spec ? self::switch_brands( $spec, self::scrub( $message ) ) : null;
 			$phrase       = $spec ? self::search_phrase( $spec, $phrases ) : '';
 			$out['note']  = $spec ? $spec['assumed'] : '';
 			$out['spec']  = $spec;
