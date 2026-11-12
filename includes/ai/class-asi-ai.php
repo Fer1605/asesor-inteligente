@@ -193,7 +193,7 @@ class ASI_AI {
 	 *
 	 * @return array|null Respuesta corregida, o null si se queda la de las reglas.
 	 */
-	public static function review( ASI_Dialogue $dialogue, $message, array $state, array $context, array $response ) {
+	public static function review( ASI_Dialogue $dialogue, $message, array $state, array $context, array &$response ) {
 		$current  = isset( $state['q'] ) && is_string( $state['q'] ) ? $state['q'] : '';
 		$key      = 'r|' . $context['lang'] . '|' . ASI_Normalizer::normalize( ASI_AI_Interpreter::scrub( $current ) ) . '|' . ASI_Normalizer::normalize( ASI_AI_Interpreter::scrub( $message ) );
 		$phrases  = (array) ASI_Lexicon::get( $context['language'] )->get_list( 'ai_phrases' );
@@ -207,7 +207,12 @@ class ASI_AI {
 			$cached = null;
 		}
 		$note   = null !== $cached && isset( $cache[ $key ]['note'] ) ? (string) $cache[ $key ]['note'] : '';
-		$result = ASI_AI_Interpreter::review( $dialogue, $analyzer, $message, $state, $response, $phrases, array( __CLASS__, 'ask' ), isset( $context['site_name'] ) ? $context['site_name'] : '', $cached, self::catalog( $context['lang'], $context['language'] ), $note );
+		$spec   = null !== $cached && isset( $cache[ $key ]['spec'] ) ? $cache[ $key ]['spec'] : null;
+		$result = ASI_AI_Interpreter::review( $dialogue, $analyzer, $message, $state, $response, $phrases, array( __CLASS__, 'ask' ), isset( $context['site_name'] ) ? $context['site_name'] : '', $cached, self::catalog( $context['lang'], $context['language'] ), $note, $spec );
+		// La IA entendió lo mismo que las reglas: se queda esa respuesta, con la búsqueda armada.
+		if ( ! empty( $result['keep'] ) && isset( $response['state'] ) && is_array( $response['state'] ) ) {
+			$response['state'] = array_merge( $response['state'], $result['keep'] );
+		}
 
 		if ( null !== $cached ) {
 			$cache[ $key ]['hits'] = (int) $cache[ $key ]['hits'] + 1;
@@ -221,9 +226,10 @@ class ASI_AI {
 				'context' => ASI_AI_Interpreter::scrub( $current ),
 				'phrase'  => $result['phrase'],
 				'note'    => $result['note'],
+				'spec'    => $result['spec'],
 				'changed' => null !== $result['response'],
 				'model'   => $result['model'],
-				'v'       => 2,
+				'v'       => 3,
 				'hits'    => 0,
 				'time'    => time(),
 				'last'    => time(),

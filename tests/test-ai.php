@@ -173,3 +173,29 @@ $spec = ASI_AI_Interpreter::parse_review( json_encode( array( 'search' => true, 
 check( 'ia: excluye las 12 marcas', 12, count( $spec['exclude'] ) );
 check( 'ia: un monto no se borra como teléfono', 'hasta 1.500.000', ASI_AI_Interpreter::scrub( 'hasta 1.500.000' ) );
 check( 'ia: un teléfono sí', 'llamame al [numero]', ASI_AI_Interpreter::scrub( 'llamame al 5555 1234' ) );
+
+// La IA solo dice qué cambia; el chat conserva la búsqueda (prueba de la usuaria: se perdían las marcas).
+$base = array( 'type' => 'suv', 'brands' => array(), 'words' => 'gasolina', 'exclude' => array( 'geely', 'gwm', 'bmw', 'mercedes benz', 'isuzu', 'land rover' ), 'min' => null, 'max' => 260000, 'around' => null, 'currency' => '' );
+$d = ASI_AI_Interpreter::parse_delta( '{"search":true,"type":["camioneta"],"add_words":["gasolina"]}', 'mm quiero tipo camioneta y de gasolina', $base );
+check( 'delta: cambiar de tipo no borra lo que no quiere', array( 'geely', 'gwm', 'bmw', 'mercedes benz', 'isuzu', 'land rover' ), $d['exclude'] );
+check( 'delta: ni el presupuesto', 260000.0, $d['max'] );
+check( 'delta: tipo nuevo', 'camioneta', $d['type'] );
+check( 'delta: gasolina no se repite', 'gasolina', $d['words'] );
+$d = ASI_AI_Interpreter::parse_delta( '{"search":true,"add_exclude":["bmw"]}', 'te dije que bmw no quiero', $base );
+check( 'delta: "te dije que bmw no" no duplica', 6, count( $d['exclude'] ) );
+$d = ASI_AI_Interpreter::parse_delta( '{"search":true,"add_exclude":["kia","nissan"]}', 'tampoco kia ni nissan', $base );
+check( 'delta: suma exclusiones', 8, count( $d['exclude'] ) );
+$d = ASI_AI_Interpreter::parse_delta( '{"search":true,"add_brands":["bmw"]}', 'bueno, muéstrame bmw', $base );
+check( 'delta: pedir una marca la saca de "no quiere"', false, in_array( 'bmw', $d['exclude'], true ) );
+check( 'delta: y la pide', array( 'bmw' ), $d['brands'] );
+$d = ASI_AI_Interpreter::parse_delta( '{"search":true,"max":300000}', 'mejor hasta 300 mil', $base );
+check( 'delta: monto nuevo reemplaza', 300000.0, $d['max'] );
+$d = ASI_AI_Interpreter::parse_delta( '{"search":true,"max":999000}', 'algo mas bonito', $base );
+check( 'delta: monto inventado no cuenta', 260000.0, $d['max'] );
+$d = ASI_AI_Interpreter::parse_delta( '{"search":true,"reset":true,"type":["pickup"]}', 'olvida todo, busco pickup', $base );
+check( 'delta: empezar de cero', array( 'pickup', array(), null ), array( $d['type'], $d['exclude'], $d['max'] ) );
+check( 'delta: búsqueda guardada vigente', true, null !== ASI_AI_Interpreter::base_spec( array( 'q' => 'suv gasolina', 'spec_q' => 'suv gasolina', 'spec' => $base ) ) );
+check( 'delta: si las reglas cambiaron la búsqueda, ya no vale', null, ASI_AI_Interpreter::base_spec( array( 'q' => 'pickup', 'spec_q' => 'suv gasolina', 'spec' => $base ) ) );
+$p = ASI_AI_Interpreter::review_prompt( 'tampoco kia', 'suv gasolina', 'Agencia', '', '', $base );
+check( 'delta: la IA ve lo que no quiere', true, false !== strpos( $p, 'NO quiere: geely, gwm, bmw, mercedes benz, isuzu, land rover' ) );
+check( 'delta: y se le pide solo el cambio', true, false !== strpos( $p, 'SOLO lo que CAMBIA' ) );

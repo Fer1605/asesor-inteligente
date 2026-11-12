@@ -312,8 +312,9 @@ class ASI_Dialogue {
 
 		// Solo un presupuesto ("algo de 60 a 70 mil dólares"): es una búsqueda, diga lo que diga el clasificador.
 		if ( empty( $query['groups'] ) && ASI_Search::has_hard_filter( $query ) && ! in_array( $intent['intent'], array( 'contact', 'location', 'hours', 'jobs', 'about' ), true ) ) {
-			// Tras una búsqueda, "pero que no pasen de 100 mil" afina esa búsqueda: no empieza otra.
-			if ( '' !== $state['q'] && $this->has_price( $query ) ) {
+			// Tras una búsqueda, "pero que no pasen de 100 mil" o "que sea de gasolina" afina esa
+			// búsqueda: no empieza otra (y no se pierde el presupuesto).
+			if ( '' !== $state['q'] && ( $this->has_price( $query ) || ! empty( $query['attrs'] ) ) ) {
 				return $this->refine( $stripped, $query, $state );
 			}
 			return $this->search_flow( $stripped, $query, $state );
@@ -634,6 +635,10 @@ class ASI_Dialogue {
 		}
 		if ( '' === trim( (string) $query['label'] ) && $this->has_price( $query ) ) {
 			$query['label'] = preg_replace( '/^(?:de|of)\s+/u', '', $this->budget_text( $query ) );
+		}
+		// "Que sea de gasolina": se nombra la característica ("lo afiné con gasolina").
+		if ( '' === trim( (string) $query['label'] ) && ! empty( $query['attr_labels'] ) ) {
+			$query['label'] = preg_replace( '/^(?:de|of)\s+/u', '', implode( ', ', (array) $query['attr_labels'] ) );
 		}
 		$combined_text  = trim( $previous . ' ' . $message );
 		$combined_query = $this->analyzer->analyze( $combined_text );
@@ -1344,6 +1349,11 @@ class ASI_Dialogue {
 	 * Sí cuando no nombra una categoría nueva y empieza con "solo", "y", "pero"… o solo trae marcas/distintivos.
 	 */
 	private function is_refinement( $normalized, array $query, array $state ) {
+		// "Que sea de gasolina", "automática", "4x4": solo una característica, sin nombrar otra cosa,
+		// afina lo que venía buscando (y se queda su presupuesto).
+		if ( '' !== $state['q'] && ! $query['groups'] && ! empty( $query['attrs'] ) && ! $this->has_price( $query ) ) {
+			return true;
+		}
 		if ( '' === $state['q'] || ! $query['groups'] || count( $query['groups'] ) > 3 ) {
 			return false;
 		}
@@ -1818,10 +1828,13 @@ class ASI_Dialogue {
 			'fin'       => self::clean_fin( isset( $state['fin'] ) ? $state['fin'] : array() ),
 			'fin_ids'   => $ints( isset( $state['fin_ids'] ) ? $state['fin_ids'] : array(), 8 ),
 			'set'       => $ints( isset( $state['set'] ) ? $state['set'] : array(), 8 ),
+			// La búsqueda armada con la IA y el texto buscado cuando se armó (si cambió, ya no vale).
+			'spec'      => ! empty( $state['spec'] ) && class_exists( 'ASI_AI_Interpreter' ) ? ASI_AI_Interpreter::clean_spec( $state['spec'] ) : array(),
+			'spec_q'    => isset( $state['spec_q'] ) && is_string( $state['spec_q'] ) ? $this->short( $state['spec_q'], self::MAX_MESSAGE ) : '',
 		);
 		// Otra página de idioma o país: la conversación empieza de cero.
 		if ( '' !== $clean['lang'] && $clean['lang'] !== $this->context['lang'] ) {
-			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'], 'selected' => array(), 'quoted' => array(), 'last' => '', 'awaiting' => '', 'previewed' => array(), 'fin' => array(), 'fin_ids' => array(), 'set' => array() );
+			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'], 'selected' => array(), 'quoted' => array(), 'last' => '', 'awaiting' => '', 'previewed' => array(), 'fin' => array(), 'fin_ids' => array(), 'set' => array(), 'spec' => array(), 'spec_q' => '' );
 		}
 		return $clean;
 	}

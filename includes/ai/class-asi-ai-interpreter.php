@@ -605,12 +605,17 @@ class ASI_AI_Interpreter {
 	 * @param string $current Lo que venía buscando (texto acumulado), o ''.
 	 * @param string $site    Nombre del sitio.
 	 */
-	public static function review_prompt( $message, $current, $site = '', $reading = '', $catalog = '' ) {
+	public static function review_prompt( $message, $current, $site = '', $reading = '', $catalog = '', $base = null ) {
 		$lines   = array();
 		$lines[] = 'Eres el intérprete de un chat de ventas de vehículos' . ( '' !== $site ? ' del sitio "' . $site . '"' : '' ) . '. NO le respondes al cliente: traduces lo que busca a filtros.';
 		$lines[] = 'El cliente escribe en español o inglés, con errores de dedo y modismos de Guatemala.';
 		$lines[] = '';
-		$lines[] = '' !== trim( $current ) ? 'Lo que venía buscando (mensajes anteriores juntos): """' . str_replace( '"""', '"', $current ) . '"""' : 'No venía buscando nada.';
+		if ( is_array( $base ) ) {
+			$lines[] = 'Búsqueda actual (el chat la guarda y la mantiene; tú NO la reescribes):';
+			$lines[] = self::spec_summary( $base );
+		} else {
+			$lines[] = '' !== trim( $current ) ? 'Lo que venía buscando (mensajes anteriores juntos): """' . str_replace( '"""', '"', $current ) . '"""' : 'No venía buscando nada.';
+		}
 		$lines[] = 'Mensaje nuevo: """' . str_replace( '"""', '"', $message ) . '"""';
 		if ( '' !== trim( $reading ) ) {
 			$lines[] = 'El chat ya lo leyó así (con los errores de dedo corregidos): """' . str_replace( '"""', '"', $reading ) . '"""';
@@ -627,9 +632,23 @@ class ASI_AI_Interpreter {
 			$lines[] = '';
 		}
 		$lines[] = 'Vocabulario de Guatemala: "camioneta" es una SUV o una pickup, NUNCA un camión (camión es un vehículo de carga grande). "Carro" es cualquier automóvil. "Picop"/"palangana" es pickup. "Troca" es pickup o camión pequeño. Con errores de dedo, quédate con la palabra más parecida ("camiooneeta" = camioneta).';
+		if ( is_array( $base ) ) {
+			$lines[] = 'Devuelve SOLO lo que CAMBIA con el mensaje nuevo; todo lo demás de la búsqueda actual se queda igual (lo que no quiere, el presupuesto, el tipo…).';
+			$lines[] = '- "type": la lista de tipos SOLO si el mensaje pide otro tipo; si no, lista vacía.';
+			$lines[] = '- "add_brands" / "remove_brands": marcas que ahora pide / que ya no pide. "add_words" / "remove_words": características (4x4, diesel, gasolina, automatica, 7 pasajeros, año…).';
+			$lines[] = '- "add_exclude": lo que ahora dice que NO quiere ("no quiero X", "tampoco X", "sin X", "te dije que X no"). "remove_exclude": lo que antes no quería y ahora sí acepta.';
+			$lines[] = '- "min", "max", "around": SOLO si da un monto nuevo; si no, null. "clear_budget": true solo si dice que ya no tiene tope.';
+			$lines[] = '- "reset": true SOLO si pide empezar de cero ("olvida lo anterior", "empecemos de nuevo"). Cambiar de tipo NO es empezar de cero.';
+			$lines[] = '- "solo X" o "quiero X" NO es excluir. Montos en número completo: 100 mil = 100000. "No mayor a", "hasta", "menos de" = max; "más de", "desde" = min; "unos 250 mil" = around.';
+			$lines[] = '';
+			$lines[] = 'Campos: "type", "assumed" (palabra de uso que tradujiste, o vacío), "add_brands", "remove_brands", "add_words", "remove_words", "add_exclude", "remove_exclude", "min", "max", "around", "clear_budget", "reset", "currency" ("USD" si dice dólares/$, "GTQ" si dice quetzales/Q, si no vacío).';
+			$lines[] = 'Si el mensaje no es una búsqueda (pregunta cuotas, cotizar, horario, saludo…), responde {"search":false}.';
+			$lines[] = 'Responde SOLO con JSON en una línea, sin explicación: {"search":true,"type":[],"assumed":"","add_brands":[],"remove_brands":[],"add_words":[],"remove_words":[],"add_exclude":["bmw"],"remove_exclude":[],"min":null,"max":null,"around":null,"clear_budget":false,"reset":false,"currency":""}';
+			return implode( "\n", $lines );
+		}
 		$lines[] = 'Devuelve la búsqueda COMPLETA como queda después del mensaje nuevo:';
 		$lines[] = '- Si el mensaje afina ("solo toyota", "que no pase de 100 mil", "y diésel"), conserva lo anterior y suma lo nuevo.';
-		$lines[] = '- Si cambia de tema ("ahora busco un pickup"), empieza de cero.';
+		$lines[] = '- Si cambia de tema ("ahora busco un pickup"), empieza de cero, PERO lo que no quiere ("exclude") y el presupuesto se conservan siempre, salvo que el cliente diga lo contrario.';
 		$lines[] = '- Un monto nuevo reemplaza al anterior. "No mayor a", "que no pase de", "no más de", "hasta", "menos de" = max. "Mayor a", "más de", "desde", "arriba de" = min. "Tengo 200 mil" = max.';
 		$lines[] = '- "solo X" o "quiero X" NO es excluir. Excluir es "que no sea X", "sin X", "menos X", "no quiero X".';
 		$lines[] = '- Montos en número completo: 100 mil = 100000, 1.5 millones = 1500000.';
@@ -724,6 +743,172 @@ class ASI_AI_Interpreter {
 	}
 
 	/**
+	 * Lo que el cliente ya dijo que NO quiere y su presupuesto no se pierden porque la IA
+	 * reescriba la búsqueda: se conservan salvo que ahora pida esa marca o diga otro monto.
+	 * ("no quiero geely ni bmw…" y después "quiero tipo camioneta" sigue sin geely ni bmw.)
+	 */
+	public static function keep_previous( array $spec, ASI_Query_Analyzer $analyzer, $current, $message ) {
+		if ( '' === trim( (string) $current ) ) {
+			return $spec;
+		}
+		$prev = $analyzer->analyze( (string) $current );
+		// Exclusiones anteriores, menos lo que ahora sí pide.
+		$label = isset( $prev['exclude_label'] ) ? trim( ASI_Normalizer::normalize( (string) $prev['exclude_label'] ) ) : '';
+		if ( '' !== $label ) {
+			$wanted = ' ' . ASI_Normalizer::normalize( implode( ' ', $spec['brands'] ) . ' ' . $spec['type'] . ' ' . $spec['words'] ) . ' ';
+			$have   = ' ' . ASI_Normalizer::normalize( implode( ' ', $spec['exclude'] ) ) . ' ';
+			$keep   = array();
+			foreach ( explode( ' ', $label ) as $word ) {
+				if ( '' !== $word && false === strpos( $wanted, ' ' . $word . ' ' ) && false === strpos( $have, ' ' . $word . ' ' ) ) {
+					$keep[] = $word;
+				}
+			}
+			if ( $keep ) {
+				$spec['exclude'] = array_merge( $keep, $spec['exclude'] );
+			}
+		}
+		// Presupuesto anterior, si la IA no puso ninguno y el mensaje no trae otro monto.
+		if ( null === $spec['min'] && null === $spec['max'] && null === $spec['around'] && ! self::numbers_in( $message ) ) {
+			$spec['max'] = isset( $prev['price_max'] ) && $prev['price_max'] ? (float) $prev['price_max'] : null;
+			$spec['min'] = isset( $prev['price_min'] ) && $prev['price_min'] ? (float) $prev['price_min'] : null;
+			if ( '' === $spec['currency'] && ! empty( $prev['price_currency'] ) ) {
+				$spec['currency'] = 'USD' === $prev['price_currency'] ? 'USD' : '';
+			}
+		}
+		return $spec;
+	}
+
+	/** La búsqueda guardada, en texto para la IA. */
+	public static function spec_summary( array $spec ) {
+		$spec  = self::clean_spec( $spec );
+		$money = function ( $v ) {
+			return null === $v ? '' : (string) (int) round( $v );
+		};
+		$budget = null !== $spec['around'] ? 'alrededor de ' . $money( $spec['around'] ) : trim( ( null !== $spec['min'] ? 'desde ' . $money( $spec['min'] ) . ' ' : '' ) . ( null !== $spec['max'] ? 'hasta ' . $money( $spec['max'] ) : '' ) );
+		$lines  = array(
+			'- tipo: ' . ( '' !== $spec['type'] ? $spec['type'] : '(cualquiera)' ),
+			'- marcas que quiere: ' . ( $spec['brands'] ? implode( ', ', $spec['brands'] ) : '(cualquiera)' ),
+			'- características: ' . ( '' !== $spec['words'] ? $spec['words'] : '(ninguna)' ),
+			'- NO quiere: ' . ( $spec['exclude'] ? implode( ', ', $spec['exclude'] ) : '(nada)' ),
+			'- presupuesto: ' . ( '' !== $budget ? $budget . ( 'USD' === $spec['currency'] ? ' dólares' : '' ) : '(sin tope)' ),
+		);
+		return implode( "\n", $lines );
+	}
+
+	/** Una búsqueda guardada, limpia (viene del navegador: no se confía en ella). */
+	public static function clean_spec( $spec ) {
+		$spec  = is_array( $spec ) ? $spec : array();
+		$list  = function ( $value ) {
+			$out = array();
+			foreach ( array_slice( is_array( $value ) ? $value : array(), 0, self::MAX_ITEMS ) as $item ) {
+				$item = self::clean_query( is_scalar( $item ) ? (string) $item : '' );
+				if ( '' !== $item && ! in_array( $item, $out, true ) ) {
+					$out[] = $item;
+				}
+			}
+			return $out;
+		};
+		$num = function ( $key ) use ( $spec ) {
+			return isset( $spec[ $key ] ) && is_numeric( $spec[ $key ] ) && $spec[ $key ] > 0 ? (float) $spec[ $key ] : null;
+		};
+		return array(
+			'type'     => self::clean_query( isset( $spec['type'] ) && is_scalar( $spec['type'] ) ? (string) $spec['type'] : '' ),
+			'assumed'  => '',
+			'brands'   => $list( isset( $spec['brands'] ) ? $spec['brands'] : array() ),
+			'words'    => self::clean_query( isset( $spec['words'] ) && is_scalar( $spec['words'] ) ? (string) $spec['words'] : '' ),
+			'exclude'  => $list( isset( $spec['exclude'] ) ? $spec['exclude'] : array() ),
+			'min'      => $num( 'min' ),
+			'max'      => $num( 'max' ),
+			'around'   => $num( 'around' ),
+			'currency' => isset( $spec['currency'] ) && 'USD' === $spec['currency'] ? 'USD' : ( isset( $spec['currency'] ) && 'GTQ' === $spec['currency'] ? 'GTQ' : '' ),
+		);
+	}
+
+	/**
+	 * Aplica el cambio que leyó la IA sobre la búsqueda guardada. Lo que la IA no menciona se queda
+	 * como estaba: así nunca se pierde lo que el cliente ya dijo ("no quiero bmw", su presupuesto).
+	 *
+	 * @return array|null La búsqueda nueva, o null si no es una búsqueda.
+	 */
+	public static function parse_delta( $raw, $message, array $base ) {
+		if ( ! preg_match( '/\{.*\}/s', (string) $raw, $m ) ) {
+			return null;
+		}
+		$data = json_decode( $m[0], true );
+		if ( ! is_array( $data ) || empty( $data['search'] ) ) {
+			return null;
+		}
+		$base = self::clean_spec( $base );
+		$list = function ( $key ) use ( $data ) {
+			$value = isset( $data[ $key ] ) ? $data[ $key ] : array();
+			$out   = array();
+			foreach ( array_slice( is_array( $value ) ? $value : ( '' === trim( (string) $value ) ? array() : array( $value ) ), 0, self::MAX_ITEMS ) as $item ) {
+				$item = self::clean_query( is_scalar( $item ) ? (string) $item : '' );
+				if ( '' !== $item ) {
+					$out[] = $item;
+				}
+			}
+			return $out;
+		};
+		$norm    = function ( $item ) {
+			return ASI_Normalizer::normalize( $item );
+		};
+		$without = function ( array $items, array $remove ) use ( $norm ) {
+			$remove = array_map( $norm, $remove );
+			return array_values( array_filter( $items, function ( $item ) use ( $remove, $norm ) {
+				return ! in_array( $norm( $item ), $remove, true );
+			} ) );
+		};
+		$merge = function ( array $items, array $add ) use ( $norm ) {
+			$seen = array_map( $norm, $items );
+			foreach ( $add as $item ) {
+				if ( ! in_array( $norm( $item ), $seen, true ) ) {
+					$items[] = $item;
+					$seen[]  = $norm( $item );
+				}
+			}
+			return $items;
+		};
+		$words_of = function ( $text ) {
+			return '' === trim( $text ) ? array() : preg_split( '/\s+/u', trim( $text ) );
+		};
+		$spec = ! empty( $data['reset'] ) ? self::clean_spec( array() ) : $base;
+
+		$type = $list( 'type' );
+		if ( $type ) {
+			$spec['type'] = implode( ' ', $type );
+		}
+		$add_exclude    = $list( 'add_exclude' );
+		$remove_exclude = $list( 'remove_exclude' );
+		$add_brands     = $list( 'add_brands' );
+		$spec['brands']  = $merge( $without( $spec['brands'], array_merge( $list( 'remove_brands' ), $add_exclude ) ), $add_brands );
+		$spec['exclude'] = $merge( $without( $spec['exclude'], array_merge( $remove_exclude, $add_brands ) ), $add_exclude );
+		$words           = $merge( $without( $words_of( $spec['words'] ), array_merge( $words_of( implode( ' ', $list( 'remove_words' ) ) ), $words_of( implode( ' ', $add_exclude ) ) ) ), $words_of( implode( ' ', $list( 'add_words' ) ) ) );
+		$spec['words']   = implode( ' ', $words );
+		if ( $add_exclude && '' !== $spec['type'] ) {
+			$spec['type'] = implode( ' ', $without( $words_of( $spec['type'] ), $add_exclude ) );
+		}
+
+		// Montos: solo los escritos en el mensaje (la IA no inventa presupuestos).
+		$fresh = self::parse_review( json_encode( array( 'search' => true, 'type' => 'x', 'min' => isset( $data['min'] ) ? $data['min'] : null, 'max' => isset( $data['max'] ) ? $data['max'] : null, 'around' => isset( $data['around'] ) ? $data['around'] : null, 'currency' => isset( $data['currency'] ) ? $data['currency'] : '' ) ), $message, '' );
+		if ( $fresh && ( null !== $fresh['min'] || null !== $fresh['max'] || null !== $fresh['around'] ) ) {
+			$spec['min']      = $fresh['min'];
+			$spec['max']      = $fresh['max'];
+			$spec['around']   = $fresh['around'];
+			$spec['currency'] = $fresh['currency'];
+		} elseif ( ! empty( $data['clear_budget'] ) ) {
+			$spec['min']    = null;
+			$spec['max']    = null;
+			$spec['around'] = null;
+		}
+		$spec['assumed'] = self::assumed_word( isset( $data['assumed'] ) ? $data['assumed'] : '' );
+		if ( '' === $spec['type'] && ! $spec['brands'] && '' === $spec['words'] && null === $spec['min'] && null === $spec['max'] && null === $spec['around'] && ! $spec['exclude'] ) {
+			return null;
+		}
+		return $spec;
+	}
+
+	/**
 	 * La búsqueda de la IA como frase que las reglas leen sin dudar:
 	 * "suv toyota hasta q100000 que no sea nissan".
 	 */
@@ -785,23 +970,33 @@ class ASI_AI_Interpreter {
 	 * @param callable           $ask      function( string $prompt ): array|null { text, model }
 	 * @return array { response|null (null = las reglas tenían razón), phrase, model, asked }
 	 */
-	public static function review( ASI_Dialogue $dialogue, ASI_Query_Analyzer $analyzer, $message, array $state, array $response, array $phrases, callable $ask, $site = '', $cached = null, $catalog = '', $cached_note = '' ) {
+	public static function review( ASI_Dialogue $dialogue, ASI_Query_Analyzer $analyzer, $message, array $state, array $response, array $phrases, callable $ask, $site = '', $cached = null, $catalog = '', $cached_note = '', $cached_spec = null ) {
 		$current = isset( $state['q'] ) && is_string( $state['q'] ) ? self::scrub( $state['q'] ) : '';
-		$out     = array( 'response' => null, 'phrase' => '', 'model' => '', 'asked' => false, 'note' => '' );
+		$out     = array( 'response' => null, 'phrase' => '', 'model' => '', 'asked' => false, 'note' => '', 'spec' => null );
+		// La búsqueda que armó la IA antes y que sigue vigente (nadie la cambió después): la IA solo
+		// dice qué cambia y el chat conserva todo lo demás.
+		$base = self::base_spec( $state );
 		if ( null !== $cached ) {
 			$phrase      = (string) $cached;
 			$out['note'] = (string) $cached_note;
+			$out['spec'] = is_array( $cached_spec ) ? self::clean_spec( $cached_spec ) : null;
 		} else {
 			$reading = isset( $response['state']['q'] ) ? self::scrub( (string) $response['state']['q'] ) : '';
-			$answer  = call_user_func( $ask, self::review_prompt( self::scrub( $message ), $current, $site, $reading, $catalog ) );
+			$answer  = call_user_func( $ask, self::review_prompt( self::scrub( $message ), $current, $site, $reading, $catalog, $base ) );
 			if ( ! is_array( $answer ) || empty( $answer['text'] ) ) {
 				return $out;
 			}
 			$out['asked'] = true;
 			$out['model'] = isset( $answer['model'] ) ? $answer['model'] : '';
-			$spec         = self::parse_review( $answer['text'], self::scrub( $message ), $current );
+			if ( $base ) {
+				$spec = self::parse_delta( $answer['text'], self::scrub( $message ), $base );
+			} else {
+				$spec = self::parse_review( $answer['text'], self::scrub( $message ), $current );
+				$spec = $spec ? self::keep_previous( $spec, $analyzer, $current, self::scrub( $message ) ) : null;
+			}
 			$phrase       = $spec ? self::search_phrase( $spec, $phrases ) : '';
 			$out['note']  = $spec ? $spec['assumed'] : '';
+			$out['spec']  = $spec;
 		}
 		$out['phrase'] = $phrase;
 		if ( '' === $phrase ) {
@@ -810,6 +1005,11 @@ class ASI_AI_Interpreter {
 		// ¿Entendieron lo mismo? Se compara lo que buscaron las reglas con la frase de la IA.
 		$rules_q = isset( $response['state']['q'] ) ? (string) $response['state']['q'] : '';
 		if ( 'results' === $response['kind'] && self::signature( $analyzer->analyze( $rules_q ) ) === self::signature( $analyzer->analyze( $phrase ) ) ) {
+			// Entendieron lo mismo: queda la respuesta de las reglas, pero la búsqueda armada se guarda
+			// para que el próximo mensaje parta de ella.
+			if ( $out['spec'] ) {
+				$out['keep'] = array( 'spec' => $out['spec'], 'spec_q' => $rules_q );
+			}
 			return $out;
 		}
 		// Entendieron otra cosa: se busca con la frase de la IA como búsqueda completa (no se suma a la anterior).
@@ -818,9 +1018,21 @@ class ASI_AI_Interpreter {
 		$new        = $dialogue->handle( $phrase, $fresh );
 		// Solo si con su lectura sí hay resultados exactos (no "estas se acercan").
 		if ( isset( $new['kind'] ) && 'results' === $new['kind'] && ! empty( $new['cards'] ) && empty( $new['learn'] ) ) {
+			if ( $out['spec'] ) {
+				$new['state']['spec']   = $out['spec'];
+				$new['state']['spec_q'] = isset( $new['state']['q'] ) ? (string) $new['state']['q'] : '';
+			}
 			$out['response'] = $new;
 		}
 		return $out;
+	}
+
+	/** La búsqueda guardada si sigue vigente (el texto buscado no cambió desde que se armó). */
+	public static function base_spec( array $state ) {
+		if ( empty( $state['spec'] ) || ! is_array( $state['spec'] ) || ! isset( $state['spec_q'], $state['q'] ) || '' === (string) $state['q'] || (string) $state['spec_q'] !== (string) $state['q'] ) {
+			return null;
+		}
+		return self::clean_spec( $state['spec'] );
 	}
 
 	// ------------------------------------------------------------------
