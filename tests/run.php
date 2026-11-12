@@ -18,6 +18,7 @@ require $root . '/includes/index/class-asi-elementor-text.php';
 require $root . '/includes/discovery/class-asi-json-paths.php';
 require $root . '/includes/engine/class-asi-lexicon.php';
 require $root . '/includes/engine/class-asi-query-analyzer.php';
+require $root . '/includes/engine/class-asi-search-sheet.php';
 require $root . '/includes/engine/class-asi-attributes.php';
 require $root . '/includes/engine/class-asi-search.php';
 require $root . '/includes/engine/class-asi-vocabulary.php';

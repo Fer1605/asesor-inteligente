@@ -113,6 +113,8 @@ class ASI_Query_Analyzer {
 			'exclude'     => array(),
 			'exclude_label' => '',
 			'attr_not_labels' => array(), // Lo que no quiere y es un atributo ("que no sea gasolina").
+			'attr_spans'      => array(), // Palabras de cada atributo que quiere (key => "camioneta").
+			'attr_not_spans'  => array(), // Palabras de cada atributo que no quiere.
 		);
 
 		$text = $this->extract_attributes( $message, $result, $this->extract_prices( $message, $normalized, $result ) );
@@ -781,9 +783,15 @@ class ASI_Query_Analyzer {
 			}
 			if ( $not['constraints'] ) {
 				$result['attr_not_labels'] = $not['labels'];
+				$wanted_only               = $parsed['spans'];
 				$parsed['spans']           = array_merge( $parsed['spans'], $not['spans'] );
 			}
 		}
+		// Qué palabras dieron cada atributo ("camioneta" → carrocería, "gasolina" → combustible): la
+		// ficha de la búsqueda las guarda tal cual para volver a leerlas igual.
+		// Las palabras de tipo ("camioneta") el pack las deja en el texto (soft): también cuentan.
+		$result['attr_spans']     = $this->spans_by_key( array_merge( isset( $wanted_only ) ? $wanted_only : $parsed['spans'], (array) $parsed['soft'] ) );
+		$result['attr_not_spans'] = '' !== $negated && ! empty( $not['spans'] ) ? $this->spans_by_key( $not['spans'] ) : array();
 		foreach ( $parsed['spans'] as $span ) {
 			$normal = ASI_Normalizer::normalize( $span );
 			if ( '' !== $normal ) {
@@ -853,13 +861,37 @@ class ASI_Query_Analyzer {
 				continue;
 			}
 			if ( null === $first ) {
-				$group['alts'] = array_values( array_unique( array_merge( array( $group['text'] ), isset( $group['alts'] ) ? (array) $group['alts'] : array() ) ) );
+				$group['alts']   = array_values( array_unique( array_merge( array( $group['text'] ), isset( $group['alts'] ) ? (array) $group['alts'] : array() ) ) );
+				$group['brands'] = array( $group['text'] );
 				$out[]         = $group;
 				$first         = count( $out ) - 1;
 				continue;
 			}
 			$out[ $first ]['alts']  = array_values( array_unique( array_merge( $out[ $first ]['alts'], array( $group['text'] ), isset( $group['alts'] ) ? (array) $group['alts'] : array() ) ) );
-			$out[ $first ]['label'] = $out[ $first ]['label'] . ' o ' . $group['label'];
+			$out[ $first ]['label']    = $out[ $first ]['label'] . ' o ' . $group['label'];
+			$out[ $first ]['brands'][] = $group['text'];
+		}
+		return $out;
+	}
+
+	/**
+	 * Palabras de cada atributo: cada frase se vuelve a leer sola para saber qué atributo dio.
+	 * "pickup" y "suv" → array( 'body' => 'pickup o suv' ).
+	 *
+	 * @param string[] $spans
+	 * @return array<string,string>
+	 */
+	private function spans_by_key( array $spans ) {
+		$out = array();
+		foreach ( $spans as $span ) {
+			$span = trim( (string) $span );
+			if ( '' === $span ) {
+				continue;
+			}
+			$alone = ASI_Attributes::parse( $this->packs, $span, $this->lexicon->language() );
+			foreach ( array_keys( (array) $alone['constraints'] ) as $key ) {
+				$out[ $key ] = isset( $out[ $key ] ) && false === strpos( ' ' . $out[ $key ] . ' ', ' ' . $span . ' ' ) ? $out[ $key ] . ' o ' . $span : ( isset( $out[ $key ] ) ? $out[ $key ] : $span );
+			}
 		}
 		return $out;
 	}

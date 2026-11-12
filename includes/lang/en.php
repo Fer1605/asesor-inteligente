@@ -163,6 +163,7 @@ return array(
 	'list_words'  => array( 'all', 'list', 'which', 'what areas', 'areas', 'every' ),
 	'place_words' => array( 'store', 'stores', 'branch', 'branches', 'location', 'locations', 'office', 'offices', 'shop', 'shops', 'point', 'pickup', 'address', 'area', 'areas', 'hours', 'open', 'near', 'map', 'located' ),
 
+	'reset_words' => array( 'start over', 'start again', 'from scratch', 'forget that', 'new search', 'clear everything' ),
 	'refine_markers' => array( 'and', 'only', 'just', 'but', 'in', 'with', 'without', 'brand', 'color', 'colour', 'that are' ),
 
 	'negation_stops'   => array( 'i want', 'i need', 'only', 'just', 'but', 'rather' ),
@@ -485,6 +486,9 @@ return array(
 		),
 		'results_switch' => array(
 			'Yes, for {refine} I have {n}.',
+		),
+		'results_relaxed' => array(
+			'I have nothing with {dropped} together with the rest; without that I have {n}:',
 		),
 		'refine_budget' => array(
 			'Adding “{refine}” to everything else left nothing. Within your budget {budget}, this is what I have for {refine}:',

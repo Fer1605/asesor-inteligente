@@ -122,8 +122,10 @@ $r = $lot_bot()->handle( 'solo toyota', array( 'q' => 'suv pickup hasta 400000',
 check( 'refinar: marca sobre "suv pickup" con presupuesto', array( 1 ), $ids( $r ) );
 // Sumado no da nada: lo nuevo se busca dentro del presupuesto, no se suelta en silencio.
 $r = $lot_bot()->handle( 'solo toyota', array( 'q' => 'suv hasta 400000', 'turns' => 2 ) );
-check( 'refinar: sin Toyota SUV en 400 mil, Toyota dentro del presupuesto', array( 1 ), $ids( $r ) );
-check( 'refinar: lo dice', true, false !== strpos( $r['text'], 'Dentro de tu presupuesto de hasta Q 400,000' ) );
+// El tipo nunca se suelta: sin Toyota SUV en 400 mil, se dice que no alcanza y se muestra la SUV
+// Toyota que hay (no una pickup Toyota dentro del presupuesto).
+check( 'refinar: sin Toyota SUV en 400 mil, sigue siendo SUV', array( 3 ), $ids( $r ) );
+check( 'refinar: lo dice', true, false !== strpos( $r['text'], 'no tengo nada dentro de tu presupuesto de hasta Q 400,000' ) );
 check( 'refinar: conserva el presupuesto', true, false !== strpos( $r['state']['q'], '400' ) );
 $r = $lot_bot()->handle( 'solo toyota', array( 'q' => 'suv hasta 200000', 'turns' => 2 ) );
 check( 'refinar: si no alcanza, lo dice', true, false !== strpos( $r['text'], 'no tengo nada dentro de tu presupuesto de hasta Q 200,000' ) );

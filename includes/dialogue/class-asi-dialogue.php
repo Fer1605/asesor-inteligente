@@ -321,7 +321,7 @@ class ASI_Dialogue {
 			// Tras una búsqueda, "pero que no pasen de 100 mil" o "que sea de gasolina" afina esa
 			// búsqueda: no empieza otra (y no se pierde el presupuesto).
 			if ( '' !== $state['q'] && ( $this->has_price( $query ) || ! empty( $query['attrs'] ) ) ) {
-				return $this->refine( $stripped, $query, $state );
+				return $this->sheet_turn( $stripped, $query, $state );
 			}
 			return $this->search_flow( $stripped, $query, $state );
 		}
@@ -339,7 +339,7 @@ class ASI_Dialogue {
 			}
 			if ( $this->has_price( $full ) && ( $this->is_searchable( $full ) || '' !== $state['q'] ) ) {
 				if ( '' !== $state['q'] && ! $this->has_critical( $full ) && empty( $full['attrs'] ) ) {
-					return $this->refine( $stripped, $full, $state );
+					return $this->sheet_turn( $stripped, $full, $state );
 				}
 				return $this->search_flow( $stripped, $full, $state );
 			}
@@ -361,60 +361,11 @@ class ASI_Dialogue {
 
 		// 4. Búsqueda (con posible refinamiento de la anterior).
 		$query = $this->analyzer->analyze( $message );
-		if ( $this->is_refinement( $normalized, $query, $state ) ) {
-			return $this->refine( $message, $query, $state );
-		}
-		// Búsqueda nueva ("ahora quiero ver camionetas"): el presupuesto y lo que no quiere siguen
-		// valiendo. Si con ese presupuesto no hay nada, se dice (y se pregunta por otro).
-		list( $carried_text, $carried ) = $this->carry_over( $message, $query, $state );
-		if ( $carried_text !== $message ) {
-			$within = $this->search->search( $this->context['lang'], $carried, array( 'roles' => array( 'catalog' ) ) );
-			if ( $within['items'] && 'exact' === $within['quality'] ) {
-				return $this->search_flow( $carried_text, $carried, $state );
-			}
-			if ( $this->has_price( $carried ) ) {
-				return $this->search_flow( $message, $query, $state, array( 'opening' => 'new_over_budget', 'budget' => $this->budget_text( $carried ) ) );
-			}
+		// Con una búsqueda guardada, el mensaje se suma a su ficha (no se empieza de cero).
+		if ( '' !== trim( (string) $state['q'] ) ) {
+			return $this->sheet_turn( $message, $query, $state );
 		}
 		return $this->search_flow( $message, $query, $state );
-	}
-
-	/**
-	 * Lo que sigue valiendo de la búsqueda anterior en una nueva: el presupuesto (si el mensaje no
-	 * trae otro) y las marcas o tipos que no quiere (menos lo que ahora sí pide).
-	 *
-	 * @return array [texto, consulta]
-	 */
-	private function carry_over( $message, array $query, array $state ) {
-		if ( '' === trim( (string) $state['q'] ) ) {
-			return array( $message, $query );
-		}
-		$extra = array();
-		if ( ! $this->has_price( $query ) ) {
-			$old = ASI_Money::extract_budget( $state['q'], (array) $this->lexicon->get_list( 'money_words' ), (array) $this->context['money'] );
-			if ( $old['spans'] ) {
-				$extra[] = implode( ' ', $old['spans'] );
-			}
-		}
-		$prev = $this->analyzer->analyze( $state['q'] );
-		if ( ! empty( $prev['exclude'] ) ) {
-			$said = ' ' . ASI_Normalizer::normalize( $message ) . ' ';
-			$keep = array();
-			foreach ( (array) $prev['exclude'] as $group ) {
-				$word = ASI_Normalizer::normalize( (string) $group['text'] );
-				if ( '' !== $word && false === strpos( $said, ' ' . $word ) ) {
-					$keep[] = $word;
-				}
-			}
-			if ( $keep ) {
-				$extra[] = 'que no sea ' . implode( ' ', $keep );
-			}
-		}
-		if ( ! $extra ) {
-			return array( $message, $query );
-		}
-		$text = trim( $message . ' ' . implode( ' ', $extra ) );
-		return array( $text, $this->analyzer->analyze( $text ) );
 	}
 
 	/**
@@ -433,18 +384,16 @@ class ASI_Dialogue {
 		if ( ! $this->has_price( $prev ) ) {
 			return $response;
 		}
-		$now   = $this->analyzer->analyze( (string) $response['state']['q'] );
-		$types = function ( array $query ) {
-			$out = isset( $query['attrs']['body']['in'] ) ? (array) $query['attrs']['body']['in'] : array();
-			sort( $out );
-			return $out;
-		};
-		if ( ! $types( $prev ) || ! $types( $now ) || $types( $prev ) === $types( $now ) ) {
+		$now       = $this->analyzer->analyze( (string) $response['state']['q'] );
+		$type_keys = ASI_Search_Sheet::type_keys( (array) $this->context['packs'] );
+		$was       = ASI_Search_Sheet::type_of( ASI_Search_Sheet::from_query( $prev ), $type_keys );
+		$is        = ASI_Search_Sheet::type_of( ASI_Search_Sheet::from_query( $now ), $type_keys );
+		if ( ! $was || ! $is || $was === $is ) {
 			return $response;
 		}
-		$label  = $this->responder->join_list( isset( $now['attr_labels'] ) ? array_slice( (array) $now['attr_labels'], 0, 1 ) : array(), 'or' );
+		$label  = $this->responder->join_list( ! empty( $now['attr_labels'] ) ? array_slice( (array) $now['attr_labels'], 0, 1 ) : array( (string) $now['label'] ), 'or' );
 		$budget = $this->budget_text( $prev );
-		$same   = $this->has_price( $now ) && $now['price_max'] === $prev['price_max'] && $now['price_min'] === $prev['price_min'];
+		$same   = empty( $response['over_budget'] ) && $this->has_price( $now ) && $now['price_max'] === $prev['price_max'] && $now['price_min'] === $prev['price_min'];
 		$response['followup']    = $this->responder->say( $same ? 'budget_keep' : 'budget_other', array( 'budget' => $budget, 'label' => $label ) );
 		$response['suggestions'] = $same ? array( $this->lexicon->word( 'budget_same_chip' ), $this->lexicon->word( 'budget_none_chip' ) ) : array();
 		$response['state']['awaiting'] = $same ? 'budget' : '';
@@ -618,6 +567,7 @@ class ASI_Dialogue {
 			'label'  => $query['label'],
 			'query'  => $this->short( $text ),
 			'refine' => isset( $options['refine'] ) ? $options['refine'] : '',
+			'dropped' => isset( $options['dropped'] ) ? $options['dropped'] : '',
 		);
 
 		if ( ! empty( $options['opening'] ) ) {
@@ -755,86 +705,123 @@ class ASI_Dialogue {
 	}
 
 	/**
-	 * "Solo John Deere", "y eléctricos": se suma a la búsqueda anterior.
+	 * Un mensaje sobre una búsqueda guardada. La búsqueda es una ficha (ASI_Search_Sheet): el mensaje
+	 * solo cambia los campos que menciona y lo demás se queda. Si con todo no hay nada exacto, se
+	 * afloja en orden (palabras sueltas, características, marcas; el tipo nunca) y se dice qué se
+	 * quitó; si lo que no alcanza es el presupuesto, también se dice.
 	 */
-	private function refine( $message, array $query, array $state ) {
-		$previous = $state['q'];
-		// Un monto nuevo reemplaza al anterior: "tengo 300 mil" y luego "mejor hasta 200 mil".
-		if ( $this->has_price( $query ) ) {
-			$old = ASI_Money::extract_budget( $previous, (array) $this->lexicon->get_list( 'money_words' ), (array) $this->context['money'] );
-			if ( $old['spans'] ) {
-				$previous = trim( preg_replace( '/\s+/u', ' ', str_replace( $old['spans'], ' ', ASI_Money::fold( $previous ) ) ) );
-			}
+	private function sheet_turn( $message, array $query, array $state ) {
+		$phrases   = (array) $this->lexicon->get_list( 'ai_phrases' );
+		$type_keys = ASI_Search_Sheet::type_keys( (array) $this->context['packs'] );
+		$normal    = ASI_Normalizer::normalize( $message );
+		$delta     = ASI_Search_Sheet::from_query( $query );
+		if ( ASI_Search_Sheet::is_empty( $delta ) ) {
+			return $this->search_flow( $message, $query, $state );
 		}
-		if ( '' === trim( (string) $query['label'] ) && $this->has_price( $query ) ) {
-			$query['label'] = preg_replace( '/^(?:de|of)\s+/u', '', $this->budget_text( $query ) );
-		}
-		// "Que sea de gasolina": se nombra la característica ("lo afiné con gasolina").
-		if ( '' === trim( (string) $query['label'] ) && ! empty( $query['attr_labels'] ) ) {
-			$query['label'] = preg_replace( '/^(?:de|of)\s+/u', '', implode( ', ', (array) $query['attr_labels'] ) );
-		}
-		// "Toyota o Volkswagen": se nombran las dos ("lo afiné con toyota o volkswagen").
-		foreach ( (array) $query['groups'] as $group ) {
-			if ( 'brand' === $group['term_kind'] && count( (array) $group['alts'] ) > 1 && false !== strpos( (string) $group['label'], ' o ' ) ) {
-				$query['label'] = function_exists( 'mb_strtolower' ) ? mb_strtolower( $group['label'], 'UTF-8' ) : strtolower( $group['label'] );
-			}
-		}
-		// "¿Y Honda tienes?" tras Toyota: otra marca reemplaza a la anterior (salvo "también").
-		$switched = false;
-		$brands   = array_filter(
-			(array) $query['groups'],
-			function ( $group ) {
-				return 'brand' === $group['term_kind'];
-			}
+		$base = '' !== ASI_Lexicon::find_phrase( $normal, (array) $this->lexicon->get_list( 'reset_words' ) )
+			? ASI_Search_Sheet::blank()
+			: ASI_Search_Sheet::from_query( $this->analyzer->analyze( (string) $state['q'] ) );
+		$merged = ASI_Search_Sheet::merge(
+			$base,
+			$delta,
+			array(
+				'type_keys' => $type_keys,
+				'also'      => (bool) preg_match( '/(^|\s)(tambien|ademas|junto con|aparte|also|as well)(\s|$)/', $normal ),
+				'refine'    => $this->refine_marked( $normal ),
+			)
 		);
-		if ( $brands && ! preg_match( '/(^|\s)(tambien|ademas|junto con|aparte|also|as well)(\s|$)/', ASI_Normalizer::normalize( $message ) ) ) {
-			$new_brands = array();
-			foreach ( $brands as $group ) {
-				$new_brands = array_merge( $new_brands, array_map( 'ASI_Normalizer::normalize', array_merge( array( $group['text'] ), (array) $group['alts'] ) ) );
-			}
-			$old_query  = $this->analyzer->analyze( $previous );
-			$folded     = ' ' . ASI_Normalizer::normalize( $previous ) . ' ';
-			foreach ( (array) $old_query['groups'] as $group ) {
-				if ( 'brand' !== $group['term_kind'] ) {
-					continue;
-				}
-				foreach ( array_merge( array( $group['text'] ), (array) $group['alts'] ) as $alt ) {
-					$word = ASI_Normalizer::normalize( (string) $alt );
-					if ( '' !== $word && ! in_array( $word, $new_brands, true ) && preg_match( '/\s' . preg_quote( $word, '/' ) . '(s|es)?(?=\s)/', $folded ) ) {
-						$folded   = preg_replace( '/\s' . preg_quote( $word, '/' ) . '(s|es)?(?=\s)/', ' ', $folded );
-						$switched = true;
-					}
-				}
-			}
-			if ( $switched ) {
-				$previous = trim( preg_replace( '/\s+/', ' ', $folded ) );
-			}
-		}
-		$combined_text  = trim( $previous . ' ' . $message );
-		$combined_query = $this->analyzer->analyze( $combined_text );
-		$combined       = $this->search->search( $this->context['lang'], $combined_query, array( 'roles' => array( 'catalog' ) ) );
+		$sheet = $merged['sheet'];
 
-		if ( $combined['items'] && 'exact' === $combined['quality'] ) {
-			return $this->search_flow( $combined_text, $combined_query, $state, array( 'opening' => $switched ? 'results_switch' : 'results_refined', 'refine' => $query['label'] ) );
-		}
-		// Sumado no da nada. Si había presupuesto, no se suelta en silencio: lo nuevo se busca dentro
-		// de ese monto ("quiero toyota" tras "hasta 250 mil"); si no alcanza, se dice.
-		if ( ! $this->has_price( $query ) ) {
-			$old = ASI_Money::extract_budget( $state['q'], (array) $this->lexicon->get_list( 'money_words' ), (array) $this->context['money'] );
-			if ( $old['spans'] ) {
-				$budget_text  = trim( $message . ' ' . implode( ' ', $old['spans'] ) );
-				$budget_query = $this->analyzer->analyze( $budget_text );
-				if ( $this->has_price( $budget_query ) ) {
-					$within = $this->search->search( $this->context['lang'], $budget_query, array( 'roles' => array( 'catalog' ) ) );
-					if ( $within['items'] && 'exact' === $within['quality'] ) {
-						return $this->search_flow( $budget_text, $budget_query, $state, array( 'opening' => 'refine_budget', 'refine' => $query['label'] ) );
-					}
-					return $this->search_flow( $message, $query, $state, array( 'opening' => 'refine_over_budget', 'refine' => $query['label'], 'budget' => $this->budget_text( $budget_query ) ) );
-				}
+		// Cómo nombrar lo que cambió ("lo afiné con gasolina", "con toyota o volkswagen").
+		$label = trim( (string) $query['label'] );
+		foreach ( (array) $query['groups'] as $group ) {
+			if ( 'brand' === $group['term_kind'] && ! empty( $group['brands'] ) && count( $group['brands'] ) > 1 ) {
+				$label = function_exists( 'mb_strtolower' ) ? mb_strtolower( $group['label'], 'UTF-8' ) : strtolower( $group['label'] );
 			}
 		}
-		// Se busca solo lo nuevo y se dice con honestidad.
-		return $this->search_flow( $message, $query, $state, array( 'opening' => 'refine_empty', 'refine' => $query['label'] ) );
+		if ( '' === $label && ! empty( $query['attr_labels'] ) ) {
+			$label = preg_replace( '/^(?:de|of)\s+/u', '', implode( ', ', (array) $query['attr_labels'] ) );
+		}
+		if ( '' === $label && $this->has_price( $query ) ) {
+			$label = preg_replace( '/^(?:de|of)\s+/u', '', $this->budget_text( $query ) );
+		}
+		$switched = 'refine' === $merged['mode'] && ! empty( $base['terms']['brand'] ) && ! empty( $delta['terms']['brand'] ) && ! array_intersect( $base['terms']['brand'], $delta['terms']['brand'] );
+		$opening  = 'refine' === $merged['mode'] ? ( $switched ? 'results_switch' : 'results_refined' ) : '';
+
+		// Lo pedido tal cual. Si no hay nada exacto, se afloja en este orden (el tipo nunca):
+		// 1. lo de antes que no es el tipo (palabras sueltas, características, marcas), sin tocar lo
+		//    que acaba de pedir;
+		// 2. si lo que no alcanza es el presupuesto, se dice y se muestra lo que hay arriba;
+		// 3. por último, también lo que acaba de pedir.
+		$first  = array_merge( array( array( 'sheet' => $sheet, 'dropped' => array(), 'level' => '' ) ), ASI_Search_Sheet::relaxations( $sheet, $type_keys, 'refine' === $merged['mode'] ? $delta : null ) );
+		$second = 'refine' === $merged['mode'] ? ASI_Search_Sheet::relaxations( $sheet, $type_keys ) : array();
+		foreach ( $first as $try ) {
+			$reply = $this->sheet_try( $try, $opening, $label, $state, $phrases );
+			if ( $reply ) {
+				return $reply;
+			}
+		}
+		$reply = $this->over_budget( $first, $sheet, $merged['mode'], $label, $state, $phrases );
+		if ( $reply ) {
+			return $reply;
+		}
+		foreach ( $second as $try ) {
+			$reply = $this->sheet_try( $try, $opening, $label, $state, $phrases );
+			if ( $reply ) {
+				return $reply;
+			}
+		}
+		$text = ASI_Search_Sheet::render( $sheet, $phrases );
+		return $this->search_flow( $text, $this->analyzer->analyze( $text ), $state );
+	}
+
+	/** Una forma de la ficha: su respuesta si tiene resultados exactos, o null. */
+	private function sheet_try( array $try, $opening, $label, array $state, array $phrases ) {
+		if ( ! $try['sheet']['terms'] && ! $try['sheet']['attrs'] && ! $try['sheet']['words'] ) {
+			return null;
+		}
+		$text  = ASI_Search_Sheet::render( $try['sheet'], $phrases );
+		$found = $this->analyzer->analyze( $text );
+		if ( ! $this->exact( $found ) ) {
+			return null;
+		}
+		if ( ! $try['dropped'] ) {
+			return $this->search_flow( $text, $found, $state, $opening ? array( 'opening' => $opening, 'refine' => $label ) : array() );
+		}
+		return $this->search_flow( $text, $found, $state, array( 'opening' => 'results_relaxed', 'refine' => $label, 'dropped' => $this->responder->join_list( $try['dropped'], 'and' ) ) );
+	}
+
+	/** ¿Hay resultados exactos para esta consulta? */
+	private function exact( array $query ) {
+		$check = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'catalog' ) ) );
+		return $check['items'] && 'exact' === $check['quality'];
+	}
+
+	/**
+	 * Con lo que pidió (o lo que quedó al aflojar lo de antes) solo hay arriba de su presupuesto:
+	 * se dice y se muestra eso. La ficha se queda con el presupuesto.
+	 */
+	private function over_budget( array $tries, array $sheet, $mode, $label, array $state, array $phrases ) {
+		if ( ! ASI_Search_Sheet::has_price( $sheet ) ) {
+			return null;
+		}
+		foreach ( $tries as $try ) {
+			$open = ASI_Search_Sheet::without_price( $try['sheet'] );
+			if ( ! $open['terms'] && ! $open['attrs'] ) {
+				continue;
+			}
+			$text  = ASI_Search_Sheet::render( $open, $phrases );
+			$found = $this->analyzer->analyze( $text );
+			if ( ! $this->exact( $found ) ) {
+				continue;
+			}
+			$keep  = ASI_Search_Sheet::render( $sheet, $phrases );
+			$reply = $this->search_flow( $text, $found, $state, array( 'opening' => 'refine' === $mode ? 'refine_over_budget' : 'new_over_budget', 'refine' => '' !== $label ? $label : $found['label'], 'budget' => $this->budget_text( $this->analyzer->analyze( $keep ) ) ) );
+			$reply['state']['q']   = $keep;
+			$reply['over_budget'] = true; // Lo usa budget_check; no se envía al navegador.
+			return $reply;
+		}
+		return null;
 	}
 
 	/**
@@ -1531,24 +1518,10 @@ class ASI_Dialogue {
 	}
 
 	/**
-	 * ¿El mensaje afina la búsqueda anterior en vez de empezar una nueva?
-	 * Sí cuando no nombra una categoría nueva y empieza con "solo", "y", "pero"… o solo trae marcas/distintivos.
+	 * ¿Empieza como algo que se suma a lo anterior? "y…", "solo…", "pero…", "que sea…" (sin contar
+	 * "quiero", "dame"…).
 	 */
-	private function is_refinement( $normalized, array $query, array $state ) {
-		// "Que sea de gasolina", "automática", "4x4": solo una característica, sin nombrar otra cosa,
-		// afina lo que venía buscando (y se queda su presupuesto).
-		if ( '' !== $state['q'] && ! $query['groups'] && ! empty( $query['attrs'] ) && ! $this->has_price( $query ) ) {
-			return true;
-		}
-		if ( '' === $state['q'] || ! $query['groups'] || count( $query['groups'] ) > 3 ) {
-			return false;
-		}
-		foreach ( $query['groups'] as $group ) {
-			if ( 'category' === $group['term_kind'] || 'code' === $group['kind'] ) {
-				return false;
-			}
-		}
-		// "Quiero solo Toyota", "dame solo las rojas": la petición no cuenta para ver cómo empieza.
+	private function refine_marked( $normalized ) {
 		$words   = explode( ' ', $normalized );
 		$request = array_map( array( 'ASI_Normalizer', 'normalize' ), (array) $this->lexicon->get_list( 'request_words' ) );
 		while ( count( $words ) > 1 && in_array( $words[0], $request, true ) ) {
@@ -1560,12 +1533,7 @@ class ASI_Dialogue {
 				return true;
 			}
 		}
-		foreach ( $query['groups'] as $group ) {
-			if ( ! in_array( $group['term_kind'], array( 'brand', 'flag', 'attribute', 'tag' ), true ) ) {
-				return false;
-			}
-		}
-		return true;
+		return false;
 	}
 
 	/**

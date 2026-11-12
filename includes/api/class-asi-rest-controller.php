@@ -195,7 +195,7 @@ class ASI_REST_Controller {
 		if ( ! empty( $response['learn'] ) ) {
 			ASI_Learning::log_question( $message, $context->lang, isset( $response['qkey'] ) ? $response['qkey'] : '', $response['learn'] );
 		}
-		unset( $response['learn'], $response['qkey'], $response['fin_unread'], $response['guessed'] );
+		unset( $response['learn'], $response['qkey'], $response['fin_unread'], $response['guessed'], $response['over_budget'] );
 
 		$response = apply_filters( 'asi_chat_response', $response, $message, $context );
 		$rest     = rest_ensure_response( $response );

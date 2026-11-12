@@ -38,7 +38,7 @@ return array(
 
 	// Palabras de petición: indican intención de buscar, pero no son lo que se busca.
 	'fillers' => array(
-		'quiero', 'quisiera', 'queria', 'busco', 'buscaba', 'buscando', 'necesito', 'necesitaba', 'ocupo', 'tienen', 'tiene', 'tienes', 'tenes', 'tendran', 'tendra', 'tendras',
+		'quiero', 'quisiera', 'queria', 'busco', 'buscaba', 'buscando', 'necesito', 'necesitaba', 'ocupo', 'tienen', 'tiene', 'tienes', 'tenes', 'tendran', 'tendra', 'tendras', 'prefiero', 'preferiria', 'prefiere', 'preferimos',
 		'venden', 'vende', 'manejan', 'ofrecen', 'hay', 'ver', 'mostrar', 'muestrame', 'muestreme', 'ensename', 'dame', 'deme', 'me', 'gustaria',
 		'interesa', 'interesan', 'saber', 'informacion', 'info', 'disponible', 'disponibles', 'opcion', 'opciones', 'producto', 'productos',
 		'podrian', 'puede', 'pueden', 'podria', 'ayudar', 'ayudame', 'ayudeme', 'conseguir', 'encontrar', 'comprar', 'adquirir', 'cotizar', 'precio', 'precios',
@@ -204,6 +204,7 @@ return array(
 	'place_words' => array( 'tienda', 'tiendas', 'sucursal', 'sucursales', 'agencia', 'agencias', 'local', 'locales', 'ubicacion', 'ubicaciones', 'oficina', 'oficinas', 'punto', 'puntos', 'entrega', 'direccion', 'zona', 'zonas', 'horario', 'horarios', 'abierto', 'abren', 'cierran', 'fisica', 'cerca', 'mapa', 'estan', 'queda', 'quedan', 'ubicados', 'atencion', 'atienden', 'servicio', 'cliente', 'clientes', 'dias', 'semana', 'sabado', 'sabados', 'domingo', 'domingos', 'feriado', 'feriados', 'hora', 'horas' ),
 
 	// Palabras que marcan que el mensaje refina la búsqueda anterior.
+	'reset_words' => array( 'empecemos de nuevo', 'empezar de nuevo', 'desde cero', 'olvida lo anterior', 'olvidalo', 'nueva busqueda', 'otra busqueda', 'borra todo' ),
 	'refine_markers' => array( 'y', 'solo', 'solamente', 'nada mas', 'pero', 'que sea', 'que sean', 'mejor', 'y en', 'de marca', 'en color', 'con', 'sin' ),
 
 	// "Que no sea eléctrico", "excepto los usados": lo que sigue se excluye de los resultados.
@@ -600,6 +601,9 @@ return array(
 		'results_switch' => array(
 			'Sí, de {refine} tengo {n}.',
 			'Claro, de {refine} hay {n}.',
+		),
+		'results_relaxed' => array(
+			'Con {dropped} no tengo opciones junto con lo demás; sin eso tengo {n}:',
 		),
 		'refine_budget' => array(
 			'Con “{refine}” y todo lo anterior no me quedó ninguna opción. Dentro de tu presupuesto {budget}, esto es lo que tengo de {refine}:',

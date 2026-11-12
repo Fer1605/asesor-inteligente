@@ -561,6 +561,11 @@ final class ASI_Pack_Autos implements ASI_Pack, ASI_Advisor, ASI_Similarity {
 		return preg_replace( '/[^a-z0-9%.,\/ -]+/', ' ', $text );
 	}
 
+	/** Atributos que dicen qué tipo de vehículo busca (cambiarlos es un tema nuevo). */
+	public function type_attributes() {
+		return array( 'body' );
+	}
+
 	/** ¿El mensaje habla de trabajo, carga o finca? ("para ir al trabajo" no cuenta.) */
 	private static function work_use( $text ) {
 		$text = preg_replace( '/(para ir al trabajo|ir a trabajar|ir a la oficina)/', ' ', ' ' . $text . ' ' );
