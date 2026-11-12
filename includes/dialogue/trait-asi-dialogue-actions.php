@@ -181,7 +181,7 @@ trait ASI_Dialogue_Actions {
 	/**
 	 * El producto del que habla: "el segundo", el que está viendo, el que nombra, o el único.
 	 */
-	private function action_target( $normalized, array $state ) {
+	private function action_target( $normalized, array $state, $use_focus = true ) {
 		$ref = $this->detect_reference( $normalized, $state );
 		if ( $ref ) {
 			return (int) $ref;
@@ -211,11 +211,24 @@ trait ASI_Dialogue_Actions {
 				return (int) $named['post_id'];
 			}
 		}
+		if ( ! $use_focus ) {
+			return 0;
+		}
 		$focus = $this->focus_row( $state );
 		if ( $focus ) {
 			return (int) $focus['post_id'];
 		}
 		return 1 === count( $state['results'] ) ? (int) $state['results'][0] : 0;
+	}
+
+	/**
+	 * Los vehículos con los que está trabajando: los de la tabla de cuotas, la cotización o la
+	 * comparación que acaba de ver (2 o más). "Envíame la cotización", "las 4", "todas" hablan de esos.
+	 *
+	 * @return int[]
+	 */
+	private function working_set( array $state ) {
+		return isset( $state['set'] ) && count( $state['set'] ) >= 2 ? array_map( 'intval', $state['set'] ) : array();
 	}
 
 	/**
@@ -240,6 +253,22 @@ trait ASI_Dialogue_Actions {
 				$named[] = $id;
 			}
 		}
+		// 1b. En grupo con artículo plural: "las 4", "los tres", "esas 2" es una cantidad, no la
+		// tarjeta 4 (salvo que siga una lista: "las 1, 3 y 6"). Si es lo que acaba de ver
+		// (la tabla de 4), son esos; si no, las primeras de la lista.
+		$counts  = array( 'ambos' => 2, 'ambas' => 2, 'dos' => 2, 'tres' => 3, 'cuatro' => 4, 'cinco' => 5, 'seis' => 6, 'siete' => 7, 'ocho' => 8, 'todos' => 0, 'todas' => 0 );
+		$working = $this->working_set( $state );
+		if ( $state['results'] && count( $named ) < 2 && preg_match( '/(?:^|\s)(?:(los|las|estos|estas|esos|esas)\s+)?(ambos|ambas|todos|todas|dos|tres|cuatro|cinco|seis|siete|ocho|[2-8])(?:\s+(?:primeros|primeras|opciones|carros|vehiculos|autos|camionetas))?(\s+(?:y|e)\s+(?:la|el|las|los)?\s*[0-9]|\s*,\s*[0-9]|\s+[0-9])?(?:\s|$)/', $normalized, $m )
+			&& empty( $m[3] ) && ( '' !== $m[1] || in_array( $m[2], array( 'ambos', 'ambas', 'todos', 'todas' ), true ) ) ) {
+			$n = ctype_digit( $m[2] ) ? (int) $m[2] : $counts[ $m[2] ];
+			if ( $working && ( 0 === $n || count( $working ) === $n ) ) {
+				return $working;
+			}
+			if ( $n >= 2 || 0 === $n ) {
+				return array_map( 'intval', array_slice( $state['results'], 0, 0 === $n ? 8 : $n ) );
+			}
+		}
+
 		// 2. Por número: todos los ordinales del mensaje, en orden.
 		$ordinals = (array) $this->lexicon->get_list( 'ordinals' );
 		$markers  = (array) $this->lexicon->get_list( 'reference_markers' );
@@ -295,6 +324,9 @@ trait ASI_Dialogue_Actions {
 		// 4. Todo lo que está viendo: "de cada una", "de todas", "de estas", "de estos carros".
 		if ( $state['results'] && $this->means_all_visible( $normalized ) && count( $named ) < 2 ) {
 			// "De estos" justo después de cotizar o calcular dos: esos dos. "De cada una", todas.
+			if ( $working ) {
+				return $working;
+			}
 			if ( count( $state['selected'] ) >= 2 && ! preg_match( '/(^|\s)(todas|todos|cada|all|each)(\s|$)/', $normalized ) ) {
 				return array_map( 'intval', $state['selected'] );
 			}
@@ -306,6 +338,15 @@ trait ASI_Dialogue_Actions {
 		}
 		if ( ! $fallback ) {
 			return array();
+		}
+		// Sin nombrar ninguno: si acaba de ver una tabla o una cotización de varios, son esos;
+		// si no, el que está viendo.
+		$one = $this->action_target( $normalized, $state, false );
+		if ( $one ) {
+			return array( $one );
+		}
+		if ( $working ) {
+			return $working;
 		}
 		$one = $this->action_target( $normalized, $state );
 		return $one ? array( $one ) : array();
@@ -499,6 +540,7 @@ trait ASI_Dialogue_Actions {
 					'focus'    => $ids[0],
 					'offer'    => $offer,
 					'selected' => $ids,
+					'set'      => $ids,
 					'last'     => $with ? 'finance' : $action,
 					'fin_ids'  => $table ? $ids : $state['fin_ids'],
 					'quoted'   => array_values( array_unique( array_merge( $state['quoted'], 'quote' === $action ? $ids : array() ) ) ),
@@ -552,6 +594,7 @@ trait ASI_Dialogue_Actions {
 				'fin_ids'  => $block['ids'],
 				'offer'    => $rest ? array( 'action' => 'finance', 'ids' => $rest ) : ( $offer ? array( 'action' => 'quote', 'ids' => $block['ids'] ) : array() ),
 				'selected' => count( $block['ids'] ) > 1 ? $block['ids'] : ( $state['selected'] ? $state['selected'] : $block['ids'] ),
+				'set'      => $block['ids'],
 				'last'     => 'finance',
 			),
 		);

@@ -153,7 +153,7 @@ class ASI_Dialogue {
 
 		$response['state'] = array_merge(
 			$state,
-			array( 'awaiting' => '' ),
+			array( 'awaiting' => '', 'set' => array() ), // 'set': solo vale el turno siguiente.
 			isset( $response['state'] ) ? $response['state'] : array(),
 			array(
 				'recent' => $this->responder->recent(),
@@ -1809,10 +1809,11 @@ class ASI_Dialogue {
 			'previewed' => self::clean_action( isset( $state['previewed'] ) ? $state['previewed'] : array(), $ints ),
 			'fin'       => self::clean_fin( isset( $state['fin'] ) ? $state['fin'] : array() ),
 			'fin_ids'   => $ints( isset( $state['fin_ids'] ) ? $state['fin_ids'] : array(), 8 ),
+			'set'       => $ints( isset( $state['set'] ) ? $state['set'] : array(), 8 ),
 		);
 		// Otra página de idioma o país: la conversación empieza de cero.
 		if ( '' !== $clean['lang'] && $clean['lang'] !== $this->context['lang'] ) {
-			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'], 'selected' => array(), 'quoted' => array(), 'last' => '', 'awaiting' => '', 'previewed' => array(), 'fin' => array(), 'fin_ids' => array() );
+			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'], 'selected' => array(), 'quoted' => array(), 'last' => '', 'awaiting' => '', 'previewed' => array(), 'fin' => array(), 'fin_ids' => array(), 'set' => array() );
 		}
 		return $clean;
 	}

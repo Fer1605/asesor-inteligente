@@ -521,6 +521,36 @@ foreach ( array( 'cuotas de la 1, 3, 5', 'cuotas de 1, 2 y 3', 'cuotas de la pri
 	check( "lista: \"$m\" = tres", 3, count( $s['fin_ids'] ) );
 }
 
+// Cotizar después de una tabla de cuotas de varias (prueba de la usuaria: tabla de 4 → cotización de 1).
+$quote_after = array( 'Envíame la cotización', 'quiero la cotizacion', 'cotizame esas', 'mandame la cotizacion en pdf', 'cotizacion de las 4', 'cotizame las cuatro', 'si', 'dame la cotizacion de todas', 'cotizame estas' );
+foreach ( $quote_after as $m ) {
+	$s = array();
+	$say8( 'pick up', $s );
+	$say8( 'dame las cuotas con un enganche de 60 mil de la 1 3 6 y 8', $s );
+	$r = $say8( $m, $s );
+	check( "tabla de 4 → \"$m\" cotiza las 4", array( $vis[0], $vis[2], $vis[5], $vis[7] ), isset( $s['pending']['ids'] ) ? $s['pending']['ids'] : array() );
+}
+$s = array();
+$say8( 'pick up', $s );
+$say8( 'cuotas de la 1 3 6 y 8', $s );
+$say8( 'cotizame la 6', $s );
+check( 'tabla de 4 → "cotízame la 6" cotiza solo la 6', array( $vis[5] ), isset( $s['pending']['ids'] ) ? $s['pending']['ids'] : array() );
+$s = array();
+$say8( 'pick up', $s );
+$say8( 'cuotas de la 1 3 6 y 8', $s );
+$say8( 'cotizame las 2 y 3', $s );
+check( 'tabla de 4 → "las 2 y 3" son la 2 y la 3 de la lista', array( $vis[1], $vis[2] ), isset( $s['pending']['ids'] ) ? $s['pending']['ids'] : array() );
+$s = array();
+$say8( 'pick up', $s );
+$say8( 'cotizame las 3', $s );
+check( 'sin tabla: "cotízame las 3" = las primeras 3', array( $vis[0], $vis[1], $vis[2] ), isset( $s['pending']['ids'] ) ? $s['pending']['ids'] : array() );
+$s = array();
+$say8( 'pick up', $s );
+$say8( 'cuotas de la 1 y la 2', $s );
+$say8( 'pick up', $s );
+$say8( 'cotizame la cuarta', $s );
+check( 'después de buscar otra vez, la tabla vieja no cuenta', array( $vis[3] ), isset( $s['pending']['ids'] ) ? $s['pending']['ids'] : array() );
+
 // Listas: todas las combinaciones de 2 a 4 opciones de 8, en 8 formas de escribirlas (1,232 casos).
 require __DIR__ . '/lists-sweep.inc';
 

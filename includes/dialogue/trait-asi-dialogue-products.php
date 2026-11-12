@@ -293,6 +293,7 @@ trait ASI_Dialogue_Products {
 			'state'       => array(
 				'focus'     => 0,
 				'selected'  => $ids,
+				'set'       => $ids,
 				'last'      => 'compare',
 				'previewed' => array( 'action' => 'compare', 'ids' => $ids ),
 				'offer'     => array( 'action' => 'compare', 'ids' => $ids ),
@@ -399,6 +400,7 @@ trait ASI_Dialogue_Products {
 				'results'  => array( (int) $a['post_id'], (int) $b['post_id'] ),
 				'focus'    => 0,
 				'selected' => array( (int) $a['post_id'], (int) $b['post_id'] ),
+				'set'      => array( (int) $a['post_id'], (int) $b['post_id'] ),
 				'last'     => 'compare',
 				// Qué PDF ya está a la vista: si después lo pide por correo, no se vuelve a mostrar.
 				'previewed' => $file ? array( 'action' => 'compare', 'ids' => array( (int) $a['post_id'], (int) $b['post_id'] ) ) : array(),
