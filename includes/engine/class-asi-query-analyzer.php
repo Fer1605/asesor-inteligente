@@ -177,7 +177,7 @@ class ASI_Query_Analyzer {
 		unset( $token );
 
 		// 4. Términos del sitio (frases), del más largo al más corto; luego sinónimos que llevan a un término.
-		$result['groups'] = array_merge( $result['groups'], $this->match_terms( $remaining ) );
+		$result['groups'] = self::merge_brands( array_merge( $result['groups'], $this->match_terms( $remaining ) ) );
 
 		$contents = array();
 		$labels   = array();
@@ -838,5 +838,29 @@ class ASI_Query_Analyzer {
 		}
 		return $map;
 	}
-}
 
+	/**
+	 * Varias marcas que quiere ("Toyota o Volkswagen", "toyota volkswagen") son una sola condición
+	 * con alternativas: un vehículo no puede ser de dos marcas a la vez, así que pedirlas todas
+	 * juntas nunca da nada. Las que no quiere van aparte (exclude) y no se tocan.
+	 */
+	private static function merge_brands( array $groups ) {
+		$first = null;
+		$out   = array();
+		foreach ( $groups as $group ) {
+			if ( 'brand' !== ( isset( $group['term_kind'] ) ? $group['term_kind'] : '' ) ) {
+				$out[] = $group;
+				continue;
+			}
+			if ( null === $first ) {
+				$group['alts'] = array_values( array_unique( array_merge( array( $group['text'] ), isset( $group['alts'] ) ? (array) $group['alts'] : array() ) ) );
+				$out[]         = $group;
+				$first         = count( $out ) - 1;
+				continue;
+			}
+			$out[ $first ]['alts']  = array_values( array_unique( array_merge( $out[ $first ]['alts'], array( $group['text'] ), isset( $group['alts'] ) ? (array) $group['alts'] : array() ) ) );
+			$out[ $first ]['label'] = $out[ $first ]['label'] . ' o ' . $group['label'];
+		}
+		return $out;
+	}
+}

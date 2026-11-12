@@ -773,6 +773,12 @@ class ASI_Dialogue {
 		if ( '' === trim( (string) $query['label'] ) && ! empty( $query['attr_labels'] ) ) {
 			$query['label'] = preg_replace( '/^(?:de|of)\s+/u', '', implode( ', ', (array) $query['attr_labels'] ) );
 		}
+		// "Toyota o Volkswagen": se nombran las dos ("lo afiné con toyota o volkswagen").
+		foreach ( (array) $query['groups'] as $group ) {
+			if ( 'brand' === $group['term_kind'] && count( (array) $group['alts'] ) > 1 && false !== strpos( (string) $group['label'], ' o ' ) ) {
+				$query['label'] = function_exists( 'mb_strtolower' ) ? mb_strtolower( $group['label'], 'UTF-8' ) : strtolower( $group['label'] );
+			}
+		}
 		// "¿Y Honda tienes?" tras Toyota: otra marca reemplaza a la anterior (salvo "también").
 		$switched = false;
 		$brands   = array_filter(
@@ -782,14 +788,22 @@ class ASI_Dialogue {
 			}
 		);
 		if ( $brands && ! preg_match( '/(^|\s)(tambien|ademas|junto con|aparte|also|as well)(\s|$)/', ASI_Normalizer::normalize( $message ) ) ) {
-			$new_brands = array_map( 'ASI_Normalizer::normalize', array_column( $brands, 'text' ) );
+			$new_brands = array();
+			foreach ( $brands as $group ) {
+				$new_brands = array_merge( $new_brands, array_map( 'ASI_Normalizer::normalize', array_merge( array( $group['text'] ), (array) $group['alts'] ) ) );
+			}
 			$old_query  = $this->analyzer->analyze( $previous );
 			$folded     = ' ' . ASI_Normalizer::normalize( $previous ) . ' ';
 			foreach ( (array) $old_query['groups'] as $group ) {
-				$word = ASI_Normalizer::normalize( (string) $group['text'] );
-				if ( 'brand' === $group['term_kind'] && '' !== $word && ! in_array( $word, $new_brands, true ) ) {
-					$folded   = preg_replace( '/\s' . preg_quote( $word, '/' ) . '(s|es)?(?=\s)/', ' ', $folded );
-					$switched = true;
+				if ( 'brand' !== $group['term_kind'] ) {
+					continue;
+				}
+				foreach ( array_merge( array( $group['text'] ), (array) $group['alts'] ) as $alt ) {
+					$word = ASI_Normalizer::normalize( (string) $alt );
+					if ( '' !== $word && ! in_array( $word, $new_brands, true ) && preg_match( '/\s' . preg_quote( $word, '/' ) . '(s|es)?(?=\s)/', $folded ) ) {
+						$folded   = preg_replace( '/\s' . preg_quote( $word, '/' ) . '(s|es)?(?=\s)/', ' ', $folded );
+						$switched = true;
+					}
 				}
 			}
 			if ( $switched ) {

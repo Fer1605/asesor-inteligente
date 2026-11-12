@@ -163,6 +163,15 @@ check( 'marca: "¿y hondas tienes?" cambia de Toyota a Honda', array( 42 ), $ids
 check( 'marca: lo dice sin "no me quedó ninguna"', array( true, false ), array( 0 === strpos( $r['text'], 'Sí, de' ) || 0 === strpos( $r['text'], 'Claro, de' ), false !== strpos( $r['text'], 'ninguna' ) ) );
 check( 'marca: no corrige "tienes"', false, false !== strpos( $r['text'], 'Supongo' ) );
 check( 'marca: conserva tipo y presupuesto', true, false !== strpos( $r['state']['q'], '300000' ) && false === strpos( $r['state']['q'], 'toyota' ) );
+// Frase real: "quiero una camioneta" y luego "que sea toyota o honda que no cueste más de 300 mil":
+// SUV de cualquiera de las dos marcas dentro del presupuesto (no la pickup, no la de 450 mil).
+$s = $bot2->handle( 'quiero una camioneta', array() );
+$r = $bot2->handle( 'pero que sea toyota o honda que no cueste mas de 300 mil', $s['state'] );
+check( 'marcas: "toyota o honda" con camioneta y presupuesto', array( 41, 42 ), ( function ( $a ) { sort( $a ); return $a; } )( $ids( $r ) ) );
+check( 'marcas: sin decir "no tengo"', false, false !== strpos( $r['text'], 'No tengo' ) );
+check( 'marcas: nombra las dos', true, false !== strpos( $r['text'], 'toyota o honda' ) );
+$r = $bot2->handle( 'suv toyota honda hasta 300000', array() );
+check( 'marcas: la frase de la IA "suv toyota honda" son las dos', array( 41, 42 ), ( function ( $a ) { sort( $a ); return $a; } )( $ids( $r ) ) );
 $spec = ASI_AI_Interpreter::switch_brands( array( 'brands' => array( 'toyota', 'honda' ) ), 'y hondas tienes' );
 check( 'IA: "y hondas tienes" deja solo Honda', array( 'honda' ), $spec['brands'] );
 $spec = ASI_AI_Interpreter::switch_brands( array( 'brands' => array( 'toyota', 'honda' ) ), 'tambien quiero ver honda' );
