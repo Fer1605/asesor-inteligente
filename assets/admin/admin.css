@@ -1089,15 +1089,19 @@
 .asi-admin .asi-table--fit .asi-col-actions { width: 84px; }
 .asi-admin .asi-table--fit td.asi-learning__actions > * { display: block; margin: 0 0 6px; }
 .asi-admin .asi-table--fit td:nth-child(3) { text-align: center; }
-.asi-admin .asi-ai-learned .asi-teach[open] .asi-teach__box { position: relative; z-index: 2; min-width: 260px; }
 .asi-admin .asi-table--fit .asi-col-wide { width: 44%; }
 .asi-admin .asi-table--fit .asi-col-actions { width: 64px; }
-.asi-admin .asi-ai-edit { margin-top: 8px; }
-.asi-admin .asi-ai-edit .asi-teach__row { display: flex; flex-wrap: wrap; gap: 6px; }
-.asi-admin .asi-ai-edit .asi-teach__row input { width: 100%; }
-.asi-admin .asi-ai-learned .asi-col-actions { width: 70px; }
-.asi-admin .asi-ai-learned__meaning { margin-top: 4px; font-weight: 600; color: #1d2327; }
-.asi-admin .asi-ai-learned__meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
-.asi-admin .asi-ai-learned__actions { text-align: right; }
-.asi-admin .asi-ai-learned .asi-ai-edit summary { margin-top: 2px; }
-.asi-admin .asi-ai-learned__actions .asi-link-danger { white-space: nowrap; }
+/* Aprendido de la IA: lo que escribió | cómo lo entendió | Editar · Quitar. */
+.asi-admin .asi-ai-learned .asi-col-said { width: 46%; }
+.asi-admin .asi-ai-learned .asi-col-ai-actions { width: 130px; }
+.asi-admin .asi-ai-learned td { vertical-align: middle; }
+.asi-admin .asi-ai-learned__context { margin-top: 2px; font-size: 12px; }
+.asi-admin .asi-ai-learned__meaning { font-weight: 600; color: #1d2327; }
+.asi-admin .asi-ai-learned td.asi-ai-learned__actions { position: relative; text-align: right; white-space: nowrap; overflow-wrap: normal; }
+.asi-admin .asi-ai-learned__actions > * { display: inline-block; vertical-align: middle; margin: 0; }
+.asi-admin .asi-ai-learned__actions > * + * { margin-left: 14px; }
+.asi-admin .asi-ai-edit > summary { list-style: none; cursor: pointer; color: #2271b1; text-decoration: underline; }
+.asi-admin .asi-ai-edit > summary::-webkit-details-marker { display: none; }
+.asi-admin .asi-ai-edit__box { position: absolute; right: 8px; top: calc(100% - 4px); z-index: 5; width: min(380px, 80vw); margin: 0; text-align: left; white-space: normal; background: #fff; box-shadow: 0 6px 20px rgba(0, 0, 0, .12); }
+.asi-admin .asi-ai-edit__box .asi-teach__row { display: flex; gap: 6px; }
+.asi-admin .asi-ai-edit__box .asi-teach__row input { flex: 1 1 auto; min-width: 0; }
