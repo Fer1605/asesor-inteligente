@@ -90,6 +90,12 @@ check( 'conv: automática y usada con menos de 50 mil km', array( 4 ), $ids( $lo
 check( 'conv: del 2025 en adelante', array( 1, 2, 3 ), $ids( $lot_bot()->handle( 'algo del 2025 en adelante' ) ) );
 check( 'conv: "pick up" solo trae vehículos', array( 1, 2 ), $ids( $lot_bot()->handle( 'pick up' ) ) );
 check( 'conv: "estribos para pick up" trae el accesorio', array( 6 ), asi_card_ids( $lot_bot()->handle( 'estribos para pick up' ) ) );
+$neg = $lot_bot()->handle( 'suv que no sea gasolina' );
+check( 'conv: "suv que no sea gasolina" deja fuera la gasolina', array( 3 ), $ids( $neg ) );
+check( 'conv: y lo dice', true, false !== strpos( implode( ' ', (array) $neg['text'] ), 'gasolina' ) && false === strpos( implode( ' ', (array) $neg['text'] ), 'de gasolina' ) );
+check( 'conv: "no quiero diesel" con suv', array( 4, 5 ), $ids( $lot_bot()->handle( 'suv, no quiero diesel' ) ) );
+$no_match = $lot_bot()->handle( 'suv que no sea familiares' );
+check( 'conv: excluir algo que no existe no dice "dejé fuera"', false, (bool) preg_match( '/(Dejé fuera|Ya quité|Sin incluir)/u', implode( ' ', (array) $no_match['text'] ) ) );
 check( 'conv: 7 pasajeros 4x4 con presupuesto', array( 3 ), $ids( $lot_bot()->handle( '7 pasajeros 4x4 hasta 500 mil' ) ) );
 // "Camioneta agrícola" (categoría fiscal) → la carrocería sale del modelo.
 $agri = function ( $title ) use ( $autos ) {

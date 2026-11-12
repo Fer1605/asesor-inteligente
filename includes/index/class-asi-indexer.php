@@ -79,6 +79,7 @@ class ASI_Indexer {
 	public function start_full_reindex() {
 		ASI_WhatsApp::forget(); // El WhatsApp y los enlaces del menú se vuelven a leer.
 		ASI_Site_Links::forget();
+		ASI_AI::forget_catalog(); // Lo que tiene el catálogo, para la IA.
 		update_option(
 			self::STATE_OPTION,
 			array(

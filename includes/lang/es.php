@@ -69,6 +69,16 @@ return array(
 	// Palabras de riesgo: con alguna de estas, la IA revisa lo que entendieron las reglas (modo "lee todo").
 	// Sin ninguna, un mensaje corto ("suv", "toyota", "pickup 4x4") se contesta sin gastar consultas.
 	'ai_signals'        => array( 'no', 'ni', 'sin', 'excepto', 'salvo', 'menos', 'mas', 'mayor', 'menor', 'pase', 'pasen', 'supere', 'barato', 'barata', 'baratos', 'baratas', 'caro', 'cara', 'caros', 'caras', 'economico', 'economica', 'economicos', 'economicas', 'pero', 'mejor', 'otro', 'otra', 'otros', 'otras', 'tambien', 'ademas', 'aunque', 'parecido', 'parecida', 'similar', 'presupuesto', 'mil', 'millon', 'millones', 'dolares', 'dolar', 'quetzales', 'verdes', 'lucas', 'k', 'unos', 'unas', 'alrededor', 'aproximadamente', 'maximo', 'minimo', 'hasta', 'desde', 'entre', 'tengo' ),
+	// Lo que tiene el catálogo, en palabras que el buscador entiende (para la IA). attr => valor => palabra.
+	'ai_catalog_words'  => array(
+		'labels'       => array( 'body' => 'Tipos', 'fuel' => 'Combustible', 'transmission' => 'Transmisión', 'traction' => 'Tracción', 'seats' => 'Pasajeros', 'condition' => 'Estado', 'brand' => 'Marcas' ),
+		'seats_word'   => 'pasajeros',
+		'body'         => array( 'suv' => 'suv', 'pickup' => 'pickup', 'truck' => 'camion', 'car' => 'sedan', 'sedan' => 'sedan', 'hatchback' => 'hatchback', 'microbus' => 'microbus', 'panel' => 'panel', 'bus' => 'bus', 'van' => 'van', 'coupe' => 'coupe', 'motorcycle' => 'moto', 'agricultural' => 'tractor' ),
+		'fuel'         => array( 'diesel' => 'diesel', 'gasoline' => 'gasolina', 'hybrid' => 'hibrido', 'electric' => 'electrico', 'lpg' => 'gas' ),
+		'transmission' => array( 'auto' => 'automatica', 'manual' => 'mecanica' ),
+		'traction'     => array( '4x4' => '4x4', 'awd' => 'awd', '4x2' => '4x2' ),
+		'condition'    => array( 'new' => 'nuevo', 'used' => 'usado' ),
+	),
 	'ai_phrases'        => array(
 		'finance_fin'  => 'cuotas {fin}',
 		'with_finance' => 'con cuotas',
@@ -89,6 +99,8 @@ return array(
 		'search_around' => 'alrededor de {amount}',
 		'search_min'  => 'desde {amount}',
 		'search_not'  => 'que no sea {words}',
+		// Lo pidió por uso ("familiar") y el sitio no lo tiene como característica: la IA lo tradujo.
+		'assumed'     => 'No tengo “{word}” como categoría, así que te muestro lo que mejor sirve para eso.',
 		'contact'     => 'contacto',
 		'location'    => 'donde estan ubicados',
 		'hours'       => 'horario',

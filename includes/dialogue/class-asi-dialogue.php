@@ -499,8 +499,16 @@ class ASI_Dialogue {
 		} else {
 			$intro[] = $this->responder->say( 'results', $vars );
 		}
-		if ( ! empty( $query['exclude'] ) ) {
-			$intro[] = $this->responder->say( 'excluded', array( 'excluded' => $query['exclude_label'] ) );
+		// Solo si de verdad quitó algo: "dejé fuera familiares" sin quitar nada confunde.
+		$left_out = array();
+		if ( ! empty( $query['exclude'] ) && ( ! isset( $catalog['excluded'] ) || $catalog['excluded'] > 0 ) ) {
+			$left_out[] = $query['exclude_label'];
+		}
+		if ( ! empty( $query['attr_not_labels'] ) ) {
+			$left_out = array_merge( $left_out, preg_replace( '/^(de|of) /u', '', (array) $query['attr_not_labels'] ) );
+		}
+		if ( $left_out ) {
+			$intro[] = $this->responder->say( 'excluded', array( 'excluded' => implode( ', ', array_unique( $left_out ) ) ) );
 		}
 		// Un solo producto (o el que nombró): se describe con los datos de su ficha.
 		$single = 1 === $total || $catalog['named'];

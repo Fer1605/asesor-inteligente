@@ -147,6 +147,10 @@ class ASI_AI {
 
 		// 1. Caché: ya se interpretó antes.
 		$cache = self::cache();
+		if ( isset( $cache[ $key ] ) && ASI_AI_Interpreter::unasked_action( $message, $cache[ $key ]['phrase'], $phrases ) ) {
+			unset( $cache[ $key ] ); // Una comparación o cotización que no pidió: no se repite.
+			update_option( self::CACHE_OPTION, $cache, false );
+		}
 		if ( isset( $cache[ $key ] ) ) {
 			$response = ASI_AI_Interpreter::try_phrase( $dialogue, $message, $cache[ $key ]['phrase'], $state );
 			if ( $response ) {
@@ -197,8 +201,13 @@ class ASI_AI {
 		$analyzer = new ASI_Query_Analyzer( $lexicon, ( new ASI_Index_Repository() )->vocabulary( $context['lang'] ), (array) $context['money'], (array) $context['packs'] );
 		$cache    = self::cache();
 		$cached   = isset( $cache[ $key ] ) ? (string) $cache[ $key ]['phrase'] : null;
-
-		$result = ASI_AI_Interpreter::review( $dialogue, $analyzer, $message, $state, $response, $phrases, array( __CLASS__, 'ask' ), isset( $context['site_name'] ) ? $context['site_name'] : '', $cached );
+		// Una lectura guardada con la versión anterior que no sirvió cuando el chat no entendió:
+		// se vuelve a preguntar una vez (ahora la IA sabe qué tiene el sitio).
+		if ( null !== $cached && empty( $cache[ $key ]['v'] ) && empty( $cache[ $key ]['changed'] ) && empty( $cache[ $key ]['edited'] ) && in_array( $response['kind'], array( 'none', 'unclear' ), true ) ) {
+			$cached = null;
+		}
+		$note   = null !== $cached && isset( $cache[ $key ]['note'] ) ? (string) $cache[ $key ]['note'] : '';
+		$result = ASI_AI_Interpreter::review( $dialogue, $analyzer, $message, $state, $response, $phrases, array( __CLASS__, 'ask' ), isset( $context['site_name'] ) ? $context['site_name'] : '', $cached, self::catalog( $context['lang'], $context['language'] ), $note );
 
 		if ( null !== $cached ) {
 			$cache[ $key ]['hits'] = (int) $cache[ $key ]['hits'] + 1;
@@ -211,8 +220,10 @@ class ASI_AI {
 				'message' => ASI_AI_Interpreter::scrub( $message ),
 				'context' => ASI_AI_Interpreter::scrub( $current ),
 				'phrase'  => $result['phrase'],
+				'note'    => $result['note'],
 				'changed' => null !== $result['response'],
 				'model'   => $result['model'],
+				'v'       => 2,
 				'hits'    => 0,
 				'time'    => time(),
 				'last'    => time(),
@@ -222,8 +233,36 @@ class ASI_AI {
 		if ( ! $result['response'] ) {
 			return null;
 		}
-		$model = null !== $cached ? $cache[ $key ]['model'] : $result['model'];
-		return self::mark( $result['response'], $result['phrase'], $model, null !== $cached );
+		$model    = null !== $cached ? $cache[ $key ]['model'] : $result['model'];
+		$response = $result['response'];
+		// Lo tradujo por el uso ("familiar" → SUV o sedán): se le dice al cliente.
+		if ( '' !== $result['note'] && isset( $phrases['assumed'] ) ) {
+			$line             = str_replace( '{word}', $result['note'], $phrases['assumed'] );
+			$response['text'] = is_array( $response['text'] ) ? array_merge( array( $line ), $response['text'] ) : $line . ' ' . $response['text'];
+		}
+		return self::mark( $response, $result['phrase'], $model, null !== $cached );
+	}
+
+	/**
+	 * Resumen del catálogo para la IA (tipos, combustibles, pasajeros, marcas…). Se guarda unas
+	 * horas; al reindexar se vuelve a armar.
+	 */
+	public static function catalog( $lang, $language ) {
+		$key    = 'asi_ai_catalog_' . md5( $lang . '|' . $language );
+		$cached = get_transient( $key );
+		if ( is_string( $cached ) ) {
+			return $cached;
+		}
+		$words = (array) ASI_Lexicon::get( $language )->get_list( 'ai_catalog_words' );
+		$text  = $words ? ASI_AI_Interpreter::catalog_text( ( new ASI_Index_Repository() )->catalog( $lang, 5000 ), $words ) : '';
+		set_transient( $key, $text, 6 * HOUR_IN_SECONDS );
+		return $text;
+	}
+
+	/** Borra los resúmenes del catálogo (al reindexar). */
+	public static function forget_catalog() {
+		global $wpdb;
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s", $wpdb->esc_like( '_transient_asi_ai_catalog_' ) . '%', $wpdb->esc_like( '_transient_timeout_asi_ai_catalog_' ) . '%' ) );
 	}
 
 	/**

@@ -43,6 +43,15 @@ return array(
 	'search_else_words' => array( 'something else', 'search something else', 'look for something else', 'something different' ),
 	// Phrases the rules already understand; used to translate what the optional AI interpreted.
 	'ai_signals'        => array( 'not', 'no', 'nor', 'without', 'except', 'less', 'more', 'over', 'under', 'cheap', 'cheaper', 'cheapest', 'expensive', 'but', 'rather', 'instead', 'other', 'another', 'also', 'similar', 'budget', 'thousand', 'million', 'dollars', 'quetzales', 'k', 'around', 'about', 'max', 'min', 'between', 'up', 'have' ),
+	'ai_catalog_words'  => array(
+		'labels'       => array( 'body' => 'Types', 'fuel' => 'Fuel', 'transmission' => 'Transmission', 'traction' => 'Drive', 'seats' => 'Seats', 'condition' => 'Condition', 'brand' => 'Brands' ),
+		'seats_word'   => 'seats',
+		'body'         => array( 'suv' => 'suv', 'pickup' => 'pickup', 'truck' => 'truck', 'car' => 'sedan', 'sedan' => 'sedan', 'hatchback' => 'hatchback', 'microbus' => 'minibus', 'panel' => 'cargo van', 'bus' => 'bus', 'van' => 'van', 'coupe' => 'coupe', 'motorcycle' => 'motorcycle', 'agricultural' => 'tractor' ),
+		'fuel'         => array( 'diesel' => 'diesel', 'gasoline' => 'gasoline', 'hybrid' => 'hybrid', 'electric' => 'electric' ),
+		'transmission' => array( 'auto' => 'automatic', 'manual' => 'manual' ),
+		'traction'     => array( '4x4' => '4x4', 'awd' => 'awd', '4x2' => '4x2' ),
+		'condition'    => array( 'new' => 'new', 'used' => 'used' ),
+	),
 	'ai_phrases'        => array(
 		'finance_fin'  => 'payments {fin}',
 		'with_finance' => 'with payments',
@@ -63,6 +72,7 @@ return array(
 		'search_around' => 'around {amount}',
 		'search_min'  => 'over {amount}',
 		'search_not'  => 'except {words}',
+		'assumed'     => 'I don’t have “{word}” as a category, so here is what works best for that.',
 		'contact'     => 'contact',
 		'location'    => 'where are you located',
 		'hours'       => 'opening hours',

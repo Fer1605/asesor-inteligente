@@ -412,8 +412,93 @@ class ASI_AI_Interpreter {
 			return array( 'response' => null, 'phrase' => '', 'intent' => null, 'model' => isset( $answer['model'] ) ? $answer['model'] : '' );
 		}
 		$phrase = self::phrase( $intent, $phrases );
+		// La IA no puede empezar una comparación o una cotización que el mensaje no pidió.
+		if ( self::unasked_action( $clean, $phrase, $phrases ) ) {
+			return array( 'response' => null, 'phrase' => '', 'intent' => null, 'model' => isset( $answer['model'] ) ? $answer['model'] : '' );
+		}
 		$result = self::try_phrase( $dialogue, $message, $phrase, $state );
 		return array( 'response' => $result, 'phrase' => $result ? $phrase : '', 'intent' => $intent, 'model' => isset( $answer['model'] ) ? $answer['model'] : '' );
+	}
+
+	/**
+	 * ¿La frase de la IA empieza una comparación o una cotización que el mensaje no pide?
+	 * ("quiero de gasolina y que sea familiar" → "comparar todas": no). Tolera errores de dedo
+	 * ("comparrar", "cotisame") porque se busca solo la raíz.
+	 */
+	public static function unasked_action( $message, $phrase, array $phrases ) {
+		$phrase = ASI_Normalizer::normalize( (string) $phrase );
+		$starts = array();
+		foreach ( array( 'compare', 'compare_all', 'quote', 'quote_all' ) as $key ) {
+			if ( isset( $phrases[ $key ] ) ) {
+				$head = trim( strtok( ASI_Normalizer::normalize( str_replace( '{items}', '', $phrases[ $key ] ) ), ' ' ) );
+				if ( '' !== $head ) {
+					$starts[] = $head;
+				}
+			}
+		}
+		$is_action = false;
+		foreach ( array_unique( $starts ) as $head ) {
+			if ( 0 === strpos( $phrase . ' ', $head . ' ' ) ) {
+				$is_action = true;
+			}
+		}
+		if ( ! $is_action ) {
+			return false;
+		}
+		$text = ' ' . ASI_Normalizer::normalize( (string) $message ) . ' ';
+		return ! preg_match( '/([ck]ompa?r|diferen|\svs\s|versus|cual.{0,25}(mejor|conviene)|[ck]oti[sz]|proforma|quot|differen|which.{0,25}better)/', $text );
+	}
+
+	/**
+	 * Lo que hay en el catálogo, en palabras que las reglas entienden, para que la IA traduzca
+	 * lo que pide el cliente ("familiar", "para trabajo") a lo que el sitio sí tiene.
+	 *
+	 * @param array[] $rows  Filas del catálogo (con card.attrs y card.brand).
+	 * @param array   $words Lista ai_catalog_words del idioma: attr => valor => palabra; 'labels' => attr => título.
+	 * @return string Varias líneas, o '' si no hay atributos.
+	 */
+	public static function catalog_text( array $rows, array $words ) {
+		$counts = array();
+		$brands = array();
+		foreach ( $rows as $row ) {
+			$card  = isset( $row['card'] ) && is_array( $row['card'] ) ? $row['card'] : array();
+			$attrs = isset( $card['attrs'] ) && is_array( $card['attrs'] ) ? $card['attrs'] : array();
+			foreach ( $attrs as $key => $value ) {
+				if ( ! is_scalar( $value ) || '' === (string) $value ) {
+					continue;
+				}
+				if ( 'seats' === $key ) {
+					$word = (int) $value . ' ' . ( isset( $words['seats_word'] ) ? $words['seats_word'] : 'pasajeros' );
+				} elseif ( isset( $words[ $key ][ (string) $value ] ) ) {
+					$word = $words[ $key ][ (string) $value ];
+				} else {
+					continue;
+				}
+				$counts[ $key ][ $word ] = ( isset( $counts[ $key ][ $word ] ) ? $counts[ $key ][ $word ] : 0 ) + 1;
+			}
+			$brand = isset( $card['brand'] ) ? ASI_Normalizer::normalize( (string) $card['brand'] ) : '';
+			if ( '' !== $brand ) {
+				$brands[ $brand ] = ( isset( $brands[ $brand ] ) ? $brands[ $brand ] : 0 ) + 1;
+			}
+		}
+		$labels = isset( $words['labels'] ) ? (array) $words['labels'] : array();
+		$lines  = array();
+		foreach ( $labels as $key => $label ) {
+			if ( 'brand' === $key || empty( $counts[ $key ] ) ) {
+				continue;
+			}
+			arsort( $counts[ $key ] );
+			$parts = array();
+			foreach ( array_slice( $counts[ $key ], 0, 8, true ) as $word => $n ) {
+				$parts[] = $word . ' (' . $n . ')';
+			}
+			$lines[] = $label . ': ' . implode( ', ', $parts );
+		}
+		if ( $brands && isset( $labels['brand'] ) ) {
+			arsort( $brands );
+			$lines[] = $labels['brand'] . ': ' . implode( ', ', array_keys( array_slice( $brands, 0, 30, true ) ) );
+		}
+		return implode( "\n", $lines );
 	}
 
 	// ------------------------------------------------------------------
@@ -512,7 +597,7 @@ class ASI_AI_Interpreter {
 	 * @param string $current Lo que venía buscando (texto acumulado), o ''.
 	 * @param string $site    Nombre del sitio.
 	 */
-	public static function review_prompt( $message, $current, $site = '', $reading = '' ) {
+	public static function review_prompt( $message, $current, $site = '', $reading = '', $catalog = '' ) {
 		$lines   = array();
 		$lines[] = 'Eres el intérprete de un chat de ventas de vehículos' . ( '' !== $site ? ' del sitio "' . $site . '"' : '' ) . '. NO le respondes al cliente: traduces lo que busca a filtros.';
 		$lines[] = 'El cliente escribe en español o inglés, con errores de dedo y modismos de Guatemala.';
@@ -524,6 +609,15 @@ class ASI_AI_Interpreter {
 			$lines[] = 'Si esa lectura es correcta, devuelve esos mismos filtros. Corrígela solo si el chat entendió mal.';
 		}
 		$lines[] = '';
+		if ( '' !== trim( $catalog ) ) {
+			$lines[] = 'Lo que tiene el sitio (cuántos de cada uno), con las palabras que entiende el buscador:';
+			$lines[] = $catalog;
+			$lines[] = '';
+			$lines[] = 'Interpreta lo que el cliente QUIERE, no copies sus palabras. En "type" y "words" usa SOLO palabras de esa lista (además de marcas, modelos, años o números de pasajeros).';
+			$lines[] = 'Si pide algo por su USO o PERFIL y eso no es una característica del sitio ("familiar", "para la familia", "para trabajar", "para la finca", "para la ciudad", "para viajar", "para el negocio"), tradúcelo a los tipos o características del sitio que mejor sirven para eso y pon su palabra tal cual la diría el cliente, bien escrita, en "assumed". Ejemplos: familiar → type ["suv","sedan"]; para trabajo o carga → ["pickup","panel"]; para la ciudad → ["sedan","hatchback"] si existen. No agregues requisitos que no pidió (si no habla de tamaño, no pongas pasajeros).';
+			$lines[] = 'Si lo que pide sí es una característica del sitio, "assumed" va vacío.';
+			$lines[] = '';
+		}
 		$lines[] = 'Vocabulario de Guatemala: "camioneta" es una SUV o una pickup, NUNCA un camión (camión es un vehículo de carga grande). "Carro" es cualquier automóvil. "Picop"/"palangana" es pickup. "Troca" es pickup o camión pequeño. Con errores de dedo, quédate con la palabra más parecida ("camiooneeta" = camioneta).';
 		$lines[] = 'Devuelve la búsqueda COMPLETA como queda después del mensaje nuevo:';
 		$lines[] = '- Si el mensaje afina ("solo toyota", "que no pase de 100 mil", "y diésel"), conserva lo anterior y suma lo nuevo.';
@@ -533,9 +627,9 @@ class ASI_AI_Interpreter {
 		$lines[] = '- Montos en número completo: 100 mil = 100000, 1.5 millones = 1500000.';
 		$lines[] = '- Si da un monto aproximado ("unos 250 mil", "alrededor de", "como de", "más o menos"), ponlo en "around" y deja min y max en null.';
 		$lines[] = '';
-		$lines[] = 'Campos: "type" tipo de vehículo (camioneta, suv, pickup, sedan, hatchback, microbus, panel, camion…; si dice "camioneta" pon "camioneta") o vacío; "brands" marcas que quiere; "words" otras características (4x4, diesel, automatica, hibrido, 7 pasajeros, año, modelo) o vacío; "exclude" marcas o tipos que NO quiere; "min" y "max" montos o null; "around" monto aproximado o null; "currency" "USD" si dice dólares/$, "GTQ" si dice quetzales/Q, si no vacío.';
+		$lines[] = 'Campos: "type" lista de 1 a 3 tipos de vehículo (camioneta, suv, pickup, sedan, hatchback, microbus, panel, camion…; si dice "camioneta" pon "camioneta") o vacía; "assumed" la palabra de uso o perfil que tradujiste, o vacío; "brands" marcas que quiere; "words" otras características (4x4, diesel, automatica, hibrido, 7 pasajeros, año, modelo) o vacío; "exclude" marcas o tipos que NO quiere; "min" y "max" montos o null; "around" monto aproximado o null; "currency" "USD" si dice dólares/$, "GTQ" si dice quetzales/Q, si no vacío.';
 		$lines[] = 'Si el mensaje no es una búsqueda (pregunta cuotas, cotizar, horario, saludo…), responde {"search":false}.';
-		$lines[] = 'Responde SOLO con JSON en una línea, sin explicación: {"search":true,"type":"suv","brands":["toyota"],"words":"","exclude":[],"min":null,"max":100000,"around":null,"currency":""}';
+		$lines[] = 'Responde SOLO con JSON en una línea, sin explicación: {"search":true,"type":["suv"],"assumed":"","brands":["toyota"],"words":"","exclude":[],"min":null,"max":100000,"around":null,"currency":""}';
 		return implode( "\n", $lines );
 	}
 
@@ -580,7 +674,8 @@ class ASI_AI_Interpreter {
 			return null;
 		};
 		$spec = array(
-			'type'     => implode( ' ', $words( isset( $data['type'] ) ? $data['type'] : '', 1 ) ),
+			'type'     => implode( ' ', $words( isset( $data['type'] ) ? $data['type'] : '', 3 ) ),
+			'assumed'  => self::assumed_word( isset( $data['assumed'] ) ? $data['assumed'] : '' ),
 			'brands'   => $words( isset( $data['brands'] ) ? $data['brands'] : array(), 3 ),
 			'words'    => implode( ' ', $words( isset( $data['words'] ) ? $data['words'] : '', 4 ) ),
 			'exclude'  => $words( isset( $data['exclude'] ) ? $data['exclude'] : array(), 3 ),
@@ -607,6 +702,17 @@ class ASI_AI_Interpreter {
 			return null;
 		}
 		return $spec;
+	}
+
+	/**
+	 * La palabra de uso o perfil que la IA tradujo ("familiar"): corta y solo letras; '' si no.
+	 */
+	public static function assumed_word( $value ) {
+		$value = is_scalar( $value ) ? trim( preg_replace( '/\s+/u', ' ', (string) $value ) ) : '';
+		if ( '' === $value || mb_strlen( $value ) > 30 || str_word_count( ASI_Normalizer::normalize( $value ) ) > 4 || preg_match( '/[^\p{L}\s]/u', $value ) ) {
+			return '';
+		}
+		return mb_strtolower( $value );
 	}
 
 	/**
@@ -671,14 +777,15 @@ class ASI_AI_Interpreter {
 	 * @param callable           $ask      function( string $prompt ): array|null { text, model }
 	 * @return array { response|null (null = las reglas tenían razón), phrase, model, asked }
 	 */
-	public static function review( ASI_Dialogue $dialogue, ASI_Query_Analyzer $analyzer, $message, array $state, array $response, array $phrases, callable $ask, $site = '', $cached = null ) {
+	public static function review( ASI_Dialogue $dialogue, ASI_Query_Analyzer $analyzer, $message, array $state, array $response, array $phrases, callable $ask, $site = '', $cached = null, $catalog = '', $cached_note = '' ) {
 		$current = isset( $state['q'] ) && is_string( $state['q'] ) ? self::scrub( $state['q'] ) : '';
-		$out     = array( 'response' => null, 'phrase' => '', 'model' => '', 'asked' => false );
+		$out     = array( 'response' => null, 'phrase' => '', 'model' => '', 'asked' => false, 'note' => '' );
 		if ( null !== $cached ) {
-			$phrase = (string) $cached;
+			$phrase      = (string) $cached;
+			$out['note'] = (string) $cached_note;
 		} else {
 			$reading = isset( $response['state']['q'] ) ? self::scrub( (string) $response['state']['q'] ) : '';
-			$answer  = call_user_func( $ask, self::review_prompt( self::scrub( $message ), $current, $site, $reading ) );
+			$answer  = call_user_func( $ask, self::review_prompt( self::scrub( $message ), $current, $site, $reading, $catalog ) );
 			if ( ! is_array( $answer ) || empty( $answer['text'] ) ) {
 				return $out;
 			}
@@ -686,6 +793,7 @@ class ASI_AI_Interpreter {
 			$out['model'] = isset( $answer['model'] ) ? $answer['model'] : '';
 			$spec         = self::parse_review( $answer['text'], self::scrub( $message ), $current );
 			$phrase       = $spec ? self::search_phrase( $spec, $phrases ) : '';
+			$out['note']  = $spec ? $spec['assumed'] : '';
 		}
 		$out['phrase'] = $phrase;
 		if ( '' === $phrase ) {

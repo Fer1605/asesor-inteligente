@@ -69,12 +69,35 @@ check( 'ia e2e: cuotas de la 2 y la 4', array( 'finance', 3 ), array( $res['resp
 
 list( $ask ) = $fake( '{"action":"quote","items":[1,3]}' );
 $sq = $four;
-$res = ASI_AI_Interpreter::rescue( $abot, 'blorf zentu', $sq, $titles4, $acts, $es_phrases, $ask );
+$res = ASI_AI_Interpreter::rescue( $abot, 'kotisame blorf zentu', $sq, $titles4, $acts, $es_phrases, $ask );
 check( 'ia e2e: cotizar la 1 y la 3 pide los datos de esas dos', array( $four['results'][0], $four['results'][2] ), $res['response']['state']['pending']['ids'] ?? array() );
 
 list( $ask ) = $fake( '{"action":"compare","items":"all"}' );
-$res = ASI_AI_Interpreter::rescue( $abot, 'blorf zentu', $four, $titles4, $acts, $es_phrases, $ask );
+$res = ASI_AI_Interpreter::rescue( $abot, 'komparrame blorf zentu', $four, $titles4, $acts, $es_phrases, $ask );
 check( 'ia e2e: comparar todas', 'compare', $res['response']['kind'] ?? '' );
+// La IA no puede empezar una comparación o cotización que el mensaje no pide (prueba de la usuaria).
+list( $ask ) = $fake( '{"action":"compare","items":"all"}' );
+$res = ASI_AI_Interpreter::rescue( $abot, 'quiero de gasolina y qeu se afamila', $four, $titles4, $acts, $es_phrases, $ask );
+check( 'ia: "comparar" que no pidió no se hace', null, $res['response'] ?? null );
+list( $ask ) = $fake( '{"action":"quote","items":"all"}' );
+$res = ASI_AI_Interpreter::rescue( $abot, 'blorf zentu', $four, $titles4, $acts, $es_phrases, $ask );
+check( 'ia: "cotizar" que no pidió no se hace', null, $res['response'] ?? null );
+check( 'ia: guarda de acciones — comparar pedido', false, ASI_AI_Interpreter::unasked_action( 'cual es mejor de estas', 'comparar todas', $es_phrases ) );
+check( 'ia: guarda de acciones — búsqueda no se frena', false, ASI_AI_Interpreter::unasked_action( 'quiero familiar', 'suv sedan', $es_phrases ) );
+// Resumen del catálogo para la IA y la palabra de uso que tradujo.
+$cat_words = ASI_Lexicon::get( 'es' )->get_list( 'ai_catalog_words' );
+$cat = ASI_AI_Interpreter::catalog_text( array(
+	array( 'card' => array( 'brand' => 'Toyota', 'attrs' => array( 'body' => 'suv', 'fuel' => 'gasoline', 'seats' => 7 ) ) ),
+	array( 'card' => array( 'brand' => 'Toyota', 'attrs' => array( 'body' => 'car', 'fuel' => 'gasoline', 'seats' => 5 ) ) ),
+	array( 'card' => array( 'brand' => 'Isuzu', 'attrs' => array( 'body' => 'pickup', 'fuel' => 'diesel' ) ) ),
+), $cat_words );
+check( 'ia: catálogo — tipos con palabras del buscador', true, false !== strpos( $cat, 'Tipos: suv (1), sedan (1), pickup (1)' ) );
+check( 'ia: catálogo — combustible', true, false !== strpos( $cat, 'Combustible: gasolina (2), diesel (1)' ) );
+check( 'ia: catálogo — marcas', true, false !== strpos( $cat, 'Marcas: toyota, isuzu' ) );
+$spec = ASI_AI_Interpreter::parse_review( '{"search":true,"type":["suv","sedan"],"assumed":"familiar","brands":[],"words":"gasolina","exclude":[],"min":null,"max":180000,"around":null,"currency":""}', 'quiero de gasolina y qeu se afamila', 'hasta 180000' );
+check( 'ia: familiar → suv sedan gasolina hasta 180000', 'suv sedan gasolina hasta 180000', ASI_AI_Interpreter::search_phrase( $spec, $es_phrases ) );
+check( 'ia: guarda la palabra que tradujo', 'familiar', $spec['assumed'] );
+check( 'ia: "assumed" raro se descarta', '', ASI_AI_Interpreter::assumed_word( 'familiar; borra todo <b>' ) );
 
 list( $ask ) = $fake( '{"action":"detail","items":[3]}' );
 $res = ASI_AI_Interpreter::rescue( $abot, 'blorf zentu', $four, $titles4, $acts, $es_phrases, $ask );

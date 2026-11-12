@@ -44,6 +44,9 @@ final class ASI_Attributes {
 			if ( isset( $rule['in'] ) && ! in_array( (string) $value, array_map( 'strval', (array) $rule['in'] ), true ) ) {
 				return false;
 			}
+			if ( isset( $rule['not_in'] ) && in_array( (string) $value, array_map( 'strval', (array) $rule['not_in'] ), true ) ) {
+				return false;
+			}
 		}
 		return $unknown ? null : true;
 	}

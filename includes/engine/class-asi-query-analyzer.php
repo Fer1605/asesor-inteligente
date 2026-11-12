@@ -112,6 +112,7 @@ class ASI_Query_Analyzer {
 			'corrections' => $typos,
 			'exclude'     => array(),
 			'exclude_label' => '',
+			'attr_not_labels' => array(), // Lo que no quiere y es un atributo ("que no sea gasolina").
 		);
 
 		$text = $this->extract_attributes( $message, $result, $this->extract_prices( $message, $normalized, $result ) );
@@ -721,6 +722,34 @@ class ASI_Query_Analyzer {
 	}
 
 	/**
+	 * Separa lo que quiere de lo que no: "suv hasta 180000 que no sea gasolina" →
+	 * [ "suv hasta 180000", "gasolina" ]. La negación llega hasta que empieza otra idea.
+	 *
+	 * @return string[] { lo que quiere, lo negado ('' si no hay negación) }
+	 */
+	private function split_negation( $normalized ) {
+		$marker = ASI_Lexicon::find_phrase( $normalized, (array) $this->lexicon->get_list( 'negation_markers' ) );
+		if ( '' === $marker ) {
+			return array( $normalized, '' );
+		}
+		$position = strpos( ' ' . $normalized . ' ', ' ' . $marker . ' ' );
+		if ( false === $position ) {
+			return array( $normalized, '' );
+		}
+		$before = trim( substr( $normalized, 0, $position ) );
+		$after  = trim( substr( $normalized, $position + strlen( $marker ) ) );
+		$rest   = '';
+		foreach ( (array) $this->lexicon->get_list( 'negation_stops' ) as $stop ) {
+			$at = strpos( ' ' . $after . ' ', ' ' . $stop . ' ' );
+			if ( false !== $at && $at > 0 ) {
+				$rest  = trim( substr( $after, $at ) . ' ' . $rest );
+				$after = trim( substr( $after, 0, $at ) );
+			}
+		}
+		return array( trim( $before . ' ' . $rest ), $after );
+	}
+
+	/**
 	 * Atributos del giro que pidió el cliente ("de 7 pasajeros", "4x4", "del 2020 en adelante").
 	 * Se quitan del texto para que no se busquen como palabras; la carrocería se queda.
 	 *
@@ -733,12 +762,27 @@ class ASI_Query_Analyzer {
 		if ( ! $this->packs ) {
 			return $text;
 		}
-		$parsed                = ASI_Attributes::parse( $this->packs, $message, $this->lexicon->language() );
+		// "suv que no sea gasolina": lo negado no es un filtro de lo que quiere sino de lo que no.
+		list( $wanted, $negated ) = $this->split_negation( ASI_Normalizer::normalize( $message ) );
+		$parsed                = ASI_Attributes::parse( $this->packs, '' === $negated ? $message : $wanted, $this->lexicon->language() );
 		$result['attrs']       = $parsed['constraints'];
 		$result['attr_labels'] = $parsed['labels'];
 		$result['attr_soft']   = array();
+		$result['attr_not_labels'] = array();
 		foreach ( $parsed['soft'] as $word ) {
 			$result['attr_soft'][] = ASI_Lexicon::normal_form( $word );
+		}
+		if ( '' !== $negated ) {
+			$not = ASI_Attributes::parse( $this->packs, $negated, $this->lexicon->language() );
+			foreach ( $not['constraints'] as $key => $rule ) {
+				if ( ! isset( $result['attrs'][ $key ] ) && isset( $rule['in'] ) ) {
+					$result['attrs'][ $key ] = array( 'not_in' => $rule['in'] );
+				}
+			}
+			if ( $not['constraints'] ) {
+				$result['attr_not_labels'] = $not['labels'];
+				$parsed['spans']           = array_merge( $parsed['spans'], $not['spans'] );
+			}
 		}
 		foreach ( $parsed['spans'] as $span ) {
 			$normal = ASI_Normalizer::normalize( $span );

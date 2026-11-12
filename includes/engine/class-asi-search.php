@@ -112,6 +112,9 @@ class ASI_Search {
 	/** @var array Configuración de moneda. */
 	private $money;
 
+	/** @var int Cuántos productos quitó la exclusión en la última búsqueda ("que no sea X"). */
+	private $excluded_hits = 0;
+
 	public function __construct( ASI_Repository $repository, array $vocab, array $money = array() ) {
 		$this->repository = $repository;
 		$this->vocab      = $vocab;
@@ -141,6 +144,7 @@ class ASI_Search {
 			),
 			$options
 		);
+		$this->excluded_hits = 0;
 
 		$empty = array( 'items' => array(), 'total' => 0, 'quality' => 'none', 'facets' => array(), 'brands' => array(), 'ids' => array(), 'similar' => array(), 'named' => false, 'body_only' => false );
 		// Sin palabras obligatorias pero con presupuesto o atributos ("camioneta del 2024", "7
@@ -254,6 +258,7 @@ class ASI_Search {
 			// Lo pedido solo aparece dentro del texto de las fichas ("llanta de repuesto"), nunca en un
 			// nombre, categoría o marca: no es algo que el sitio venda.
 			'body_only' => ! array_filter( array_column( $pool, 'strong' ) ),
+			'excluded'  => $this->excluded_hits, // Cuántos quitó "que no sea X" (0 = no quitó nada).
 		);
 	}
 
@@ -337,6 +342,7 @@ class ASI_Search {
 				'ids'     => array_map( 'intval', array_column( $pool, 'post_id' ) ),
 				'budget'  => $by_price,
 				'browse'  => true,
+				'excluded' => $this->excluded_hits,
 			)
 		);
 	}
@@ -358,6 +364,7 @@ class ASI_Search {
 			$group['critical'] = true;
 			$result            = self::score( $row, array( 'groups' => array( $group ), 'content' => '' ), $this->vocab );
 			if ( $result['matched'] ) {
+				++$this->excluded_hits;
 				return true;
 			}
 		}
