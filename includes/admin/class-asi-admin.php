@@ -1591,13 +1591,13 @@ class ASI_Admin {
 			<input type="hidden" name="f" value="1">
 			<label>Periodo
 				<select name="periodo" class="asi-report-period">
-					<?php foreach ( array( '7' => 'Últimos 7 días', '30' => 'Últimos 30 días', '90' => 'Últimos 90 días', '365' => 'Último año', 'all' => 'Todo', 'custom' => 'Entre fechas…' ) as $value => $label ) : ?>
+					<?php foreach ( array( '7' => 'Últimos 7 días', '30' => 'Últimos 30 días', '90' => 'Últimos 90 días', '365' => 'Último año', 'custom' => 'Entre fechas (máximo un año)…' ) as $value => $label ) : ?>
 						<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $period['key'], (string) $value ); ?>><?php echo esc_html( $label ); ?></option>
 					<?php endforeach; ?>
 				</select>
 			</label>
-			<label class="asi-report-dates">Desde <input type="date" name="desde" value="<?php echo esc_attr( 'all' === $period['key'] ? '' : $period['from'] ); ?>"></label>
-			<label class="asi-report-dates">Hasta <input type="date" name="hasta" value="<?php echo esc_attr( $period['to'] ); ?>"></label>
+			<label class="asi-report-dates">Desde <input type="date" name="desde" value="<?php echo esc_attr( $period['from'] ); ?>" min="<?php echo esc_attr( gmdate( 'Y-m-d', strtotime( current_time( 'Y-m-d' ) . ' -' . ( ASI_Reports::KEEP_DAYS - 1 ) . ' days' ) ) ); ?>" max="<?php echo esc_attr( current_time( 'Y-m-d' ) ); ?>"></label>
+			<label class="asi-report-dates">Hasta <input type="date" name="hasta" value="<?php echo esc_attr( $period['to'] ); ?>" max="<?php echo esc_attr( current_time( 'Y-m-d' ) ); ?>"></label>
 			<label class="asi-report-check"><input type="checkbox" name="pruebas" value="1" <?php checked( $test ); ?>> Incluir pruebas del chat</label>
 			<button class="button button-primary">Ver reporte</button>
 		</form>
@@ -1615,7 +1615,6 @@ class ASI_Admin {
 		<div class="asi-stats">
 			<?php
 			$this->stat( 'dashicons-format-chat', 'blue', $fmt( $c['conversation'] ), 'Conversaciones en el chat', $fmt( $c['search'] ) . ' búsquedas' );
-			$this->stat( 'dashicons-visibility', 'purple', $fmt( $total( $c['view'] ) ), 'Vistas de fichas', 'Chat ' . $fmt( $c['view']['chat'] ) . ' · Sitio ' . $fmt( $c['view']['site'] ) );
 			$this->stat( 'dashicons-media-document', 'green', $fmt( $total( $c['quote'] ) ), 'Cotizaciones', 'Chat ' . $fmt( $c['quote']['chat'] ) . ' · Sitio ' . $fmt( $c['quote']['site'] ) );
 			$this->stat( 'dashicons-columns', 'amber', $fmt( $total( $c['compare'] ) ), 'Comparaciones', 'Chat ' . $fmt( $c['compare']['chat'] ) . ' · Sitio ' . $fmt( $c['compare']['site'] ) );
 			$this->stat( 'dashicons-chart-line', 'blue', $c['conversation'] ? round( 100 * $conv, 1 ) . '%' : '—', 'Conversión del chat', $fmt( $c['chat_leads'] ) . ' cotizaciones o comparaciones en ' . $fmt( $c['conversation'] ) . ' conversaciones' );
@@ -1626,7 +1625,7 @@ class ASI_Admin {
 			<table class="asi-table asi-report-split">
 				<thead><tr><th></th><th>Desde el chat</th><th>Desde el sitio</th><th>Total</th><th>Parte del chat</th></tr></thead>
 				<tbody>
-				<?php foreach ( array( 'view' => 'Vistas de fichas', 'quote' => 'Cotizaciones', 'compare' => 'Comparaciones' ) as $kind => $label ) : ?>
+				<?php foreach ( array( 'quote' => 'Cotizaciones', 'compare' => 'Comparaciones' ) as $kind => $label ) : ?>
 					<tr>
 						<th scope="row"><?php echo esc_html( $label ); ?></th>
 						<td><?php echo esc_html( $fmt( $c[ $kind ]['chat'] ) ); ?></td>
@@ -1644,12 +1643,13 @@ class ASI_Admin {
 				<?php else : ?>
 					Este sitio no tiene un conector que lea sus formularios: solo se cuentan las del chat.
 				<?php endif; ?>
-				Las vistas y lo que se busca en el chat se cuentan desde que se activó la reportería. Cada visitante cuenta una vez al día por ficha.
+				Lo que se busca, se cliquea y se ve se cuenta desde que se activó la reportería; se guarda un año y lo más viejo se borra solo.
 			</p>
 		<?php $this->card_close(); ?>
 
-		<?php $this->card_open( 'Lo más buscado en el chat', 'dashicons-search', 'purple' ); ?>
-			<p class="asi-muted">Lo que la gente pide al chat, por característica. Cuenta cada vez que alguien lo pide en una búsqueda (si después solo cambia el presupuesto, el tipo no se vuelve a contar).</p>
+		<?php $this->card_open( 'Lo más buscado', 'dashicons-search', 'purple' ); ?>
+			<h3 class="asi-report-sub">En el chat: lo que la gente pide</h3>
+			<p class="asi-muted">Por característica. Cuenta cada vez que alguien lo pide en una búsqueda (si después solo cambia el presupuesto, el tipo no se vuelve a contar).</p>
 			<?php if ( ! $report['criteria'] ) : ?>
 				<div class="asi-empty"><span class="dashicons dashicons-search" aria-hidden="true"></span>Todavía no hay búsquedas en este periodo.</div>
 			<?php else : ?>
@@ -1660,7 +1660,7 @@ class ASI_Admin {
 						<h3><?php echo esc_html( $dim ); ?></h3>
 						<table class="asi-table asi-table--compact">
 							<tbody>
-							<?php foreach ( array_slice( $labels, 0, 8, true ) as $label => $n ) : ?>
+							<?php foreach ( $labels as $label => $n ) : ?>
 								<tr>
 									<td><?php echo esc_html( $label ); ?></td>
 									<td class="asi-report-num"><span class="asi-bar"><span style="width:<?php echo esc_attr( round( 100 * $n / $max ) ); ?>%"></span></span> <?php echo esc_html( $fmt( $n ) ); ?></td>
@@ -1676,24 +1676,18 @@ class ASI_Admin {
 
 		<?php
 		$sections = array(
-			'view'    => array( 'Lo más visto', 'dashicons-visibility', 'Fichas abiertas. "Chat" son las que se abrieron desde el chat o se vieron dentro de él.' ),
+			'click'   => array( 'Lo más buscado: vehículos más cliqueados', 'dashicons-search', 'A qué tarjetas le da clic la gente. "Chat": resultados que abrió desde el chat. "Sitio": tarjetas del inventario, la portada o de otra ficha. Cada visitante cuenta una vez al día por vehículo.' ),
+			'view'    => array( 'Lo más visto', 'dashicons-visibility', 'Fichas abiertas por cualquier camino (también desde Google o un enlace). "Chat": las que se abrieron desde el chat o se vieron dentro de él.' ),
 			'quote'   => array( 'Lo más cotizado', 'dashicons-media-document', 'Cada vehículo de una cotización cuenta una vez (la de favoritos suma cada uno).' ),
 			'compare' => array( 'Lo más comparado', 'dashicons-columns', 'Cada vehículo de una comparación cuenta una vez.' ),
 		);
-		$ver = $this->list_open();
 		foreach ( $sections as $kind => $info ) :
-			if ( $ver && $ver !== $kind ) {
-				continue;
-			}
-			$items = $report['items'][ $kind ];
-			$shown = $ver === $kind ? $items : array_slice( $items, 0, 10 );
-			$this->card_open( $info[0], $info[1], 'view' === $kind ? 'blue' : ( 'quote' === $kind ? 'green' : 'amber' ) );
+			$shown = ASI_Reports::top( $report['items'][ $kind ], 'all' );
+			$tones = array( 'click' => 'purple', 'view' => 'blue', 'quote' => 'green', 'compare' => 'amber' );
+			$this->card_open( $info[0], $info[1], $tones[ $kind ] );
 			?>
-			<p class="asi-muted"><?php echo esc_html( $info[2] ); ?></p>
-			<?php if ( $ver === $kind ) : ?>
-				<p><a class="button asi-back-button" href="<?php echo esc_url( $this->tab_url( 'reportes', array( 'periodo' => $period['key'], 'desde' => $period['from'], 'hasta' => $period['to'], 'f' => 1, 'pruebas' => $test ? 1 : 0 ) ) ); ?>"><span class="dashicons dashicons-arrow-left-alt" aria-hidden="true"></span> Volver a Reportería</a></p>
-			<?php endif; ?>
-			<?php if ( ! $items ) : ?>
+			<p class="asi-muted"><?php echo esc_html( $info[2] ); ?><?php echo $report['totals'][ $kind ] > ASI_Reports::MAX_ROWS ? ' ' . esc_html( sprintf( 'Se muestran los %1$d primeros de %2$d.', ASI_Reports::MAX_ROWS, $report['totals'][ $kind ] ) ) : ''; ?></p>
+			<?php if ( ! $shown ) : ?>
 				<div class="asi-empty"><span class="dashicons <?php echo esc_attr( $info[1] ); ?>" aria-hidden="true"></span>Nada en este periodo.</div>
 			<?php else : ?>
 				<table class="asi-table asi-report-items">
@@ -1710,9 +1704,6 @@ class ASI_Admin {
 					<?php endforeach; ?>
 					</tbody>
 				</table>
-				<?php if ( ! $ver && count( $items ) > 10 ) : ?>
-					<p class="asi-actions"><a class="button" href="<?php echo esc_url( $this->tab_url( 'reportes', array( 'ver' => $kind, 'periodo' => $period['key'], 'desde' => $period['from'], 'hasta' => $period['to'], 'f' => 1, 'pruebas' => $test ? 1 : 0 ) ) ); ?>">Ver todos (<?php echo (int) count( $items ); ?>)</a></p>
-				<?php endif; ?>
 			<?php endif; ?>
 			<?php
 			$this->card_close();

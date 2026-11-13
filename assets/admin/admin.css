@@ -1139,3 +1139,5 @@
 	.asi-admin .asi-ai-learned .asi-col-meaning { width: auto; }
 	.asi-admin .asi-report-export .button { flex: 1 1 100%; text-align: center; }
 }
+
+.asi-admin .asi-report-sub { margin: 0 0 4px; font-size: 14px; }

@@ -23,6 +23,9 @@ class ASI_Reports {
 	const TABLE_VERSION        = 1;
 	const TABLE_VERSION_OPTION = 'asi_stats_db_version';
 	const PER_MINUTE           = 60;
+	const KEEP_DAYS            = 365; // Se guarda un año; lo más viejo se borra solo.
+	const MAX_ROWS             = 20;  // Filas por tabla en el panel y en el CSV.
+	const PURGE_HOOK           = 'asi_stats_purge';
 
 	/** Nombre de los tipos de término del sitio. */
 	const TERM_NAMES = array(
@@ -78,12 +81,24 @@ class ASI_Reports {
 						'args'                => array(
 							'id'  => array( 'type' => 'integer', 'required' => true ),
 							'src' => array( 'type' => 'string', 'default' => 'site' ),
+							'in'  => array( 'type' => 'integer', 'default' => 0 ),
 						),
 					)
 				);
 			}
 		);
 		add_action( 'wp_footer', array( __CLASS__, 'print_beacon' ), 99 );
+		add_action( self::PURGE_HOOK, array( __CLASS__, 'purge' ) );
+		if ( ! wp_next_scheduled( self::PURGE_HOOK ) ) {
+			wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', self::PURGE_HOOK );
+		}
+	}
+
+	/** Borra lo que tiene más de un año. */
+	public static function purge() {
+		global $wpdb;
+		$limit = gmdate( 'Y-m-d', strtotime( current_time( 'Y-m-d' ) . ' -' . self::KEEP_DAYS . ' days' ) );
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . self::table() . ' WHERE day < %s', $limit ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.NotPrepared
 	}
 
 	/** Tipos de contenido que cuentan vistas: los que el asistente indexa, menos las páginas. */
@@ -101,6 +116,8 @@ class ASI_Reports {
 	/**
 	 * En la ficha de un contenido: avisa la vista. Va en el HTML (sirve con la caché de página);
 	 * si el visitante llegó desde el chat (marca que deja el chat al abrir un resultado), es "chat".
+	 * Si llegó desde otra página del mismo sitio (le dio clic a su tarjeta en el inventario, la
+	 * portada o una ficha), también es un clic del sitio; si llegó de Google o un enlace, solo vista.
 	 */
 	public static function print_beacon() {
 		if ( is_admin() || ! is_singular( self::tracked_types() ) ) {
@@ -109,7 +126,7 @@ class ASI_Reports {
 		$id  = (int) get_queried_object_id();
 		$url = rest_url( ASI_REST_Controller::NAMESPACE_V1 . '/view' );
 		?>
-<script>(function(){try{var id=<?php echo (int) $id; ?>,src='site';try{var m=JSON.parse(localStorage.getItem('asi_from_chat')||'{}');if(m.id===id&&Date.now()-m.t<1800000){src='chat';}localStorage.removeItem('asi_from_chat');}catch(e){}var b=JSON.stringify({id:id,src:src}),u=<?php echo wp_json_encode( $url ); ?>;if(navigator.sendBeacon){navigator.sendBeacon(u,new Blob([b],{type:'application/json'}));}else{fetch(u,{method:'POST',body:b,keepalive:true,headers:{'Content-Type':'application/json'}});}}catch(e){}})();</script>
+<script>(function(){try{var id=<?php echo (int) $id; ?>,src='site';try{var m=JSON.parse(localStorage.getItem('asi_from_chat')||'{}');if(m.id===id&&Date.now()-m.t<1800000){src='chat';}localStorage.removeItem('asi_from_chat');}catch(e){}var ins=0;try{var r=new URL(document.referrer);ins=r.host===location.host&&r.pathname!==location.pathname?1:0;}catch(e){}var b=JSON.stringify({id:id,src:src,'in':ins}),u=<?php echo wp_json_encode( $url ); ?>;if(navigator.sendBeacon){navigator.sendBeacon(u,new Blob([b],{type:'application/json'}));}else{fetch(u,{method:'POST',body:b,keepalive:true,headers:{'Content-Type':'application/json'}});}}catch(e){}})();</script>
 		<?php
 	}
 
@@ -118,10 +135,21 @@ class ASI_Reports {
 		$src = 'chat' === $request->get_param( 'src' ) ? 'chat' : 'site';
 		if ( $id && 'publish' === get_post_status( $id ) && in_array( get_post_type( $id ), self::tracked_types(), true ) ) {
 			self::view( $id, $src );
+			// Clic en su tarjeta: en el chat (resultado abierto) o en el sitio (desde otra página).
+			if ( 'chat' === $src || (int) $request->get_param( 'in' ) ) {
+				self::click( $id, $src );
+			}
 		}
 		$rest = rest_ensure_response( array( 'ok' => true ) );
 		$rest->header( 'Cache-Control', 'no-store' );
 		return $rest;
+	}
+
+	/** Un clic en la tarjeta de un contenido (una vez al día por visitante y contenido). */
+	public static function click( $post_id, $source ) {
+		if ( self::once( 'click|' . (int) $post_id ) ) {
+			self::add( $source, 'click', '', '', (int) $post_id );
+		}
 	}
 
 	/** Una vista (una vez al día por visitante y contenido). */
@@ -214,7 +242,7 @@ class ASI_Reports {
 	/**
 	 * Periodo del panel.
 	 *
-	 * @param string $period 7|30|90|365|all|custom.
+	 * @param string $period 7|30|90|365|custom (máximo un año).
 	 * @param string $from   Y-m-d (custom).
 	 * @param string $to     Y-m-d (custom).
 	 * @return array { from, to, label } (fechas incluidas)
@@ -225,10 +253,13 @@ class ASI_Reports {
 			return is_string( $d ) && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $d ) ? $d : '';
 		};
 		if ( 'custom' === $period && $valid( $from ) && $valid( $to ) ) {
-			return $from <= $to ? array( 'from' => $from, 'to' => $to, 'key' => 'custom' ) : array( 'from' => $to, 'to' => $from, 'key' => 'custom' );
-		}
-		if ( 'all' === $period ) {
-			return array( 'from' => '2000-01-01', 'to' => $today, 'key' => 'all' );
+			if ( $from > $to ) {
+				list( $from, $to ) = array( $to, $from );
+			}
+			$to = min( $to, $today );
+			// Un reporte abarca como máximo un año (lo que se guarda).
+			$oldest = gmdate( 'Y-m-d', strtotime( $to . ' -' . ( self::KEEP_DAYS - 1 ) . ' days' ) );
+			return array( 'from' => max( $from, $oldest ), 'to' => $to, 'key' => 'custom' );
 		}
 		$days = in_array( (string) $period, array( '7', '30', '90', '365' ), true ) ? (int) $period : 30;
 		return array( 'from' => gmdate( 'Y-m-d', strtotime( $today . ' -' . ( $days - 1 ) . ' days' ) ), 'to' => $today, 'key' => (string) $days );
@@ -256,11 +287,12 @@ class ASI_Reports {
 				'search'       => 0,
 				'chat_leads'   => 0,
 				'view'         => array( 'chat' => 0, 'site' => 0 ),
+				'click'        => array( 'chat' => 0, 'site' => 0 ),
 				'quote'        => array( 'chat' => 0, 'site' => 0 ),
 				'compare'      => array( 'chat' => 0, 'site' => 0 ),
 			),
 			'criteria' => array(),
-			'items'    => array( 'view' => array(), 'quote' => array(), 'compare' => array() ),
+			'items'    => array( 'click' => array(), 'view' => array(), 'quote' => array(), 'compare' => array() ),
 			'leads'    => 'chat',
 		);
 		$names = self::dim_names();
@@ -287,8 +319,9 @@ class ASI_Reports {
 					$report['criteria'][ $dim ][ $row['label'] ] += $n;
 					break;
 				case 'view':
-					$report['counts']['view'][ $row['source'] ] += $n;
-					self::add_item( $report['items']['view'], (int) $row['post_id'], '', $row['source'], $n );
+				case 'click':
+					$report['counts'][ $row['kind'] ][ $row['source'] ] += $n;
+					self::add_item( $report['items'][ $row['kind'] ], (int) $row['post_id'], '', $row['source'], $n );
 					break;
 			}
 		}
@@ -327,7 +360,7 @@ class ASI_Reports {
 
 		foreach ( $report['criteria'] as $dim => $labels ) {
 			arsort( $labels );
-			$report['criteria'][ $dim ] = $labels;
+			$report['criteria'][ $dim ] = array_slice( $labels, 0, self::MAX_ROWS, true );
 		}
 		uasort(
 			$report['criteria'],
@@ -336,7 +369,43 @@ class ASI_Reports {
 			}
 		);
 		self::name_items( $report['items'] );
+		$report['totals'] = array();
+		foreach ( $report['items'] as $kind => $items ) {
+			$report['totals'][ $kind ] = count( $items );
+			// Se guardan los 20 primeros de cada fuente, para que "solo chat" y "solo sitio" tengan los suyos.
+			$keep = array();
+			foreach ( array( 'all', 'chat', 'site' ) as $scope ) {
+				foreach ( self::top( $items, $scope ) as $item ) {
+					$keep[ ASI_Normalizer::normalize( $item['title'] ) ] = $item;
+				}
+			}
+			$report['items'][ $kind ] = self::top( array_values( $keep ), 'all', count( $keep ) );
+		}
 		return $report;
+	}
+
+	/**
+	 * Los primeros de una lista para una fuente (all = chat + sitio), sin los que no tienen ninguno.
+	 *
+	 * @param array[] $items Lista.
+	 * @param string  $scope all|chat|site.
+	 * @param int     $max   Cuántos.
+	 * @return array[]
+	 */
+	public static function top( array $items, $scope, $max = self::MAX_ROWS ) {
+		$n = function ( $item ) use ( $scope ) {
+			return 'all' === $scope ? $item['chat'] + $item['site'] : $item[ $scope ];
+		};
+		$items = array_values( array_filter( $items, function ( $item ) use ( $n ) {
+			return $n( $item ) > 0;
+		} ) );
+		usort(
+			$items,
+			function ( $a, $b ) use ( $n ) {
+				return $n( $b ) - $n( $a ) ?: strcmp( $a['title'], $b['title'] );
+			}
+		);
+		return array_slice( $items, 0, $max );
 	}
 
 	/** Nombre de cada campo: términos del sitio, atributos de los packs y presupuesto. */
@@ -462,7 +531,6 @@ class ASI_Reports {
 			$put( array( 'Conversaciones en el chat', $c['conversation'] ) );
 			$put( array( 'Búsquedas en el chat', $c['search'] ) );
 		}
-		$put( array( 'Vistas', $pick( $c['view'] ) ) );
 		$put( array( 'Cotizaciones', $pick( $c['quote'] ) ) );
 		$put( array( 'Comparaciones', $pick( $c['compare'] ) ) );
 		if ( 'site' !== $scope && $c['conversation'] ) {
@@ -478,23 +546,13 @@ class ASI_Reports {
 				}
 			}
 		}
-		$titles = array( 'view' => 'Lo más visto', 'quote' => 'Lo más cotizado', 'compare' => 'Lo más comparado' );
+		$titles = array( 'click' => 'Lo más buscado: vehículos más cliqueados', 'view' => 'Lo más visto', 'quote' => 'Lo más cotizado', 'compare' => 'Lo más comparado' );
 		foreach ( $titles as $kind => $title ) {
 			$put( array() );
 			$put( array( $title ) );
 			$put( 'all' === $scope ? array( 'Contenido', 'Total', 'Chat', 'Sitio' ) : array( 'Contenido', 'Veces' ) );
-			$items = $report['items'][ $kind ];
-			usort(
-				$items,
-				function ( $a, $b ) use ( $pick ) {
-					return $pick( $b ) - $pick( $a );
-				}
-			);
-			foreach ( $items as $item ) {
+			foreach ( self::top( $report['items'][ $kind ], $scope ) as $item ) {
 				$n = $pick( $item );
-				if ( ! $n ) {
-					continue;
-				}
 				$put( 'all' === $scope ? array( $item['title'], $n, $item['chat'], $item['site'] ) : array( $item['title'], $n ) );
 			}
 		}
