@@ -561,6 +561,21 @@ final class ASI_Pack_Autos implements ASI_Pack, ASI_Advisor, ASI_Similarity {
 		return preg_replace( '/[^a-z0-9%.,\/ -]+/', ' ', $text );
 	}
 
+	/** Nombre de cada atributo en la reportería del panel. */
+	public function attribute_names() {
+		return array(
+			'body'         => 'Tipo de vehículo',
+			'fuel'         => 'Combustible',
+			'transmission' => 'Transmisión',
+			'traction'     => 'Tracción',
+			'seats'        => 'Pasajeros',
+			'doors'        => 'Puertas',
+			'year'         => 'Año',
+			'km'           => 'Kilometraje',
+			'condition'    => 'Nuevo o usado',
+		);
+	}
+
 	/** Atributos que dicen qué tipo de vehículo busca (cambiarlos es un tema nuevo). */
 	public function type_attributes() {
 		return array( 'body' );

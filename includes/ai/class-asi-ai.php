@@ -156,6 +156,7 @@ class ASI_AI {
 			if ( $response ) {
 				$cache[ $key ]['hits'] = (int) $cache[ $key ]['hits'] + 1;
 				$cache[ $key ]['last'] = time();
+				$cache[ $key ]['reply'] = self::reply_text( $response );
 				update_option( self::CACHE_OPTION, $cache, false );
 				return self::mark( $response, $cache[ $key ]['phrase'], $cache[ $key ]['model'], true );
 			}
@@ -178,6 +179,7 @@ class ASI_AI {
 			'lang'    => $context['lang'],
 			'message' => ASI_AI_Interpreter::scrub( $message ),
 			'phrase'  => $result['phrase'],
+			'reply'   => self::reply_text( $result['response'] ),
 			'model'   => $result['model'],
 			'hits'    => 0,
 			'time'    => time(),
@@ -217,6 +219,7 @@ class ASI_AI {
 		if ( null !== $cached ) {
 			$cache[ $key ]['hits'] = (int) $cache[ $key ]['hits'] + 1;
 			$cache[ $key ]['last'] = time();
+			$cache[ $key ]['reply'] = self::reply_text( $result['response'] ? $result['response'] : $response );
 			update_option( self::CACHE_OPTION, $cache, false );
 		} elseif ( $result['asked'] ) {
 			// Se guarda también cuando la IA estuvo de acuerdo: así esa frase no vuelve a gastar.
@@ -228,6 +231,7 @@ class ASI_AI {
 				'note'    => $result['note'],
 				'spec'    => $result['spec'],
 				'changed' => null !== $result['response'],
+				'reply'   => self::reply_text( $result['response'] ? $result['response'] : $response ),
 				'model'   => $result['model'],
 				'v'       => 3,
 				'hits'    => 0,
@@ -294,6 +298,7 @@ class ASI_AI {
 		if ( null !== $cached ) {
 			$cache[ $key ]['hits'] = (int) $cache[ $key ]['hits'] + 1;
 			$cache[ $key ]['last'] = time();
+			$cache[ $key ]['reply'] = self::reply_text( $result['response'] ? $result['response'] : $response );
 			update_option( self::CACHE_OPTION, $cache, false );
 		} elseif ( $result['asked'] ) {
 			$cache[ $key ] = array(
@@ -302,6 +307,7 @@ class ASI_AI {
 				'context' => 'opciones a la vista',
 				'phrase'  => $result['phrase'],
 				'changed' => null !== $result['response'],
+				'reply'   => self::reply_text( $result['response'] ? $result['response'] : $response ),
 				'model'   => $result['model'],
 				'hits'    => 0,
 				'time'    => time(),
@@ -310,6 +316,23 @@ class ASI_AI {
 			self::save_cache( $cache );
 		}
 		return $result['response'] ? self::mark( $result['response'], $result['phrase'], null !== $cached ? $cache[ $key ]['model'] : $result['model'], null !== $cached ) : null;
+	}
+
+	/** Qué contestó el chat (para el panel): el texto y cuántas opciones mostró. */
+	public static function reply_text( $response ) {
+		if ( ! is_array( $response ) ) {
+			return '';
+		}
+		$text = isset( $response['text'] ) ? ( is_array( $response['text'] ) ? implode( ' ', $response['text'] ) : (string) $response['text'] ) : '';
+		$text = trim( preg_replace( '/\s+/', ' ', wp_strip_all_tags( $text ) ) );
+		if ( function_exists( 'mb_strlen' ) && mb_strlen( $text ) > 220 ) {
+			$text = rtrim( mb_substr( $text, 0, 217 ) ) . '…';
+		}
+		$cards = isset( $response['cards'] ) ? count( (array) $response['cards'] ) : 0;
+		if ( $cards ) {
+			$text .= ' [' . $cards . ( 1 === $cards ? ' opción' : ' opciones' ) . ']';
+		}
+		return trim( $text );
 	}
 
 	/** Nota técnica en la respuesta (solo la ve un administrador en la pestaña Probar). */
@@ -549,6 +572,8 @@ class ASI_AI {
 		$cache[ $key ]['phrase']  = $phrase;
 		$cache[ $key ]['changed'] = true;
 		$cache[ $key ]['edited']  = true;
+		$cache[ $key ]['reply']   = ''; // Con el significado nuevo cambia la respuesta: se verá la próxima vez.
+		$cache[ $key ]['reply']   = ''; // La respuesta cambia con lo nuevo: se verá la próxima vez.
 		$cache[ $key ]['last']    = time();
 		update_option( self::CACHE_OPTION, $cache, false );
 	}

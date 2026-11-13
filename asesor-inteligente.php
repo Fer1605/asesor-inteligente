@@ -3,7 +3,7 @@
  * Plugin Name:       Asesor Inteligente
  * Plugin URI:        https://github.com/Fer1605/asesor-inteligente
  * Description:       Asesor de ventas conversacional para WordPress, sin servicios externos de IA por defecto (interpretación con IA gratuita opcional, apagada). Descubre solo el contenido, los campos, los idiomas y los países (Polylang, WPML, ACF, WooCommerce, Elementor), recomienda según lo que necesita el cliente y se conecta con las acciones del sitio (cotizar, comparar).
- * Version:           0.3.0-dev.30
+ * Version:           0.3.0-dev.31
  * Requires at least: 5.9
  * Requires PHP:      7.4
  * Author:            Fer Santizo
@@ -17,7 +17,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ASI_VERSION', '0.3.0-dev.30' );
+define( 'ASI_VERSION', '0.3.0-dev.31' );
 define( 'ASI_FILE', __FILE__ );
 define( 'ASI_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ASI_URL', plugin_dir_url( __FILE__ ) );
@@ -60,6 +60,7 @@ require_once ASI_DIR . 'includes/class-asi-chat-page.php';
 require_once ASI_DIR . 'includes/class-asi-search-integration.php';
 require_once ASI_DIR . 'includes/class-asi-place-focus.php';
 require_once ASI_DIR . 'includes/class-asi-learning.php';
+require_once ASI_DIR . 'includes/class-asi-reports.php';
 require_once ASI_DIR . 'includes/api/class-asi-rest-controller.php';
 require_once ASI_DIR . 'includes/extend/interface-asi-connector.php';
 require_once ASI_DIR . 'includes/extend/interface-asi-pack.php';
@@ -116,11 +117,13 @@ final class ASI_Plugin {
 		$this->discovery = new ASI_Schema_Discovery( $adapter );
 		$this->indexer   = new ASI_Indexer( $this->discovery, new ASI_Document_Builder( $this->languages ) );
 		ASI_Learning::maybe_install();
+		ASI_Reports::maybe_install();
 		$this->maybe_reindex_after_update();
 
 		$this->chat_page = new ASI_Chat_Page( $this );
 		new ASI_REST_Controller( $this );
 		ASI_Actions::register();
+		ASI_Reports::register();
 		new ASI_Search_Integration( $this );
 		new ASI_Place_Focus();
 

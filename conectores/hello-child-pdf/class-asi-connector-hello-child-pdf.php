@@ -19,6 +19,13 @@ final class ASI_Connector_Hello_Child_Pdf implements ASI_Connector {
 		'compare' => 'gm-pdf-compare-form',
 	);
 
+	/** Formularios del tema que cuentan en la reportería: clase CSS → acción. */
+	const REPORT_FORMS = array(
+		'gm-pdf-single-form'    => 'quote',
+		'gm-pdf-favorites-form' => 'quote',
+		'gm-pdf-compare-form'   => 'compare',
+	);
+
 	public function id() {
 		return 'hello-child-pdf';
 	}
@@ -150,6 +157,74 @@ final class ASI_Connector_Hello_Child_Pdf implements ASI_Connector {
 			$out['saved'] = (bool) $id;
 		} catch ( \Throwable $e ) {
 			$out['saved'] = false;
+		}
+		return $out;
+	}
+
+	/**
+	 * Reportería: las cotizaciones (ficha y favoritos) y comparaciones guardadas en los Envíos de
+	 * los formularios del tema, hechas en el sitio o en el chat. El chat las marca con su navegador
+	 * ("Asesor Inteligente (chat)") y las de prueba con "(prueba)" en el nombre del formulario.
+	 *
+	 * @param string $from Y-m-d.
+	 * @param string $to   Y-m-d (incluido).
+	 * @return array[] { action, source, test, items: { id, title }[] }
+	 */
+	public function report_leads( $from, $to ) {
+		global $wpdb;
+		$forms = array();
+		foreach ( self::REPORT_FORMS as $css_class => $action ) {
+			$form = $this->find_form( $css_class );
+			if ( $form && '' !== (string) $form['element_id'] ) {
+				$forms[ (string) $form['element_id'] ] = $action;
+			}
+		}
+		if ( ! $forms ) {
+			return array();
+		}
+		$subs   = $wpdb->prefix . 'e_submissions';
+		$values = $wpdb->prefix . 'e_submissions_values';
+		$in     = implode( ',', array_fill( 0, count( $forms ), '%s' ) );
+		$rows   = (array) $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->prepare(
+				"SELECT s.id, s.element_id, s.form_name, s.user_agent, v.`key` AS k, v.value FROM {$subs} s LEFT JOIN {$values} v ON v.submission_id = s.id AND v.`key` IN ('vehiculos_ids', 'vehiculos_consultados') WHERE s.status <> 'trash' AND s.element_id IN ({$in}) AND s.created_at >= %s AND s.created_at < %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				array_merge( array_keys( $forms ), array( $from . ' 00:00:00', gmdate( 'Y-m-d', strtotime( $to . ' +1 day' ) ) . ' 00:00:00' ) )
+			),
+			ARRAY_A
+		);
+		$leads = array();
+		foreach ( $rows as $row ) {
+			$id = (int) $row['id'];
+			if ( ! isset( $leads[ $id ] ) ) {
+				$leads[ $id ] = array(
+					'action' => $forms[ (string) $row['element_id'] ],
+					'source' => false !== strpos( (string) $row['user_agent'], 'Asesor Inteligente' ) ? 'chat' : 'site',
+					'test'   => false !== strpos( (string) $row['form_name'], '(prueba)' ),
+					'ids'    => '',
+					'names'  => '',
+				);
+			}
+			if ( 'vehiculos_ids' === $row['k'] ) {
+				$leads[ $id ]['ids'] = (string) $row['value'];
+			} elseif ( 'vehiculos_consultados' === $row['k'] ) {
+				$leads[ $id ]['names'] = (string) $row['value'];
+			}
+		}
+		$out = array();
+		foreach ( $leads as $lead ) {
+			// El chat guarda los IDs; los formularios del tema guardan los nombres en el mismo campo.
+			$raw   = '' !== trim( $lead['ids'] ) ? $lead['ids'] : $lead['names'];
+			$items = array();
+			if ( preg_match( '/^[\d,\s]+$/', $raw ) ) {
+				foreach ( array_filter( array_map( 'absint', explode( ',', $raw ) ) ) as $post_id ) {
+					$items[] = array( 'id' => $post_id, 'title' => '' );
+				}
+			} else {
+				foreach ( array_filter( array_map( 'trim', explode( ',', $raw ) ), 'strlen' ) as $title ) {
+					$items[] = array( 'id' => 0, 'title' => wp_strip_all_tags( $title ) );
+				}
+			}
+			$out[] = array( 'action' => $lead['action'], 'source' => $lead['source'], 'test' => $lead['test'], 'items' => $items );
 		}
 		return $out;
 	}

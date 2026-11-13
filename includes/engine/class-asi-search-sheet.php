@@ -92,6 +92,21 @@ class ASI_Search_Sheet {
 		return ! $sheet['terms'] && ! $sheet['attrs'] && ! $sheet['words'] && ! $sheet['exclude'] && null === $sheet['min'] && null === $sheet['max'];
 	}
 
+	/**
+	 * Presupuesto redondeado en rangos, para la reportería ("hasta Q 300,000"): 225 mil y 300 mil
+	 * caen en el mismo rango. Vale para cualquier moneda y escala (redondea a la cifra mayor).
+	 */
+	public static function budget_bucket( array $sheet ) {
+		$symbol = 'USD' === $sheet['currency'] ? '$' : ( 'GTQ' === $sheet['currency'] ? 'Q ' : '' );
+		$value  = null !== $sheet['max'] ? (float) $sheet['max'] : ( null !== $sheet['min'] ? (float) $sheet['min'] : 0.0 );
+		if ( $value <= 0 ) {
+			return '';
+		}
+		$step   = pow( 10, max( 0, (int) floor( log10( $value ) ) ) );
+		$amount = null !== $sheet['max'] ? ceil( $value / $step ) * $step : floor( $value / $step ) * $step;
+		return ( null !== $sheet['max'] ? 'Hasta ' : 'Desde ' ) . $symbol . number_format( $amount, 0, '.', ',' );
+	}
+
 	public static function has_price( array $sheet ) {
 		return null !== $sheet['min'] || null !== $sheet['max'];
 	}

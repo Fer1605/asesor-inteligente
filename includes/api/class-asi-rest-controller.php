@@ -197,6 +197,9 @@ class ASI_REST_Controller {
 		}
 		unset( $response['learn'], $response['qkey'], $response['fin_unread'], $response['guessed'], $response['over_budget'] );
 
+		// Reportería (sin datos personales): conversación, lo que pidió de nuevo, detalle visto.
+		ASI_Reports::chat_turn( $dialogue, $state, $response );
+
 		$response = apply_filters( 'asi_chat_response', $response, $message, $context );
 		$rest     = rest_ensure_response( $response );
 		$rest->header( 'Cache-Control', 'no-store' );

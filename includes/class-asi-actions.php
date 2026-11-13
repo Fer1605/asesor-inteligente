@@ -94,6 +94,7 @@ final class ASI_Actions implements ASI_Action_Runner {
 		}
 
 		$lead   = $connector->save_lead( $action, $item_ids, $customer, $test );
+		ASI_Reports::chat_action( $action, $item_ids, $test );
 		$notify = $test ? ASI_Settings::email_list( (string) ASI_Settings::all()['test_email'] ) : (array) $lead['notify'];
 		if ( $notify ) {
 			self::notify_sales( $notify, $action, $item_ids, $customer, $test );

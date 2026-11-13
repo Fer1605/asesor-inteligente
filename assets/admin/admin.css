@@ -1092,16 +1092,50 @@
 .asi-admin .asi-table--fit .asi-col-wide { width: 44%; }
 .asi-admin .asi-table--fit .asi-col-actions { width: 64px; }
 /* Aprendido de la IA: lo que escribió | cómo lo entendió | Editar · Quitar. */
-.asi-admin .asi-ai-learned .asi-col-said { width: 46%; }
-.asi-admin .asi-ai-learned .asi-col-ai-actions { width: 130px; }
+.asi-admin .asi-ai-learned .asi-col-said { width: 28%; }
+.asi-admin .asi-ai-learned .asi-col-meaning { width: 22%; }
+.asi-admin .asi-ai-learned .asi-col-ai-actions { width: 200px; }
+.asi-admin .asi-ai-learned td.asi-ai-learned__reply { font-size: 12.5px; color: #50575e; text-align: left; }
 .asi-admin .asi-ai-learned td { vertical-align: middle; }
 .asi-admin .asi-ai-learned__context { margin-top: 2px; font-size: 12px; }
 .asi-admin .asi-ai-learned__meaning { font-weight: 600; color: #1d2327; }
 .asi-admin .asi-ai-learned td.asi-ai-learned__actions { position: relative; text-align: right; white-space: nowrap; overflow-wrap: normal; }
 .asi-admin .asi-ai-learned__actions > * { display: inline-block; vertical-align: middle; margin: 0; }
 .asi-admin .asi-ai-learned__actions > * + * { margin-left: 14px; }
-.asi-admin .asi-ai-edit > summary { list-style: none; cursor: pointer; color: #2271b1; text-decoration: underline; }
+.asi-admin .asi-ai-edit > summary { list-style: none; cursor: pointer; }
+.asi-admin .asi-ai-learned__actions .button .dashicons,
+.asi-admin .asi-report-export .button .dashicons,
+.asi-admin .asi-list-back .dashicons,
+.asi-admin .asi-back-button .dashicons { font-size: 16px; width: 16px; height: 16px; vertical-align: text-bottom; }
+.asi-admin .button.asi-button-danger { color: var( --asi-a-danger ); border-color: currentColor; }
+.asi-admin .button.asi-button-danger:hover,
+.asi-admin .button.asi-button-danger:focus { background: var( --asi-a-danger ); border-color: var( --asi-a-danger ); color: #fff; }
 .asi-admin .asi-ai-edit > summary::-webkit-details-marker { display: none; }
-.asi-admin .asi-ai-edit__box { position: absolute; right: 8px; top: calc(100% - 4px); z-index: 5; width: min(380px, 80vw); margin: 0; text-align: left; white-space: normal; background: #fff; box-shadow: 0 6px 20px rgba(0, 0, 0, .12); }
+.asi-admin .asi-ai-edit__box { position: fixed; left: 50%; top: 50%; transform: translate( -50%, -50% ); z-index: 100000; width: min(560px, 92vw); max-height: 86vh; overflow: auto; padding: 18px 20px; box-shadow: 0 0 0 100vmax rgba( 0, 0, 0, .35 ), 0 12px 32px rgba( 0, 0, 0, .25 ) !important; margin: 0; text-align: left; white-space: normal; background: #fff; box-shadow: 0 6px 20px rgba(0, 0, 0, .12); }
 .asi-admin .asi-ai-edit__box .asi-teach__row { display: flex; gap: 6px; }
 .asi-admin .asi-ai-edit__box .asi-teach__row input { flex: 1 1 auto; min-width: 0; }
+
+/* Aprendido de la IA: caja de edición. */
+.asi-admin .asi-ai-edit__box textarea { width: 100%; min-height: 72px; font-size: 14px; }
+.asi-admin .asi-ai-edit__said { margin: 0 0 10px; }
+.asi-admin .asi-ai-edit__examples { margin: 4px 0 10px 18px; list-style: disc; font-size: 12.5px; }
+.asi-admin .asi-ai-edit__examples li { margin: 0 0 3px; }
+.asi-admin .asi-ai-edit__buttons { display: flex; justify-content: flex-end; gap: 8px; margin: 10px 0 0; }
+
+/* Reportería. */
+.asi-admin .asi-report-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 0 0 12px; padding: 14px 16px; background: var( --asi-a-surface ); border: 1px solid var( --asi-a-border ); border-radius: var( --asi-a-radius ); }
+.asi-admin .asi-report-filters label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.asi-admin .asi-report-filters .asi-report-check { flex-direction: row; align-items: center; gap: 6px; font-weight: 400; padding-bottom: 6px; }
+.asi-admin .asi-report-export { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 18px; }
+.asi-admin .asi-report-criteria { display: grid; grid-template-columns: repeat( auto-fill, minmax( 240px, 1fr ) ); gap: 16px; }
+.asi-admin .asi-report-criteria__group h3 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var( --asi-a-muted ); }
+.asi-admin .asi-report-num { white-space: nowrap; text-align: right; width: 1%; }
+.asi-admin .asi-bar { display: inline-block; width: 70px; height: 8px; margin-right: 6px; vertical-align: middle; background: #f0f0f1; border-radius: 4px; overflow: hidden; }
+.asi-admin .asi-bar > span { display: block; height: 100%; background: #2271b1; border-radius: 4px; }
+.asi-admin .asi-report-split th[scope="row"] { text-align: left; font-weight: 600; }
+.asi-admin .asi-report-items td:first-child { width: 28px; }
+@media ( max-width: 782px ) {
+	.asi-admin .asi-ai-learned .asi-col-said,
+	.asi-admin .asi-ai-learned .asi-col-meaning { width: auto; }
+	.asi-admin .asi-report-export .button { flex: 1 1 100%; text-align: center; }
+}

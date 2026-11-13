@@ -26,6 +26,7 @@ class ASI_Admin {
 		'conexion'   => 'Conexión',
 		'contenido'  => 'Contenido',
 		'aprendizaje' => 'Aprendizaje',
+		'reportes'   => 'Reportería',
 		'ia'         => 'IA',
 		'probar'     => 'Probar',
 		'guia'       => 'Guía',
@@ -83,6 +84,7 @@ class ASI_Admin {
 		$this->plugin = $plugin;
 		add_action( 'admin_menu', array( $this, 'menu' ) );
 		add_action( 'admin_post_asi_action', array( $this, 'handle_action' ) );
+		add_action( 'admin_post_asi_report_csv', array( $this, 'report_csv' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'assets' ) );
 	}
 
@@ -562,6 +564,7 @@ class ASI_Admin {
 		'conexion'   => 'dashicons-admin-links',
 		'contenido'  => 'dashicons-database',
 		'aprendizaje' => 'dashicons-welcome-learn-more',
+		'reportes'   => 'dashicons-chart-area',
 		'ia'         => 'dashicons-lightbulb',
 		'probar'     => 'dashicons-format-chat',
 		'guia'       => 'dashicons-book-alt',
@@ -1282,19 +1285,28 @@ class ASI_Admin {
 		if ( $ver ) {
 			echo '<style>.asi-hero,.asi-hero+p.asi-muted{display:none}</style>';
 		}
+		// Con la IA activa, ella entiende lo que antes quedaba como "pregunta por revisar": esa lista
+		// se oculta y lo aprendido de la IA ocupa su lugar. Sin IA, la lista sigue siendo la forma de enseñarle.
+		$ai_on = class_exists( 'ASI_AI' ) && ASI_AI::enabled();
 		?>
 		<div class="asi-hero">
 			<span class="asi-hero__icon dashicons dashicons-welcome-learn-more" aria-hidden="true"></span>
 			<p class="asi-hero__lead">
+				<?php if ( $ai_on ) : ?>
+				<strong>El asistente aprende con el uso.</strong>
+				Lo que el chat no tenía claro lo lee la IA, y queda guardado para no volver a preguntarle: aquí ves qué escribió la persona, cómo lo entendió y qué le respondió, y puedes corregirlo.
+				Además, observa qué resultados abre la gente después de cada búsqueda y los sube un poco en esa búsqueda.
+				<?php else : ?>
 				<strong>El asistente aprende con el uso, sin inteligencia artificial externa.</strong>
 				Guarda las preguntas que no supo responder bien (sin datos de quien pregunta), para que le enseñes la respuesta una vez y la sepa siempre.
 				Además, observa qué resultados abre la gente después de cada búsqueda y los sube un poco en esa búsqueda.
+				<?php endif; ?>
 			</p>
 		</div>
 
 		<p class="asi-muted">¿Cómo enseñarle paso a paso? Está en la <a href="<?php echo esc_url( $this->tab_url( 'guia' ) . '#asi-ensenar' ); ?>">Guía</a>.</p>
 
-		<?php if ( ! $ver || 'preguntas' === $ver ) : ?>
+		<?php if ( ( ! $ver && ! $ai_on ) || 'preguntas' === $ver ) : ?>
 		<?php $this->card_open( 'Preguntas por revisar', 'dashicons-format-status', 'amber' ); ?>
 			<?php $this->list_search( 'aprendizaje', 'preguntas', $q_list, 'Buscar una pregunta…' ); ?>
 			<p class="asi-muted">
@@ -1357,13 +1369,6 @@ class ASI_Admin {
 		<?php $this->card_close(); ?>
 		<?php endif; ?>
 
-		<?php
-		if ( ! $ver ) {
-			$this->synonyms_card();
-		}
-		?>
-
-		<div class="<?php echo $ver ? '' : 'asi-grid'; ?>">
 			<?php
 			// Todo lo que la IA interpretó queda guardado y se aplica solo: si alguien vuelve a escribir lo
 			// mismo, el chat ya sabe qué hacer sin consultar a la IA. Se puede corregir o quitar.
@@ -1381,11 +1386,11 @@ class ASI_Admin {
 				<p class="asi-muted">Cada mensaje que el chat no tenía claro y revisó la IA queda aquí y <strong>se aplica solo</strong>: si alguien vuelve a escribir lo mismo, el chat ya sabe qué hacer <strong>sin volver a consultar a la IA</strong>. Si una está mal, corrígela o quítala.</p>
 				<?php $this->list_search( 'aprendizaje', 'ia', $ai_list, 'Buscar lo que escribieron o cómo se entendió…' ); ?>
 				<?php if ( ! $ai_list['rows'] ) : ?>
-					<div class="asi-empty"><span class="dashicons dashicons-lightbulb" aria-hidden="true"></span><?php echo '' !== $ai_list['query'] ? 'Nada coincide con esa búsqueda.' : 'Todavía nada.'; ?></div>
+					<div class="asi-empty"><span class="dashicons dashicons-lightbulb" aria-hidden="true"></span><?php echo '' !== $ai_list['query'] ? 'Nada coincide con esa búsqueda.' : ( $ai_on ? 'Todavía nada.' : 'La IA está apagada (pestaña IA). Mientras tanto, lo que el chat no entienda aparece en “Preguntas por revisar”.' ); ?></div>
 				<?php else : ?>
 					<table class="asi-table asi-table--fit asi-ai-learned">
-						<colgroup><col class="asi-col-said"><col><col class="asi-col-ai-actions"></colgroup>
-						<thead><tr><th>Lo que escribió</th><th>Cómo lo entendió</th><th><span class="screen-reader-text">Acciones</span></th></tr></thead>
+						<colgroup><col class="asi-col-said"><col class="asi-col-meaning"><col><col class="asi-col-ai-actions"></colgroup>
+						<thead><tr><th>Lo que escribió</th><th>Cómo lo entendió</th><th>Qué respondió el chat</th><th><span class="screen-reader-text">Acciones</span></th></tr></thead>
 						<tbody>
 						<?php foreach ( $ai_list['rows'] as $key => $row ) : ?>
 							<tr>
@@ -1394,22 +1399,31 @@ class ASI_Admin {
 									<?php if ( ! empty( $row['context'] ) ) : ?><div class="asi-muted asi-ai-learned__context">después de: <?php echo esc_html( $row['context'] ); ?></div><?php endif; ?>
 								</td>
 								<td class="asi-ai-learned__meaning"><?php echo esc_html( '' !== (string) $row['phrase'] ? $row['phrase'] : 'Lo mismo que entendió el chat' ); ?></td>
+								<td class="asi-ai-learned__reply"><?php echo ! empty( $row['reply'] ) ? esc_html( $row['reply'] ) : '<span class="asi-muted">Se verá la próxima vez que alguien lo escriba.</span>'; ?></td>
 								<td class="asi-ai-learned__actions">
 									<details class="asi-ai-edit">
-										<summary class="button-link">Editar</summary>
+										<summary class="button button-small"><span class="dashicons dashicons-edit" aria-hidden="true"></span> Editar</summary>
 										<div class="asi-teach__box asi-ai-edit__box">
 											<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="asi-teach__form">
 												<?php $this->hidden_fields( 'ai_edit', 'aprendizaje' ); ?>
 												<input type="hidden" name="key" value="<?php echo esc_attr( $key ); ?>">
-												<label><strong>¿Qué significa?</strong> Escríbelo como lo pediría alguien, con palabras que el chat entiende (ej.: “suv toyota hasta 300000”, “cuotas de la 2 y la 3”).</label>
-												<span class="asi-teach__row"><input type="text" name="phrase" value="<?php echo esc_attr( $row['phrase'] ); ?>" required> <button class="button button-primary">Guardar</button></span>
+												<p class="asi-ai-edit__said">Escribió: <strong>“<?php echo esc_html( $row['message'] ); ?>”</strong></p>
+												<label for="asi-ai-phrase-<?php echo esc_attr( md5( $key ) ); ?>"><strong>¿Qué quiso decir?</strong></label>
+												<p class="asi-muted">Escríbelo como se lo pedirías tú al chat, en una frase corta y directa. El chat lo leerá así cada vez que alguien escriba lo mismo.</p>
+												<ul class="asi-ai-edit__examples asi-muted">
+													<li>“quiero que no valga más de 100 mil” → <code>hasta 100000</code></li>
+													<li>“una troca nissan que no pase de 300” → <code>pickup nissan hasta 300000</code></li>
+													<li>“dame las cuotas de la segunda y la tercera” → <code>cuotas de la 2 y la 3</code></li>
+												</ul>
+												<textarea id="asi-ai-phrase-<?php echo esc_attr( md5( $key ) ); ?>" name="phrase" rows="3" required><?php echo esc_textarea( $row['phrase'] ); ?></textarea>
+												<p class="asi-ai-edit__buttons"><button type="button" class="button" onclick="this.closest('details').open=false">Cancelar</button><button class="button button-primary">Guardar</button></p>
 											</form>
 										</div>
 									</details>
 									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="asi-inline-form">
 										<?php $this->hidden_fields( 'ai_forget', 'aprendizaje' ); ?>
 										<input type="hidden" name="key" value="<?php echo esc_attr( $key ); ?>">
-										<button class="button-link asi-link-danger">Quitar</button>
+										<button class="button button-small asi-button-danger" title="La próxima vez que alguien lo escriba se vuelve a preguntar a la IA."><span class="dashicons dashicons-trash" aria-hidden="true"></span> Quitar</button>
 									</form>
 								</td>
 							</tr>
@@ -1424,6 +1438,13 @@ class ASI_Admin {
 			<?php $this->card_close(); ?>
 			<?php endif; ?>
 
+		<?php
+		if ( ! $ver ) {
+			$this->synonyms_card();
+		}
+		?>
+
+		<div class="<?php echo $ver ? '' : 'asi-grid'; ?>">
 			<?php if ( ! $ver || 'ensenadas' === $ver ) : ?>
 			<?php $this->card_open( 'Respuestas enseñadas', 'dashicons-yes-alt', 'green' ); ?>
 				<?php $this->list_search( 'aprendizaje', 'ensenadas', $t_list, 'Buscar una pregunta enseñada…' ); ?>
@@ -1462,13 +1483,15 @@ class ASI_Admin {
 
 			<?php if ( ! $ver || 'abren' === $ver ) : ?>
 			<?php $this->card_open( 'Lo que más abren', 'dashicons-chart-bar', 'blue' ); ?>
-				<p class="asi-muted">Qué resultado abre la gente después de cada búsqueda. Desde 3 visitas distintas, ese resultado sube un poco cuando alguien vuelve a buscar lo mismo. Cada visitante cuenta una vez al día.</p>
+				<p class="asi-muted">De lo que el <strong>chat</strong> sugirió para cada búsqueda, qué vehículo (o contenido) abrió la gente. Ejemplo: después de buscar “automático gasolina”, el más abierto fue tal vehículo, tantas veces.
+				Cuando un resultado llega a <?php echo (int) ASI_Search::MIN_CLICKS; ?> visitas distintas, el chat lo pone un poco más arriba la próxima vez que alguien busque lo mismo. Cada visitante cuenta una vez al día.
+				Los totales de lo más visto, cotizado y comparado (chat y sitio) están en <a href="<?php echo esc_url( $this->tab_url( 'reportes' ) ); ?>">Reportería</a>.</p>
 				<?php $this->list_search( 'aprendizaje', 'abren', $c_list, 'Buscar una búsqueda o un resultado…' ); ?>
 				<?php if ( ! $c_list['rows'] ) : ?>
 					<div class="asi-empty"><span class="dashicons dashicons-chart-bar" aria-hidden="true"></span>Todavía no hay clics registrados.</div>
 				<?php else : ?>
 					<table class="asi-table">
-						<thead><tr><th>Búsqueda</th><th>Resultado abierto</th><th>Visitas</th></tr></thead>
+						<thead><tr><th>Lo que buscó en el chat</th><th>Lo que abrió</th><th>Visitas</th></tr></thead>
 						<tbody>
 						<?php foreach ( $c_list['rows'] as $click ) : ?>
 							<tr>
@@ -1513,6 +1536,205 @@ class ASI_Admin {
 			$titles[ $post->ID ] = html_entity_decode( get_the_title( $post ), ENT_QUOTES, 'UTF-8' );
 		}
 		return $titles;
+	}
+
+	// ---------- Reportería ----------
+
+	/** Filtros del reporte (GET): periodo y si cuentan las pruebas. */
+	private function report_filters() {
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended
+		$get    = function ( $key ) {
+			return isset( $_GET[ $key ] ) ? sanitize_text_field( wp_unslash( $_GET[ $key ] ) ) : '';
+		};
+		$period = ASI_Reports::period( '' !== $get( 'periodo' ) ? $get( 'periodo' ) : '30', $get( 'desde' ), $get( 'hasta' ) );
+		// Sin filtrar todavía: las pruebas cuentan mientras las acciones del chat están en modo prueba.
+		$test = '' !== $get( 'f' ) ? '1' === $get( 'pruebas' ) : 'test' === ASI_Actions::mode();
+		// phpcs:enable
+		return array( $period, $test );
+	}
+
+	private function tab_reportes() {
+		list( $period, $test ) = $this->report_filters();
+		$report = ASI_Reports::build( $period, $test );
+		$c      = $report['counts'];
+		$total  = function ( array $pair ) {
+			return $pair['chat'] + $pair['site'];
+		};
+		$pct    = function ( $part, $all ) {
+			return $all ? round( 100 * $part / $all ) . '%' : '—';
+		};
+		$csv    = function ( $scope ) use ( $period, $test ) {
+			return wp_nonce_url(
+				add_query_arg(
+					array( 'action' => 'asi_report_csv', 'scope' => $scope, 'periodo' => $period['key'], 'desde' => $period['from'], 'hasta' => $period['to'], 'f' => 1, 'pruebas' => $test ? 1 : 0 ),
+					admin_url( 'admin-post.php' )
+				),
+				'asi_report_csv'
+			);
+		};
+		$conv   = $c['conversation'] ? min( 1, $c['chat_leads'] / $c['conversation'] ) : 0;
+		$fmt    = function ( $n ) {
+			return number_format_i18n( (int) $n );
+		};
+		?>
+		<div class="asi-hero">
+			<span class="asi-hero__icon dashicons dashicons-chart-area" aria-hidden="true"></span>
+			<p class="asi-hero__lead">
+				<strong>Qué busca la gente, qué ve, qué cotiza y qué compara, en el chat y en el sitio.</strong>
+				Así se ve cuánto convierte el chat y qué prefiere hacer la gente: usar el chat o el sitio. No guarda datos de quién visita.
+			</p>
+		</div>
+
+		<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" class="asi-report-filters">
+			<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE ); ?>">
+			<input type="hidden" name="tab" value="reportes">
+			<input type="hidden" name="f" value="1">
+			<label>Periodo
+				<select name="periodo" class="asi-report-period">
+					<?php foreach ( array( '7' => 'Últimos 7 días', '30' => 'Últimos 30 días', '90' => 'Últimos 90 días', '365' => 'Último año', 'all' => 'Todo', 'custom' => 'Entre fechas…' ) as $value => $label ) : ?>
+						<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $period['key'], (string) $value ); ?>><?php echo esc_html( $label ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</label>
+			<label class="asi-report-dates">Desde <input type="date" name="desde" value="<?php echo esc_attr( 'all' === $period['key'] ? '' : $period['from'] ); ?>"></label>
+			<label class="asi-report-dates">Hasta <input type="date" name="hasta" value="<?php echo esc_attr( $period['to'] ); ?>"></label>
+			<label class="asi-report-check"><input type="checkbox" name="pruebas" value="1" <?php checked( $test ); ?>> Incluir pruebas del chat</label>
+			<button class="button button-primary">Ver reporte</button>
+		</form>
+		<script>
+		(function(){var s=document.querySelector('.asi-report-period');if(!s){return;}var t=function(){document.querySelectorAll('.asi-report-dates').forEach(function(l){l.style.display=s.value==='custom'?'':'none';});};s.addEventListener('change',t);t();})();
+		</script>
+
+		<div class="asi-report-export">
+			<span class="asi-muted">Descargar reporte (Excel / CSV):</span>
+			<a class="button" href="<?php echo esc_url( $csv( 'all' ) ); ?>"><span class="dashicons dashicons-download" aria-hidden="true"></span> Global: chat y sitio</a>
+			<a class="button" href="<?php echo esc_url( $csv( 'chat' ) ); ?>"><span class="dashicons dashicons-format-chat" aria-hidden="true"></span> Solo chat</a>
+			<a class="button" href="<?php echo esc_url( $csv( 'site' ) ); ?>"><span class="dashicons dashicons-admin-site-alt3" aria-hidden="true"></span> Solo sitio</a>
+		</div>
+
+		<div class="asi-stats">
+			<?php
+			$this->stat( 'dashicons-format-chat', 'blue', $fmt( $c['conversation'] ), 'Conversaciones en el chat', $fmt( $c['search'] ) . ' búsquedas' );
+			$this->stat( 'dashicons-visibility', 'purple', $fmt( $total( $c['view'] ) ), 'Vistas de fichas', 'Chat ' . $fmt( $c['view']['chat'] ) . ' · Sitio ' . $fmt( $c['view']['site'] ) );
+			$this->stat( 'dashicons-media-document', 'green', $fmt( $total( $c['quote'] ) ), 'Cotizaciones', 'Chat ' . $fmt( $c['quote']['chat'] ) . ' · Sitio ' . $fmt( $c['quote']['site'] ) );
+			$this->stat( 'dashicons-columns', 'amber', $fmt( $total( $c['compare'] ) ), 'Comparaciones', 'Chat ' . $fmt( $c['compare']['chat'] ) . ' · Sitio ' . $fmt( $c['compare']['site'] ) );
+			$this->stat( 'dashicons-chart-line', 'blue', $c['conversation'] ? round( 100 * $conv, 1 ) . '%' : '—', 'Conversión del chat', $fmt( $c['chat_leads'] ) . ' cotizaciones o comparaciones en ' . $fmt( $c['conversation'] ) . ' conversaciones' );
+			?>
+		</div>
+
+		<?php $this->card_open( 'Chat o sitio: qué usa más la gente', 'dashicons-randomize', 'blue' ); ?>
+			<table class="asi-table asi-report-split">
+				<thead><tr><th></th><th>Desde el chat</th><th>Desde el sitio</th><th>Total</th><th>Parte del chat</th></tr></thead>
+				<tbody>
+				<?php foreach ( array( 'view' => 'Vistas de fichas', 'quote' => 'Cotizaciones', 'compare' => 'Comparaciones' ) as $kind => $label ) : ?>
+					<tr>
+						<th scope="row"><?php echo esc_html( $label ); ?></th>
+						<td><?php echo esc_html( $fmt( $c[ $kind ]['chat'] ) ); ?></td>
+						<td><?php echo esc_html( $fmt( $c[ $kind ]['site'] ) ); ?></td>
+						<td><strong><?php echo esc_html( $fmt( $total( $c[ $kind ] ) ) ); ?></strong></td>
+						<td><span class="asi-bar"><span style="width:<?php echo esc_attr( $total( $c[ $kind ] ) ? round( 100 * $c[ $kind ]['chat'] / $total( $c[ $kind ] ) ) : 0 ); ?>%"></span></span> <?php echo esc_html( $pct( $c[ $kind ]['chat'], $total( $c[ $kind ] ) ) ); ?></td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+			<p class="asi-muted">
+				Cotizaciones: la de un vehículo y la de varios (favoritos) cuentan igual.
+				<?php if ( 'site' === $report['leads'] ) : ?>
+					Cotizaciones y comparaciones salen de los Envíos de los formularios, con todo su historial.
+				<?php else : ?>
+					Este sitio no tiene un conector que lea sus formularios: solo se cuentan las del chat.
+				<?php endif; ?>
+				Las vistas y lo que se busca en el chat se cuentan desde que se activó la reportería. Cada visitante cuenta una vez al día por ficha.
+			</p>
+		<?php $this->card_close(); ?>
+
+		<?php $this->card_open( 'Lo más buscado en el chat', 'dashicons-search', 'purple' ); ?>
+			<p class="asi-muted">Lo que la gente pide al chat, por característica. Cuenta cada vez que alguien lo pide en una búsqueda (si después solo cambia el presupuesto, el tipo no se vuelve a contar).</p>
+			<?php if ( ! $report['criteria'] ) : ?>
+				<div class="asi-empty"><span class="dashicons dashicons-search" aria-hidden="true"></span>Todavía no hay búsquedas en este periodo.</div>
+			<?php else : ?>
+				<div class="asi-report-criteria">
+				<?php foreach ( $report['criteria'] as $dim => $labels ) : ?>
+					<?php $max = max( $labels ); ?>
+					<div class="asi-report-criteria__group">
+						<h3><?php echo esc_html( $dim ); ?></h3>
+						<table class="asi-table asi-table--compact">
+							<tbody>
+							<?php foreach ( array_slice( $labels, 0, 8, true ) as $label => $n ) : ?>
+								<tr>
+									<td><?php echo esc_html( $label ); ?></td>
+									<td class="asi-report-num"><span class="asi-bar"><span style="width:<?php echo esc_attr( round( 100 * $n / $max ) ); ?>%"></span></span> <?php echo esc_html( $fmt( $n ) ); ?></td>
+								</tr>
+							<?php endforeach; ?>
+							</tbody>
+						</table>
+					</div>
+				<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
+		<?php $this->card_close(); ?>
+
+		<?php
+		$sections = array(
+			'view'    => array( 'Lo más visto', 'dashicons-visibility', 'Fichas abiertas. "Chat" son las que se abrieron desde el chat o se vieron dentro de él.' ),
+			'quote'   => array( 'Lo más cotizado', 'dashicons-media-document', 'Cada vehículo de una cotización cuenta una vez (la de favoritos suma cada uno).' ),
+			'compare' => array( 'Lo más comparado', 'dashicons-columns', 'Cada vehículo de una comparación cuenta una vez.' ),
+		);
+		$ver = $this->list_open();
+		foreach ( $sections as $kind => $info ) :
+			if ( $ver && $ver !== $kind ) {
+				continue;
+			}
+			$items = $report['items'][ $kind ];
+			$shown = $ver === $kind ? $items : array_slice( $items, 0, 10 );
+			$this->card_open( $info[0], $info[1], 'view' === $kind ? 'blue' : ( 'quote' === $kind ? 'green' : 'amber' ) );
+			?>
+			<p class="asi-muted"><?php echo esc_html( $info[2] ); ?></p>
+			<?php if ( $ver === $kind ) : ?>
+				<p><a class="button asi-back-button" href="<?php echo esc_url( $this->tab_url( 'reportes', array( 'periodo' => $period['key'], 'desde' => $period['from'], 'hasta' => $period['to'], 'f' => 1, 'pruebas' => $test ? 1 : 0 ) ) ); ?>"><span class="dashicons dashicons-arrow-left-alt" aria-hidden="true"></span> Volver a Reportería</a></p>
+			<?php endif; ?>
+			<?php if ( ! $items ) : ?>
+				<div class="asi-empty"><span class="dashicons <?php echo esc_attr( $info[1] ); ?>" aria-hidden="true"></span>Nada en este periodo.</div>
+			<?php else : ?>
+				<table class="asi-table asi-report-items">
+					<thead><tr><th>#</th><th>Vehículo / contenido</th><th>Total</th><th>Chat</th><th>Sitio</th></tr></thead>
+					<tbody>
+					<?php foreach ( $shown as $i => $item ) : ?>
+						<tr>
+							<td class="asi-muted"><?php echo (int) $i + 1; ?></td>
+							<td><?php if ( $item['id'] && get_permalink( $item['id'] ) ) : ?><a href="<?php echo esc_url( get_permalink( $item['id'] ) ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $item['title'] ); ?></a><?php else : ?><?php echo esc_html( $item['title'] ); ?><?php endif; ?></td>
+							<td><strong><?php echo esc_html( $fmt( $item['chat'] + $item['site'] ) ); ?></strong></td>
+							<td><?php echo esc_html( $fmt( $item['chat'] ) ); ?></td>
+							<td><?php echo esc_html( $fmt( $item['site'] ) ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+				<?php if ( ! $ver && count( $items ) > 10 ) : ?>
+					<p class="asi-actions"><a class="button" href="<?php echo esc_url( $this->tab_url( 'reportes', array( 'ver' => $kind, 'periodo' => $period['key'], 'desde' => $period['from'], 'hasta' => $period['to'], 'f' => 1, 'pruebas' => $test ? 1 : 0 ) ) ); ?>">Ver todos (<?php echo (int) count( $items ); ?>)</a></p>
+				<?php endif; ?>
+			<?php endif; ?>
+			<?php
+			$this->card_close();
+		endforeach;
+	}
+
+	/** Descarga del reporte en CSV. */
+	public function report_csv() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Sin permisos.', 'asesor-inteligente' ) );
+		}
+		check_admin_referer( 'asi_report_csv' );
+		list( $period, $test ) = $this->report_filters();
+		$scope  = isset( $_GET['scope'] ) ? sanitize_key( wp_unslash( $_GET['scope'] ) ) : 'all';
+		$names  = array( 'all' => 'global', 'chat' => 'chat', 'site' => 'sitio' );
+		$scope  = isset( $names[ $scope ] ) ? $scope : 'all';
+		$csv    = ASI_Reports::csv( ASI_Reports::build( $period, $test ), $scope );
+		nocache_headers();
+		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="reporte-asesor-' . $names[ $scope ] . '-' . $period['from'] . '-a-' . $period['to'] . '.csv"' );
+		echo $csv; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		exit;
 	}
 
 	// ---------- Guía ----------
@@ -1845,7 +2067,7 @@ class ASI_Admin {
 			<?php if ( '' !== $list['query'] ) : ?>
 				<a href="<?php echo esc_url( $this->tab_url( $tab, array( 'ver' => $key ) ) ); ?>">Quitar búsqueda</a>
 			<?php endif; ?>
-			<a class="asi-list-back" href="<?php echo esc_url( $this->tab_url( $tab ) ); ?>">← Volver a <?php echo esc_html( self::TABS[ $tab ] ?? $tab ); ?></a>
+			<a class="button button-primary asi-list-back" href="<?php echo esc_url( $this->tab_url( $tab ) ); ?>"><span class="dashicons dashicons-arrow-left-alt" aria-hidden="true"></span> Volver a <?php echo esc_html( self::TABS[ $tab ] ?? $tab ); ?></a>
 		</form>
 		<?php
 	}

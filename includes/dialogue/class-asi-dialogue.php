@@ -1019,6 +1019,46 @@ class ASI_Dialogue {
 	}
 
 	/**
+	 * Para la reportería: qué pide una búsqueda guardada, campo por campo, con el nombre con que se
+	 * muestra ("Marca: Toyota", "carrocería: SUV", "Presupuesto: hasta Q 300,000"). Sale de la misma
+	 * ficha que usa la búsqueda, así que sirve para cualquier giro. Solo después de handle().
+	 *
+	 * @param string $q Búsqueda guardada (state q).
+	 * @return array[] { dim, label }
+	 */
+	public function report_criteria( $q ) {
+		if ( ! $this->analyzer || '' === trim( (string) $q ) ) {
+			return array();
+		}
+		$sheet = ASI_Search_Sheet::from_query( $this->analyzer->analyze( (string) $q ) );
+		$out   = array();
+		foreach ( $sheet['terms'] as $kind => $terms ) {
+			if ( 'code' === $kind ) {
+				continue;
+			}
+			foreach ( $terms as $term ) {
+				$name  = ASI_Query_Analyzer::display_name( $term );
+				$out[] = array( 'dim' => 'term:' . $kind, 'label' => function_exists( 'mb_strtoupper' ) ? mb_strtoupper( mb_substr( $name, 0, 1, 'UTF-8' ), 'UTF-8' ) . mb_substr( $name, 1, null, 'UTF-8' ) : ucfirst( $name ) );
+			}
+		}
+		foreach ( $sheet['attrs'] as $key => $span ) {
+			// Cómo lo nombra el pack ("camioneta" → "SUV", "de gasolina" → "gasolina").
+			$parsed = ASI_Attributes::parse( (array) $this->context['packs'], $span, $this->context['language'] );
+			$label  = isset( $parsed['labels'][0] ) ? (string) $parsed['labels'][0] : (string) $span;
+			$label  = preg_replace( '/^(?:de|del|of)\s+/u', '', $label );
+			$out[]  = array( 'dim' => 'attr:' . $key, 'label' => function_exists( 'mb_strtoupper' ) ? mb_strtoupper( mb_substr( $label, 0, 1, 'UTF-8' ), 'UTF-8' ) . mb_substr( $label, 1, null, 'UTF-8' ) : ucfirst( $label ) );
+		}
+		if ( '' === $sheet['currency'] && isset( $this->context['money']['base'] ) ) {
+			$sheet['currency'] = (string) $this->context['money']['base']; // Sin moneda dicha: la del sitio.
+		}
+		$budget = ASI_Search_Sheet::budget_bucket( $sheet );
+		if ( '' !== $budget ) {
+			$out[] = array( 'dim' => 'budget', 'label' => $budget );
+		}
+		return $out;
+	}
+
+	/**
 	 * Clave estable de una pregunta: lo que se busca en forma normal, ordenado. Usa el mismo análisis
 	 * que la búsqueda, así respeta las palabras que el sitio usa en sus nombres ("Producto 2").
 	 * "Busco los montacargas eléctricos" y "montacargas electrico" dan la misma clave.

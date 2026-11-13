@@ -509,6 +509,12 @@
 	log.addEventListener( 'click', function ( event ) {
 		const link = event.target.closest( 'a[data-asi-id]' );
 		const group = link ? link.closest( '[data-asi-q]' ) : null;
+		// Reportería: la ficha que se abre sabe que viene del chat.
+		if ( link ) {
+			try {
+				localStorage.setItem( 'asi_from_chat', JSON.stringify( { id: Number( link.dataset.asiId ), t: Date.now() } ) );
+			} catch ( e ) {}
+		}
 		if ( ! link || ! group || ! config.clickEndpoint ) {
 			return;
 		}
