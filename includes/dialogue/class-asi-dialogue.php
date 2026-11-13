@@ -643,9 +643,19 @@ class ASI_Dialogue {
 		if ( ! $clarify && ! $cta_intent ) {
 			// Con similares el cierre siempre se dice: invita a elegir o a dar otro detalle.
 			$suggestions = $this->related_facets( $catalog, $query );
-			$closing     = $this->responder->say( $similar ? 'closing_similar' : ( 1 === $total ? 'closing_single' : 'closing' ) );
+			// Para afinar se piden solo los datos que faltan (no la marca si ya la dio).
+			$hints = 1 === $total || $similar ? array() : $this->missing_hints( $query, $catalog );
+			if ( $hints ) {
+				$closing = $this->responder->say( 'closing_hints', array( 'hints' => $this->responder->join_list( $hints, 'or' ) ) );
+			} else {
+				$closing = $this->responder->say( $similar ? 'closing_similar' : ( 1 === $total ? 'closing_single' : 'closing' ) );
+			}
 			// Con botones siempre hay una pregunta que los explique.
-			$followup[]  = '' === $closing && $suggestions ? $this->responder->say( 'closing_chips' ) : $closing;
+			$followup[] = '' === $closing && $suggestions ? $this->responder->say( 'closing_chips' ) : $closing;
+		}
+		// Qué puede hacer con lo que está viendo (cotizar, cuotas, comparar): lo que tenga el sitio.
+		if ( ! $cta_intent && 'exact' === $catalog['quality'] ) {
+			$followup[] = $this->action_offer( $catalog['items'], $total );
 		}
 		$extra = array();
 		if ( $similar ) {
@@ -844,6 +854,61 @@ class ASI_Dialogue {
 	}
 
 	/**
+	 * Datos que todavía no dio y ayudarían a afinar: tipo, marca, presupuesto o para qué lo usará.
+	 * Solo lo que falta en su búsqueda y lo que el sitio tiene (marcas solo si hay varias).
+	 *
+	 * @return string[]
+	 */
+	private function missing_hints( array $query, array $catalog ) {
+		$sheet     = ASI_Search_Sheet::from_query( $query );
+		$type_keys = ASI_Search_Sheet::type_keys( (array) $this->context['packs'] );
+		$out       = array();
+		if ( ! ASI_Search_Sheet::type_of( $sheet, $type_keys ) && ( $type_keys || ! empty( $catalog['facets'] ) ) ) {
+			$out[] = $this->lexicon->word( 'hint_type' );
+		}
+		if ( empty( $sheet['terms']['brand'] ) && isset( $catalog['brands'] ) && count( (array) $catalog['brands'] ) >= 2 ) {
+			$out[] = $this->lexicon->word( 'hint_brand' );
+		}
+		if ( ! ASI_Search_Sheet::has_price( $sheet ) && $this->any_price( $catalog['items'] ) ) {
+			$out[] = $this->lexicon->word( 'hint_budget' );
+		}
+		if ( count( $out ) < 3 ) {
+			$out[] = $this->lexicon->word( 'hint_use' );
+		}
+		return array_values( array_filter( $out, 'strlen' ) );
+	}
+
+	/**
+	 * "Si alguno te interesa, puedo cotizarlo, calcular sus cuotas o compararlo con otros: dime su
+	 * número o su nombre." Solo con las acciones que tiene el sitio; '' si ninguna.
+	 */
+	private function action_offer( array $items, $total ) {
+		$runner = $this->runner();
+		if ( ! $runner || ! $items ) {
+			return '';
+		}
+		$have    = (array) $runner->available();
+		$actions = array();
+		if ( isset( $have['quote'] ) ) {
+			$actions[] = $this->lexicon->word( 'offer_quote' );
+		}
+		foreach ( array_slice( $items, 0, 4 ) as $row ) {
+			if ( $runner->financing( (int) $row['post_id'] ) ) {
+				$actions[] = $this->lexicon->word( 'offer_finance' );
+				break;
+			}
+		}
+		if ( isset( $have['compare'] ) && $total >= 2 ) {
+			$actions[] = $this->lexicon->word( 'offer_compare' );
+		}
+		$actions = array_values( array_filter( $actions, 'strlen' ) );
+		if ( ! $actions ) {
+			return '';
+		}
+		return $this->responder->say( 1 === (int) $total ? 'action_offer_one' : 'action_offer', array( 'actions' => $this->responder->join_list( $actions, 'or' ) ) );
+	}
+
+	/**
 	 * Más resultados de la última búsqueda.
 	 */
 	private function more( array $state ) {
@@ -911,8 +976,11 @@ class ASI_Dialogue {
 		foreach ( isset( $card['docs'] ) ? $card['docs'] : array() as $doc ) {
 			$links[] = array( 'title' => $doc['label'], 'url' => $doc['url'], 'summary' => '' );
 		}
-		$followup = '';
-		if ( ! empty( $card['price'] ) ) {
+		// Si el sitio cotiza o calcula cuotas en el chat, se ofrece eso; si no, su ficha o la cotización.
+		$followup = $this->action_offer( $rows, 1 );
+		if ( '' !== $followup ) {
+			// Ya está.
+		} elseif ( ! empty( $card['price'] ) ) {
 			// Tienda: se compra desde la ficha, no se cotiza.
 			$followup = $this->responder->say( 'detail_buy' );
 		} else {

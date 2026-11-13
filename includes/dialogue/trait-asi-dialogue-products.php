@@ -546,7 +546,9 @@ trait ASI_Dialogue_Products {
 			$parts[] = $this->responder->say( 'describe_facts', array( 'facts' => $this->responder->join_list( $key_facts ) ) );
 		}
 		if ( $with_price && ! empty( $card['price'] ) ) {
-			$parts[] = $this->responder->say( 'describe_price', array( 'price' => $card['price'] ) );
+			// Como se ve en la tarjeta ("Q 179,900"), no el número crudo de la ficha.
+			$shown   = $this->money_card( $card );
+			$parts[] = $this->responder->say( 'describe_price', array( 'price' => '' !== (string) $shown['price'] ? $shown['price'] : $card['price'] ) );
 		}
 		return $parts;
 	}

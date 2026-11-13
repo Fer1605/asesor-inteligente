@@ -285,6 +285,13 @@ return array(
 		'in'        => 'in',
 		'budget_same_chip' => 'Yes, the same',
 		'budget_none_chip' => 'No budget',
+		'hint_type'     => 'what type you want',
+		'hint_brand'    => 'which brand you prefer',
+		'hint_budget'   => 'your budget',
+		'hint_use'      => 'what you will use it for',
+		'offer_quote'   => 'quote it',
+		'offer_finance' => 'work out the monthly payments',
+		'offer_compare' => 'compare it with others',
 		'more_chip' => 'Show more options',
 		'or'        => 'or',
 		'price'     => 'Price',
@@ -524,10 +531,16 @@ return array(
 		),
 		'closing' => array(
 			'Want to see more, or should we narrow it down?',
-			'Give me one more detail (brand, type, color…) and I will narrow it down.',
 			'Interested in any of them? I can tell you more.',
-			'',
-			'',
+		),
+		'closing_hints' => array(
+			'If you like, tell me {hints} and I will show you the best fit.',
+		),
+		'action_offer' => array(
+			'If one catches your eye, I can {actions}: tell me its number or name.',
+		),
+		'action_offer_one' => array(
+			'If you are interested, I can {actions}.',
 		),
 		'closing_single' => array(
 			'Want me to tell you more about this one?',

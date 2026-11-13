@@ -97,3 +97,20 @@ check( 'palabras: gasolina y presupuesto sí', array( 51, 52 ), ( function ( $a 
 check( 'palabras: "querio" se lee como "quiero"', 'quiero de gasolina', $an_a->fix_typos( 'querio de gasolina', $tmp_typos ) );
 check( 'palabras: "nesecito" se lee como "necesito"', 'necesito una suv', $an_a->fix_typos( 'nesecito una suv', $tmp_typos ) );
 check( 'palabras: "camioneta" no se toca', 'quiero camioneta', $an_a->fix_typos( 'quiero camioneta', $tmp_typos ) );
+
+// Cierres: se piden solo los datos que faltan y se ofrece lo que el sitio puede hacer.
+$obot = new ASI_Dialogue( $yard3, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'money' => $money, 'packs' => array( $autos ), 'actions' => new ASI_Test_Runner() ), function () {
+	return 0;
+} );
+$r = $obot->handle( 'y toyota o honda que no pase de 300 mil', array( 'q' => 'camioneta', 'turns' => 2 ) );
+check( 'cierre: ofrece cotizar, cuotas y comparar', true, false !== strpos( $r['followup'], 'cotizarlo, calcular sus cuotas o compararlo con otros' ) );
+check( 'cierre: no vuelve a pedir marca, tipo ni presupuesto', array( false, false, false ), array( false !== strpos( $r['followup'], 'marca' ), false !== strpos( $r['followup'], 'tipo' ), false !== strpos( $r['followup'], 'presupuesto' ) ) );
+$r = $obot->handle( 'busco algo de gasolina', array() );
+check( 'cierre: sin tipo ni marca, los pide', true, false !== strpos( $r['followup'], 'qué tipo buscas' ) && false !== strpos( $r['followup'], 'qué marca prefieres' ) );
+$d = $obot->handle( 'la 1', $r['state'] );
+check( 'detalle: ofrece cotizar y cuotas', true, false !== strpos( (string) $d['followup'], 'cotizarlo o calcular sus cuotas' ) );
+$r = $bot3->handle( 'y toyota o honda', array( 'q' => 'camioneta', 'turns' => 2 ) );
+check( 'cierre: sitio sin acciones no ofrece cotizar', false, false !== strpos( (string) $r['followup'], 'cotizar' ) );
+$mq2 = asi_test_dialogue( asi_test_delta_repository() );
+$r   = $mq2->handle( 'busco tractores', array() );
+check( 'cierre (maquinaria): sin acciones ni marcas de sobra, igual cierra', true, '' !== trim( (string) $r['followup'] ) );
