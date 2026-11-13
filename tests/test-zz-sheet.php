@@ -87,3 +87,13 @@ $r = $bot3->handle( 'que sea de gasolina', array( 'q' => 'camioneta toyota hasta
 check( 'conv (autos): una característica nueva conserva tipo, marca, presupuesto y exclusiones', array( 51 ), asi_card_ids( $r ) );
 check( 'conv (autos): la ficha guardada tiene todo', true, (bool) preg_match( '/suv|camioneta/', $r['state']['q'] ) && false !== strpos( $r['state']['q'], 'toyota' ) && false !== strpos( $r['state']['q'], '300000' ) && false !== strpos( $r['state']['q'], 'mazda' ) );
 check( 'ficha (maquinaria): varias marcas que no quiere se guardan todas', 2, count( $sheet_of( $an_m, 'maquinaria que no sea un forklifts ni john deere' )['exclude'] ) );
+
+$tmp_typos = array();
+// Frase real: "querio de gasolina y mi que no cueste más de 225 mil". "Querio" es "quiero" mal
+// escrito y "mi" no está en ningún producto: no se buscan ni se dice que se quitaron.
+$r = $bot3->handle( 'querio de gasolina y mi que no cueste mas de 225 mil', array( 'q' => 'toyota o honda suv', 'turns' => 2 ) );
+check( 'palabras: "querio" y "mi" no se buscan', array( false, false ), array( false !== strpos( $r['text'], 'querio' ), false !== strpos( $r['state']['q'], ' mi ' ) ) );
+check( 'palabras: gasolina y presupuesto sí', array( 51, 52 ), ( function ( $a ) { sort( $a ); return $a; } )( asi_card_ids( $r ) ) );
+check( 'palabras: "querio" se lee como "quiero"', 'quiero de gasolina', $an_a->fix_typos( 'querio de gasolina', $tmp_typos ) );
+check( 'palabras: "nesecito" se lee como "necesito"', 'necesito una suv', $an_a->fix_typos( 'nesecito una suv', $tmp_typos ) );
+check( 'palabras: "camioneta" no se toca', 'quiero camioneta', $an_a->fix_typos( 'quiero camioneta', $tmp_typos ) );

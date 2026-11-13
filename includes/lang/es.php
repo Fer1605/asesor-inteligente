@@ -603,7 +603,7 @@ return array(
 			'Claro, de {refine} hay {n}.',
 		),
 		'results_relaxed' => array(
-			'Con {dropped} no tengo opciones junto con lo demás; sin eso tengo {n}:',
+			'Con {dropped} no tengo opciones junto con lo demás; sin eso tengo {n}.',
 		),
 		'refine_budget' => array(
 			'Con “{refine}” y todo lo anterior no me quedó ninguna opción. Dentro de tu presupuesto {budget}, esto es lo que tengo de {refine}:',
@@ -639,6 +639,10 @@ return array(
 			'Si no lo encuentras, escríbenos y un asesor te ayuda:',
 			'También puedes contactarnos directamente y te orientamos:',
 		),
+		'closing_chips' => array(
+			'¿Quieres afinar con alguna de estas?',
+			'Si quieres, afina con una de estas opciones:',
+		),
 		'closing' => array(
 			'¿Quieres que te muestre más o prefieres afinar la búsqueda?',
 			'Si me das un detalle más (marca, tipo, color…), lo filtro mejor.',
@@ -657,6 +661,14 @@ return array(
 			'Tengo {n} de {label}. Para mostrarte lo justo, ¿buscas {facets}?',
 			'Hay {n} de {label}. ¿Te interesa más {facets}?',
 			'Encontré {n} de {label} en varias líneas. ¿Cuál prefieres: {facets}?',
+		),
+		'clarify_any' => array(
+			'Tengo {n}. Para mostrarte lo justo, ¿buscas {facets}?',
+			'Hay {n}. ¿Te interesa más {facets}?',
+		),
+		'clarify_brand_any' => array(
+			'Tengo {n} de varias marcas. ¿Prefieres {facets}?',
+			'Hay {n}. ¿Tienes alguna marca en mente: {facets}?',
 		),
 		'clarify_brand' => array(
 			'Tengo {n} de {label} de varias marcas. ¿Prefieres {facets}?',

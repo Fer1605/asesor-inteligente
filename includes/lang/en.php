@@ -488,7 +488,7 @@ return array(
 			'Yes, for {refine} I have {n}.',
 		),
 		'results_relaxed' => array(
-			'I have nothing with {dropped} together with the rest; without that I have {n}:',
+			'I have nothing with {dropped} together with the rest; without that I have {n}.',
 		),
 		'refine_budget' => array(
 			'Adding “{refine}” to everything else left nothing. Within your budget {budget}, this is what I have for {refine}:',
@@ -519,6 +519,9 @@ return array(
 		'none_contact' => array(
 			'If you cannot find it, write to us and an advisor will help:',
 		),
+		'closing_chips' => array(
+			'Want to narrow it down with one of these?',
+		),
 		'closing' => array(
 			'Want to see more, or should we narrow it down?',
 			'Give me one more detail (brand, type, color…) and I will narrow it down.',
@@ -534,6 +537,12 @@ return array(
 		'clarify' => array(
 			'I have {n} for {label}. To narrow it down, are you looking for {facets}?',
 			'There are {n} for {label}. Are you more interested in {facets}?',
+		),
+		'clarify_any' => array(
+			'I have {n}. To narrow it down, are you looking for {facets}?',
+		),
+		'clarify_brand_any' => array(
+			'I have {n} from several brands. Do you prefer {facets}?',
 		),
 		'clarify_brand' => array(
 			'I have {n} for {label} from several brands. Do you prefer {facets}?',

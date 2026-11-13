@@ -586,13 +586,18 @@ class ASI_Dialogue {
 		// Solo si de verdad quitó algo: "dejé fuera familiares" sin quitar nada confunde.
 		$left_out = array();
 		if ( ! empty( $query['exclude'] ) && ( ! isset( $catalog['excluded'] ) || $catalog['excluded'] > 0 ) ) {
-			$left_out[] = $query['exclude_label'];
+			// Como lo dijo ("eléctricos"); si son varias marcas, separadas ("BYD, MAZDA y MITSUBISHI").
+			$brands = array();
+			foreach ( (array) $query['exclude'] as $group ) {
+				$brands = array_merge( $brands, ! empty( $group['brand_labels'] ) && count( $group['brand_labels'] ) > 1 ? (array) $group['brand_labels'] : array() );
+			}
+			$left_out = $brands ? array_map( array( 'ASI_Query_Analyzer', 'display_name' ), $brands ) : array( $query['exclude_label'] );
 		}
 		if ( ! empty( $query['attr_not_labels'] ) ) {
 			$left_out = array_merge( $left_out, preg_replace( '/^(de|of) /u', '', (array) $query['attr_not_labels'] ) );
 		}
 		if ( $left_out ) {
-			$intro[] = $this->responder->say( 'excluded', array( 'excluded' => implode( ', ', array_unique( $left_out ) ) ) );
+			$intro[] = $this->responder->say( 'excluded', array( 'excluded' => $this->responder->join_list( array_values( array_unique( $left_out ) ), 'and' ) ) );
 		}
 		// Un solo producto (o el que nombró): se describe con los datos de su ficha.
 		$single = 1 === $total || $catalog['named'];
@@ -617,7 +622,16 @@ class ASI_Dialogue {
 		$suggestions = array();
 		list( $clarify, $clarify_key ) = $this->clarify_facets( $catalog, $query );
 		if ( $clarify ) {
-			$followup[]  = $this->responder->say( $clarify_key, array( 'n' => $vars['n'], 'label' => $query['label'], 'facets' => $this->responder->join_list( 'clarify' === $clarify_key ? $this->lower( $clarify ) : $clarify, 'or' ) ) );
+			// Las marcas como se dicen en una frase ("Toyota", no "TOYOTA"; las siglas se quedan).
+			if ( 'clarify_brand' === $clarify_key ) {
+				$clarify = array_map( array( 'ASI_Query_Analyzer', 'display_name' ), $clarify );
+			}
+			// Qué está viendo; si la búsqueda es solo un presupuesto, sin nombre ("Tengo 93 opciones.").
+			$seeing = trim( (string) $query['label'] );
+			if ( '' === $seeing && ! empty( $query['attr_labels'] ) ) {
+				$seeing = preg_replace( '/^(?:de|of)\s+/u', '', implode( ', ', (array) $query['attr_labels'] ) );
+			}
+			$followup[]  = $this->responder->say( '' === $seeing ? $clarify_key . '_any' : $clarify_key, array( 'n' => $vars['n'], 'label' => $seeing, 'facets' => $this->responder->join_list( 'clarify' === $clarify_key ? $this->lower( $clarify ) : $clarify, 'or' ) ) );
 			$suggestions = $clarify;
 		}
 
@@ -628,8 +642,10 @@ class ASI_Dialogue {
 		}
 		if ( ! $clarify && ! $cta_intent ) {
 			// Con similares el cierre siempre se dice: invita a elegir o a dar otro detalle.
-			$followup[]  = $this->responder->say( $similar ? 'closing_similar' : ( 1 === $total ? 'closing_single' : 'closing' ) );
 			$suggestions = $this->related_facets( $catalog, $query );
+			$closing     = $this->responder->say( $similar ? 'closing_similar' : ( 1 === $total ? 'closing_single' : 'closing' ) );
+			// Con botones siempre hay una pregunta que los explique.
+			$followup[]  = '' === $closing && $suggestions ? $this->responder->say( 'closing_chips' ) : $closing;
 		}
 		$extra = array();
 		if ( $similar ) {
@@ -742,11 +758,14 @@ class ASI_Dialogue {
 		if ( '' === $label && ! empty( $query['attr_labels'] ) ) {
 			$label = preg_replace( '/^(?:de|of)\s+/u', '', implode( ', ', (array) $query['attr_labels'] ) );
 		}
-		if ( '' === $label && $this->has_price( $query ) ) {
-			$label = preg_replace( '/^(?:de|of)\s+/u', '', $this->budget_text( $query ) );
+		// "De gasolina y que no cueste más de 225 mil": se nombra todo lo que cambió.
+		if ( $this->has_price( $query ) ) {
+			$budget = preg_replace( '/^(?:de|of)\s+/u', '', $this->budget_text( $query ) );
+			$label  = '' === $label ? $budget : $this->responder->join_list( array( $label, $budget ), 'and' );
 		}
 		$switched = 'refine' === $merged['mode'] && ! empty( $base['terms']['brand'] ) && ! empty( $delta['terms']['brand'] ) && ! array_intersect( $base['terms']['brand'], $delta['terms']['brand'] );
-		$opening  = 'refine' === $merged['mode'] ? ( $switched ? 'results_switch' : 'results_refined' ) : '';
+		// Sin nada que nombrar (solo dijo lo que no quiere) no se dice "lo afiné con…": lo dice "sin incluir…".
+		$opening  = 'refine' === $merged['mode'] && '' !== trim( $label ) ? ( $switched ? 'results_switch' : 'results_refined' ) : '';
 
 		// Lo pedido tal cual. Si no hay nada exacto, se afloja en este orden (el tipo nunca):
 		// 1. lo de antes que no es el tipo (palabras sueltas, características, marcas), sin tocar lo
@@ -1628,9 +1647,23 @@ class ASI_Dialogue {
 
 	private function facet_in_query( $facet, array $query ) {
 		$normal = ASI_Lexicon::normal_form( $facet );
+		// Un valor numérico ("104 HP", "2.5 ton") no ayuda a elegir: no se ofrece como botón.
+		if ( preg_match( '/^[0-9]/', trim( (string) $facet ) ) ) {
+			return true;
+		}
 		foreach ( $query['groups'] as $group ) {
 			if ( in_array( $normal, $group['alts'], true ) ) {
 				return true;
+			}
+		}
+		// Lo que ya pidió como característica ("gasolina", "automática") tampoco.
+		$chosen = array_merge( isset( $query['attr_spans'] ) ? array_values( (array) $query['attr_spans'] ) : array(), isset( $query['attr_labels'] ) ? (array) $query['attr_labels'] : array() );
+		foreach ( $chosen as $text ) {
+			foreach ( preg_split( '/\s+o\s+|,\s*/u', (string) $text ) as $part ) {
+				$part = ASI_Lexicon::normal_form( preg_replace( '/^(de|of)\s+/u', '', $part ) );
+				if ( '' !== $part && ( $part === $normal || 0 === strpos( $part, $normal ) || 0 === strpos( $normal, $part ) ) ) {
+					return true;
+				}
 			}
 		}
 		return false;

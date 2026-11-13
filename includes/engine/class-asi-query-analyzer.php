@@ -189,6 +189,17 @@ class ASI_Query_Analyzer {
 		}
 		$result['content'] = implode( ' ', $contents );
 		$result['label']   = $this->span_label( $text, $display, $result['groups'], implode( ' ', $labels ) );
+		// Varias marcas: se nombran todas ("suv volkswagen, toyota o isuzu"), no solo la primera.
+		foreach ( $result['groups'] as $group ) {
+			if ( ! empty( $group['brand_labels'] ) && count( $group['brand_labels'] ) > 1 ) {
+				$names = array_map( array( __CLASS__, 'display_name' ), (array) $group['brand_labels'] );
+				$names = array_map( 'strtolower', $names );
+				$last  = array_pop( $names );
+				$all   = implode( ', ', $names ) . ' o ' . $last;
+				$label = preg_replace( '/\b' . preg_quote( (string) $group['text'], '/' ) . '\b(\s+o\s+[^\s]+)*/iu', $all, $result['label'], 1, $done );
+				$result['label'] = $done ? $label : trim( $result['label'] . ' ' . $all );
+			}
+		}
 
 		// Palabras que un pack ya entendió como atributo ("camioneta" → carrocería SUV): siguen
 		// sumando en la búsqueda, pero ya no son obligatorias en el texto (las controla el atributo).
@@ -388,13 +399,20 @@ class ASI_Query_Analyzer {
 	 * @return array
 	 */
 	private function word_group( array $token ) {
+		$alts  = array_values( array_unique( array_merge( array( $token['normal'] ), $this->inflections( $token['normal'] ), $this->known_synonyms( $token['normal'] ) ) ) );
+		$known = false;
+		foreach ( $alts as $alt ) {
+			$known = $known || isset( $this->vocab['tokens'][ $alt ] ) || isset( $this->pack_words[ $alt ] );
+		}
 		return array(
 			'text'      => $token['normal'],
-			'alts'      => array_values( array_unique( array_merge( array( $token['normal'] ), $this->inflections( $token['normal'] ), $this->known_synonyms( $token['normal'] ) ) ) ),
+			'alts'      => $alts,
 			'kind'      => 'word',
 			'critical'  => false,
 			'label'     => $token['display'],
 			'term_kind' => '',
+			// ¿Aparece en algún producto del sitio? Si no ("querio", "mi"), no hay nada que buscar con ella.
+			'known'     => $known,
 		);
 	}
 
@@ -465,6 +483,11 @@ class ASI_Query_Analyzer {
 				}
 				if ( '' === $word || ! preg_match( '/^[a-z]+$/', $word ) || isset( $this->vocab['tokens'][ $base ] ) || isset( $this->phrase_index[ $base ] ) || isset( $this->pack_words[ $word ] ) || isset( $this->pack_words[ $base ] ) || $this->lexicon->is_stopword( $word ) || $this->lexicon->is_known_word( $word ) || $this->lexicon->is_known_word( $base ) ) {
 					return $m[0];
+				}
+				// "Querio", "nesecito", "buscnado": palabras de pedido mal escritas. No se buscan.
+				$request = $this->near_request_word( $word );
+				if ( '' !== $request ) {
+					return $request;
 				}
 				$fixed = $this->correct( $word );
 				if ( $fixed === $word ) {
@@ -862,14 +885,18 @@ class ASI_Query_Analyzer {
 			}
 			if ( null === $first ) {
 				$group['alts']   = array_values( array_unique( array_merge( array( $group['text'] ), isset( $group['alts'] ) ? (array) $group['alts'] : array() ) ) );
-				$group['brands'] = array( $group['text'] );
+				$group['brands']       = array( $group['text'] );
+				$group['brand_labels'] = array( $group['label'] );
 				$out[]         = $group;
 				$first         = count( $out ) - 1;
 				continue;
 			}
 			$out[ $first ]['alts']  = array_values( array_unique( array_merge( $out[ $first ]['alts'], array( $group['text'] ), isset( $group['alts'] ) ? (array) $group['alts'] : array() ) ) );
-			$out[ $first ]['label']    = $out[ $first ]['label'] . ' o ' . $group['label'];
-			$out[ $first ]['brands'][] = $group['text'];
+			$out[ $first ]['brands'][]       = $group['text'];
+			$out[ $first ]['brand_labels'][] = $group['label'];
+			$labels                          = $out[ $first ]['brand_labels'];
+			$last                            = array_pop( $labels );
+			$out[ $first ]['label']          = implode( ', ', $labels ) . ' o ' . $last;
 		}
 		return $out;
 	}
@@ -894,5 +921,35 @@ class ASI_Query_Analyzer {
 			}
 		}
 		return $out;
+	}
+
+	/**
+	 * La palabra de pedido del idioma ("quiero", "necesito", "busco"…) a la que se parece, con un
+	 * error de dedo (una letra de más, de menos, cambiada o dos letras al revés); '' si ninguna.
+	 */
+	private function near_request_word( $word ) {
+		$words = array_merge( $this->request_words, array_map( array( 'ASI_Normalizer', 'normalize' ), (array) $this->lexicon->get_list( 'fillers' ) ) );
+		foreach ( array_unique( $words ) as $request ) {
+			if ( strlen( $request ) < 5 || false !== strpos( $request, ' ' ) ) {
+				continue;
+			}
+			if ( $request === $word ) {
+				return '';
+			}
+			if ( levenshtein( $word, $request ) <= 1 || ( strlen( $word ) === strlen( $request ) && count_chars( $word, 1 ) === count_chars( $request, 1 ) && levenshtein( $word, $request ) <= 2 ) ) {
+				return $request;
+			}
+		}
+		return '';
+	}
+
+	/** "VOLKSWAGEN" → "Volkswagen" para decirlo en una frase; las siglas ("BMW", "BYD") se quedan. */
+	public static function display_name( $name ) {
+		$name = trim( (string) $name );
+		if ( strlen( $name ) <= 4 || $name !== strtoupper( $name ) ) {
+			return $name;
+		}
+		$lower = function_exists( 'mb_strtolower' ) ? mb_strtolower( $name, 'UTF-8' ) : strtolower( $name );
+		return ucwords( $lower, " -\t" );
 	}
 }

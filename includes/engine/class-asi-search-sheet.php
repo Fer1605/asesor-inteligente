@@ -61,7 +61,10 @@ class ASI_Search_Sheet {
 			$kind = 'code' === $group['kind'] ? 'code' : ( isset( $group['term_kind'] ) ? (string) $group['term_kind'] : '' );
 			$list = ! empty( $group['brands'] ) ? (array) $group['brands'] : array( (string) $group['text'] );
 			if ( '' === $kind ) {
-				$sheet['words'] = array_merge( $sheet['words'], $list );
+				// Una palabra que no está en ningún producto del sitio no se puede buscar: no se guarda.
+				if ( ! isset( $group['known'] ) || $group['known'] ) {
+					$sheet['words'] = array_merge( $sheet['words'], $list );
+				}
 				continue;
 			}
 			$sheet['terms'][ $kind ] = array_merge( isset( $sheet['terms'][ $kind ] ) ? $sheet['terms'][ $kind ] : array(), $list );
@@ -249,12 +252,21 @@ class ASI_Search_Sheet {
 	 * @param array $phrases Frases del idioma (ai_phrases): search_max, search_min, search_range, search_not.
 	 */
 	public static function render( array $sheet, array $phrases ) {
+		// Orden de lectura natural: tipo (categoría y atributos) y luego marcas y otros términos
+		// ("suv gasolina toyota o volkswagen"), que es como se nombra la búsqueda al cliente.
 		$parts = array();
-		foreach ( $sheet['terms'] as $kind => $terms ) {
-			$parts[] = in_array( $kind, self::ANY_OF_KINDS, true ) ? implode( ' o ', $terms ) : implode( ' ', $terms );
+		foreach ( self::TYPE_KINDS as $kind ) {
+			if ( isset( $sheet['terms'][ $kind ] ) ) {
+				$parts[] = implode( ' ', $sheet['terms'][ $kind ] );
+			}
 		}
 		foreach ( $sheet['attrs'] as $span ) {
 			$parts[] = $span;
+		}
+		foreach ( $sheet['terms'] as $kind => $terms ) {
+			if ( ! in_array( $kind, self::TYPE_KINDS, true ) ) {
+				$parts[] = in_array( $kind, self::ANY_OF_KINDS, true ) ? implode( ' o ', $terms ) : implode( ' ', $terms );
+			}
 		}
 		$parts  = array_merge( $parts, $sheet['words'] );
 		$symbol = 'USD' === $sheet['currency'] ? '$' : ( 'GTQ' === $sheet['currency'] ? 'q' : '' );
