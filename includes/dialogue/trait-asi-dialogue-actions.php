@@ -125,7 +125,9 @@ trait ASI_Dialogue_Actions {
 				}
 			}
 			$rest_asked = 'finance' === $state['offer']['action'] && $this->words_in( $normalized, 'rest_words' ) && str_word_count( $normalized ) <= 6;
-			if ( ! $comparing && ( $rest_asked || ( $this->words_in( $normalized, 'yes_words' ) && str_word_count( $normalized ) <= 5 ) ) ) {
+			// "Pero sí quiero Nissan": ese "sí" es énfasis, no aceptar la oferta; pide otra cosa.
+			$yes = $this->words_in( $normalized, 'yes_words' ) && str_word_count( $normalized ) <= 5 && ! $this->names_search( $message );
+			if ( ! $comparing && ( $rest_asked || $yes ) ) {
 				if ( 'finance' === $state['offer']['action'] ) {
 					$finance = $this->finance_flow( $state['offer']['ids'], $message, $normalized, $state );
 					if ( $finance ) {
@@ -474,6 +476,17 @@ trait ASI_Dialogue_Actions {
 		$rest = trim( preg_replace( $pattern, ' ', ' ' . $normalized . ' ' ) );
 		$rest = trim( preg_replace( '/^(pero|sino|solo|mejor|y)\s+/', '', $rest ) );
 		return strlen( $rest ) >= 3 ? $rest : '';
+	}
+
+	/** ¿El mensaje pide algo de la búsqueda (marca, tipo, característica, monto)? */
+	private function names_search( $message ) {
+		$query = $this->analyzer->analyze( $message );
+		foreach ( (array) $query['groups'] as $group ) {
+			if ( '' !== (string) $group['term_kind'] || ! empty( $group['soft'] ) ) {
+				return true;
+			}
+		}
+		return ! empty( $query['attrs'] ) || ASI_Search::has_price_filter( $query );
 	}
 
 	private function ask_which( $action, array $state ) {

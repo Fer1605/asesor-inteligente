@@ -205,6 +205,7 @@ return array(
 
 	// Palabras que marcan que el mensaje refina la búsqueda anterior.
 	'reset_words' => array( 'empecemos de nuevo', 'empezar de nuevo', 'desde cero', 'olvida lo anterior', 'olvidalo', 'nueva busqueda', 'otra busqueda', 'borra todo' ),
+	'show_words' => array( 'ver', 'mostrar', 'muestrame', 'muestreme', 'mostrame', 'ensename', 'enseneme', 'opciones', 'opcion', 'resultados', 'veamos' ),
 	'refine_markers' => array( 'y', 'solo', 'solamente', 'nada mas', 'pero', 'que sea', 'que sean', 'mejor', 'y en', 'de marca', 'en color', 'con', 'sin' ),
 
 	// "Que no sea eléctrico", "excepto los usados": lo que sigue se excluye de los resultados.

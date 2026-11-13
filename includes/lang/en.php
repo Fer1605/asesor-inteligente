@@ -164,6 +164,7 @@ return array(
 	'place_words' => array( 'store', 'stores', 'branch', 'branches', 'location', 'locations', 'office', 'offices', 'shop', 'shops', 'point', 'pickup', 'address', 'area', 'areas', 'hours', 'open', 'near', 'map', 'located' ),
 
 	'reset_words' => array( 'start over', 'start again', 'from scratch', 'forget that', 'new search', 'clear everything' ),
+	'show_words' => array( 'show', 'see', 'options', 'results', 'view' ),
 	'refine_markers' => array( 'and', 'only', 'just', 'but', 'in', 'with', 'without', 'brand', 'color', 'colour', 'that are' ),
 
 	'negation_stops'   => array( 'i want', 'i need', 'only', 'just', 'but', 'rather' ),

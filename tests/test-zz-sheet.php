@@ -134,3 +134,19 @@ check( '"no quiero la cotización, quiero ver más Nissan": deja la cotización 
 $p4 = $pbot->handle( 'no quiero la cotizacion', $pending );
 check( '"no quiero la cotización" sola: la cancela', true, false !== strpos( $p4['text'], 'lo dejamos' ) && empty( $p4['state']['pending'] ) );
 check( 'pickup de trabajo: no vuelve a preguntar para qué lo usará', false, false !== strpos( (string) $p2['followup'], 'para qué lo vas a usar' ) );
+
+// Frase real: pick up → nissan → "que no pasen de 250 mil" → "aaa pero sí quiero nissan" (con una
+// oferta de cotizar todas activa) → "quiero ver opciones". El "sí" es énfasis: no cotiza.
+$q1 = $pbot->handle( 'pick up', array() );
+$q2 = $pbot->handle( 'pero me gustan nissan', $q1['state'] );
+$q3 = $pbot->handle( 'que no pasen de los 250 mil', $q2['state'] );
+$with_offer = array_merge( $q3['state'], array( 'offer' => array( 'action' => 'quote', 'ids' => array_slice( asi_card_ids( $q3 ), 0, 4 ) ) ) );
+$q4 = $pbot->handle( 'aaa pero si quiero nissan', $with_offer );
+check( '"pero sí quiero nissan": no cotiza, muestra Nissan', array( 'results', array(), true ), array( $q4['kind'], (array) ( $q4['state']['pending'] ?? array() ), ! array_diff( asi_card_ids( $q4 ), array( 61, 62 ) ) ) );
+check( '"pero sí quiero nissan": nombra solo nissan', false, false !== strpos( $q4['text'], 'aaa' ) );
+$q5 = $pbot->handle( 'quiero ver opciones', $q4['state'] );
+check( '"quiero ver opciones": muestra la búsqueda (no "no te entendí")', array( 'results', true ), array( $q5['kind'], (bool) asi_card_ids( $q5 ) ) );
+$y = $pbot->handle( 'si', $with_offer );
+check( '"sí" solo a una oferta de cotizar: sí cotiza', true, ! empty( $y['state']['pending']['action'] ) || 'quote' === ( $y['state']['last'] ?? '' ) || false !== strpos( $y['text'], 'cotizaci' ) );
+check( '"quiero ver opciones" tras insistir en Nissan: sigue con Nissan', true, ! array_diff( asi_card_ids( $q5 ), array( 61, 62 ) ) );
+check( 'Nissan arriba del presupuesto: no vuelve a pedir el presupuesto', false, false !== strpos( (string) $q4['followup'], 'presupuesto' ) );

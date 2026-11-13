@@ -241,6 +241,10 @@ class ASI_Dialogue {
 		if ( '' !== $state['q'] && $this->is_more_request( $normalized ) ) {
 			return $this->more( $state );
 		}
+		// "Quiero ver opciones", "muéstrame": lo que tiene la búsqueda de ahora.
+		if ( '' !== trim( (string) $state['q'] ) && $this->is_show_request( $normalized ) ) {
+			return $this->sheet_turn( $message, $this->analyzer->analyze( '' ), $state, true );
+		}
 
 		// Respuestas enseñadas desde el panel (Aprendizaje) para esta forma de preguntar.
 		$learned = $this->learned_flow( $message );
@@ -644,7 +648,7 @@ class ASI_Dialogue {
 			// Con similares el cierre siempre se dice: invita a elegir o a dar otro detalle.
 			$suggestions = $this->related_facets( $catalog, $query );
 			// Para afinar se piden solo los datos que faltan (no la marca si ya la dio).
-			$hints = 1 === $total || $similar ? array() : $this->missing_hints( $query, $catalog, $state );
+			$hints = 1 === $total || $similar ? array() : $this->missing_hints( $query, $catalog, $state, ! empty( $options['budget'] ) );
 			if ( $hints ) {
 				$closing = $this->responder->say( 'closing_hints', array( 'hints' => $this->responder->join_list( $hints, 'or' ) ) );
 			} else {
@@ -736,12 +740,12 @@ class ASI_Dialogue {
 	 * afloja en orden (palabras sueltas, características, marcas; el tipo nunca) y se dice qué se
 	 * quitó; si lo que no alcanza es el presupuesto, también se dice.
 	 */
-	private function sheet_turn( $message, array $query, array $state ) {
+	private function sheet_turn( $message, array $query, array $state, $show = false ) {
 		$phrases   = (array) $this->lexicon->get_list( 'ai_phrases' );
 		$type_keys = ASI_Search_Sheet::type_keys( (array) $this->context['packs'] );
 		$normal    = ASI_Normalizer::normalize( $message );
 		$delta     = ASI_Search_Sheet::from_query( $query );
-		if ( ASI_Search_Sheet::is_empty( $delta ) ) {
+		if ( ASI_Search_Sheet::is_empty( $delta ) && ! $show ) {
 			return $this->search_flow( $message, $query, $state );
 		}
 		$base = '' !== ASI_Lexicon::find_phrase( $normal, (array) $this->lexicon->get_list( 'reset_words' ) )
@@ -758,15 +762,20 @@ class ASI_Dialogue {
 		);
 		$sheet = $merged['sheet'];
 
-		// Cómo nombrar lo que cambió ("lo afiné con gasolina", "con toyota o volkswagen").
-		$label = trim( (string) $query['label'] );
+		// Cómo nombrar lo que cambió ("lo afiné con gasolina", "con toyota o volkswagen"): solo lo que
+		// pidió (términos del sitio y palabras que están en algún producto), no todo el mensaje.
+		$named = array();
 		foreach ( (array) $query['groups'] as $group ) {
-			if ( 'brand' === $group['term_kind'] && ! empty( $group['brands'] ) && count( $group['brands'] ) > 1 ) {
-				$label = function_exists( 'mb_strtolower' ) ? mb_strtolower( $group['label'], 'UTF-8' ) : strtolower( $group['label'] );
+			if ( ! empty( $group['soft'] ) || ( '' === (string) $group['term_kind'] && isset( $group['known'] ) && ! $group['known'] ) ) {
+				continue;
 			}
+			$name    = (string) $group['label'];
+			$named[] = function_exists( 'mb_strtolower' ) ? mb_strtolower( $name, 'UTF-8' ) : strtolower( $name );
 		}
-		if ( '' === $label && ! empty( $query['attr_labels'] ) ) {
-			$label = preg_replace( '/^(?:de|of)\s+/u', '', implode( ', ', (array) $query['attr_labels'] ) );
+		$label = implode( ' ', $named );
+		if ( ! empty( $query['attr_labels'] ) ) {
+			$attrs = preg_replace( '/^(?:de|of)\s+/u', '', implode( ', ', (array) $query['attr_labels'] ) );
+			$label = '' === $label ? $attrs : $this->responder->join_list( array( $label, $attrs ), 'and' );
 		}
 		// "De gasolina y que no cueste más de 225 mil": se nombra todo lo que cambió.
 		if ( $this->has_price( $query ) ) {
@@ -782,8 +791,11 @@ class ASI_Dialogue {
 		//    que acaba de pedir;
 		// 2. si lo que no alcanza es el presupuesto, se dice y se muestra lo que hay arriba;
 		// 3. por último, también lo que acaba de pedir.
-		$first  = array_merge( array( array( 'sheet' => $sheet, 'dropped' => array(), 'level' => '' ) ), ASI_Search_Sheet::relaxations( $sheet, $type_keys, 'refine' === $merged['mode'] ? $delta : null ) );
-		$second = 'refine' === $merged['mode'] ? ASI_Search_Sheet::relaxations( $sheet, $type_keys ) : array();
+		// Al pedir ver lo que hay ("quiero ver opciones"), todo lo de la ficha cuenta como recién
+		// pedido: antes de soltar la marca se dice si lo que no alcanza es el presupuesto.
+		$keep   = $show ? $sheet : ( 'refine' === $merged['mode'] ? $delta : null );
+		$first  = array_merge( array( array( 'sheet' => $sheet, 'dropped' => array(), 'level' => '' ) ), ASI_Search_Sheet::relaxations( $sheet, $type_keys, $keep ) );
+		$second = 'refine' === $merged['mode'] || $show ? ASI_Search_Sheet::relaxations( $sheet, $type_keys ) : array();
 		foreach ( $first as $try ) {
 			$reply = $this->sheet_try( $try, $opening, $label, $state, $phrases );
 			if ( $reply ) {
@@ -859,7 +871,7 @@ class ASI_Dialogue {
 	 *
 	 * @return string[]
 	 */
-	private function missing_hints( array $query, array $catalog, array $state = array() ) {
+	private function missing_hints( array $query, array $catalog, array $state = array(), $budget_known = false ) {
 		$sheet     = ASI_Search_Sheet::from_query( $query );
 		$type_keys = ASI_Search_Sheet::type_keys( (array) $this->context['packs'] );
 		$out       = array();
@@ -869,7 +881,7 @@ class ASI_Dialogue {
 		if ( empty( $sheet['terms']['brand'] ) && isset( $catalog['brands'] ) && count( (array) $catalog['brands'] ) >= 2 ) {
 			$out[] = $this->lexicon->word( 'hint_brand' );
 		}
-		if ( ! ASI_Search_Sheet::has_price( $sheet ) && $this->any_price( $catalog['items'] ) ) {
+		if ( ! $budget_known && ! ASI_Search_Sheet::has_price( $sheet ) && $this->any_price( $catalog['items'] ) ) {
 			$out[] = $this->lexicon->word( 'hint_budget' );
 		}
 		// Para qué lo usará, si no lo ha contado ("de trabajo", "somos 5").
@@ -1555,6 +1567,27 @@ class ASI_Dialogue {
 			'more'        => false,
 			'state'       => array( 'pending' => array(), 'offer' => array(), 'q' => '' ),
 		);
+	}
+
+	/**
+	 * "Quiero ver opciones", "muéstrame", "enséñame las opciones": pide ver lo que tiene, sin nada
+	 * nuevo que buscar (solo palabras de pedido y de mostrar).
+	 */
+	private function is_show_request( $normalized ) {
+		$show = array_map( array( 'ASI_Normalizer', 'normalize' ), (array) $this->lexicon->get_list( 'show_words' ) );
+		$skip = array_map( array( 'ASI_Normalizer', 'normalize' ), array_merge( (array) $this->lexicon->get_list( 'request_words' ), (array) $this->lexicon->get_list( 'fillers' ), (array) $this->lexicon->get_list( 'yes_words' ) ) );
+		$seen = false;
+		foreach ( explode( ' ', $normalized ) as $word ) {
+			if ( '' === $word ) {
+				continue;
+			}
+			if ( in_array( $word, $show, true ) ) {
+				$seen = true;
+			} elseif ( ! in_array( $word, $skip, true ) && ! $this->lexicon->is_stopword( $word ) ) {
+				return false;
+			}
+		}
+		return $seen;
 	}
 
 	private function is_more_request( $normalized ) {
