@@ -114,3 +114,23 @@ check( 'cierre: sitio sin acciones no ofrece cotizar', false, false !== strpos( 
 $mq2 = asi_test_dialogue( asi_test_delta_repository() );
 $r   = $mq2->handle( 'busco tractores', array() );
 check( 'cierre (maquinaria): sin acciones ni marcas de sobra, igual cierra', true, '' !== trim( (string) $r['followup'] ) );
+
+// Frase real: "quiero un pickup de trabajo" → "pero quiero nissan" → "no quiero la cotización,
+// quiero ver más opciones nissan". Una marca filtra la búsqueda; no es elegir un vehículo para cotizar.
+$yard4 = new ASI_Test_Repository();
+foreach ( array( array( 61, 'NISSAN FRONTIER DC', 'Nissan', 'pickup', 299900 ), array( 62, 'NISSAN NAVARA SE', 'Nissan', 'pickup', 319900 ), array( 63, 'ISUZU D-MAX DC', 'Isuzu', 'pickup', 294900 ), array( 64, 'TOYOTA HILUX CS', 'Toyota', 'pickup', 299990 ), array( 65, 'HYUNDAI H100 PANEL', 'Hyundai', 'panel', 250000 ) ) as $p ) {
+	$yard4->add( $p[0], 'es', 'catalog', $p[1], array( 'category' => array( 'pickup' === $p[3] ? 'Pick up' : 'Panel' ), 'brand' => array( $p[2] ) ), '.', array(), array( 'price' => (string) $p[4], 'currency_raw' => '2', 'attrs' => array( 'body' => $p[3], 'fuel' => 'diesel' ) ) );
+}
+$pbot = new ASI_Dialogue( $yard4, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'money' => $money, 'packs' => array( $autos ), 'actions' => new ASI_Test_Runner() ), function () {
+	return 0;
+} );
+$p1 = $pbot->handle( 'quiero un pickup de trabajo', array() );
+check( 'pickup de trabajo: guarda la búsqueda', true, false !== strpos( (string) $p1['state']['q'], 'pickup' ) );
+$p2 = $pbot->handle( 'pero quiero nissan', $p1['state'] );
+check( 'pickup de trabajo → "pero quiero nissan": pickups Nissan, no cotiza', array( 'results', array( 61, 62 ), array() ), array( $p2['kind'], ( function ( $a ) { sort( $a ); return $a; } )( asi_card_ids( $p2 ) ), (array) ( $p2['state']['pending'] ?? array() ) ) );
+$pending = array_merge( $p2['state'], array( 'pending' => array( 'action' => 'quote', 'ids' => array( 61 ) ) ) );
+$p3 = $pbot->handle( 'no quiero la cotizacion quiero ver mas opciones nissan', $pending );
+check( '"no quiero la cotización, quiero ver más Nissan": deja la cotización y muestra Nissan', array( 'results', true, array() ), array( $p3['kind'], (bool) array_intersect( array( 61, 62 ), asi_card_ids( $p3 ) ) && ! array_diff( asi_card_ids( $p3 ), array( 61, 62 ) ), (array) ( $p3['state']['pending'] ?? array() ) ) );
+$p4 = $pbot->handle( 'no quiero la cotizacion', $pending );
+check( '"no quiero la cotización" sola: la cancela', true, false !== strpos( $p4['text'], 'lo dejamos' ) && empty( $p4['state']['pending'] ) );
+check( 'pickup de trabajo: no vuelve a preguntar para qué lo usará', false, false !== strpos( (string) $p2['followup'], 'para qué lo vas a usar' ) );

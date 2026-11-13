@@ -37,6 +37,20 @@ trait ASI_Dialogue_Actions {
 		}
 		$available = $runner->available();
 
+		// "No quiero la cotización, quiero ver más opciones": no cotiza; se deja lo pendiente y se
+		// atiende lo demás que pidió.
+		$declined = $this->declined_action( $normalized );
+		if ( null !== $declined ) {
+			$state['pending'] = array();
+			$state['offer']   = array();
+			if ( '' === $declined ) {
+				return $this->action_reply( 'action_cancelled', array(), $state, array( 'pending' => array(), 'offer' => array() ) );
+			}
+			$reply          = $this->route( $declined, ASI_Normalizer::normalize( $declined ), $state );
+			$reply['state'] = array_merge( isset( $reply['state'] ) ? $reply['state'] : array(), array( 'pending' => array(), 'offer' => array() ) );
+			return $reply;
+		}
+
 		// 1. Esperando los datos del cliente.
 		if ( ! empty( $state['pending']['action'] ) ) {
 			if ( $this->words_in( $normalized, 'cancel_words' ) && str_word_count( $normalized ) <= 4 ) {
@@ -391,6 +405,18 @@ trait ASI_Dialogue_Actions {
 		if ( ! $words ) {
 			return 0;
 		}
+		// "Quiero Nissan", "mejor pickups": solo marcas o categorías del sitio son un filtro de la
+		// búsqueda, no un vehículo en particular (aunque haya un Nissan a la vista).
+		// (Si el chat acaba de preguntar "¿cuál?", "la mazda" sí es elegir una.)
+		$terms = $this->analyzer->analyze( implode( ' ', $words ) );
+		if ( 'which' !== ( isset( $state['awaiting'] ) ? $state['awaiting'] : '' ) && $terms['groups'] && ! array_filter(
+			$terms['groups'],
+			function ( $group ) {
+				return ! in_array( $group['term_kind'], array( 'brand', 'category' ), true ) && empty( $group['soft'] );
+			}
+		) ) {
+			return 0;
+		}
 		$recent = array_reverse( array_slice( array_values( array_unique( array_merge( $state['shown'], $state['results'] ) ) ), -40 ) );
 		if ( $recent ) {
 			$best  = 0;
@@ -435,6 +461,21 @@ trait ASI_Dialogue_Actions {
 		return 0;
 	}
 
+	/**
+	 * "No quiero la cotización", "no me cotices", "no quiero cuotas, …": dice que NO quiere una
+	 * acción. Devuelve el resto del mensaje sin esa parte ('' si no queda nada), o null si no la rechaza.
+	 */
+	private function declined_action( $normalized ) {
+		$actions = '(cotiz[a-z]*|coti[sz][a-z]*|cuotas?|financiamiento|compar[a-z]*|proforma)';
+		$pattern = '/(^|\s)(no|ya no|nel|mejor no)\s+(?:(?:quiero|deseo|necesito|me interesa|me interesan|ocupo|pedi|me)\s+)?(?:(?:la|el|las|los|una|un|que|me)\s+)*' . $actions . '(\s+(de\s+)?(la|el|las|los|esa|ese|esas|esos|ningun[ao]?)?)?(\s|$)/';
+		if ( ! preg_match( $pattern, $normalized ) ) {
+			return null;
+		}
+		$rest = trim( preg_replace( $pattern, ' ', ' ' . $normalized . ' ' ) );
+		$rest = trim( preg_replace( '/^(pero|sino|solo|mejor|y)\s+/', '', $rest ) );
+		return strlen( $rest ) >= 3 ? $rest : '';
+	}
+
 	private function ask_which( $action, array $state ) {
 		$rows   = $this->repository->rows( $this->context['lang'], array_slice( $state['results'], 0, 4 ) );
 		$titles = array_map(
@@ -443,7 +484,7 @@ trait ASI_Dialogue_Actions {
 			},
 			$rows
 		);
-		$reply = $this->action_reply( 'action_which', array(), $state, array( 'offer' => array( 'action' => $action, 'ids' => array_slice( $state['results'], 0, 4 ) ) ) );
+		$reply = $this->action_reply( 'action_which', array(), $state, array( 'offer' => array( 'action' => $action, 'ids' => array_slice( $state['results'], 0, 4 ) ), 'awaiting' => 'which' ) );
 		$reply['suggestions'] = (array) $this->lexicon->get_list( 'which_chips' );
 		$reply['followup']    = $this->responder->join_list( $titles, 'or' ) . '.';
 		return $reply;

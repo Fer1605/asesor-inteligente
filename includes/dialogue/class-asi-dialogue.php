@@ -644,7 +644,7 @@ class ASI_Dialogue {
 			// Con similares el cierre siempre se dice: invita a elegir o a dar otro detalle.
 			$suggestions = $this->related_facets( $catalog, $query );
 			// Para afinar se piden solo los datos que faltan (no la marca si ya la dio).
-			$hints = 1 === $total || $similar ? array() : $this->missing_hints( $query, $catalog );
+			$hints = 1 === $total || $similar ? array() : $this->missing_hints( $query, $catalog, $state );
 			if ( $hints ) {
 				$closing = $this->responder->say( 'closing_hints', array( 'hints' => $this->responder->join_list( $hints, 'or' ) ) );
 			} else {
@@ -859,7 +859,7 @@ class ASI_Dialogue {
 	 *
 	 * @return string[]
 	 */
-	private function missing_hints( array $query, array $catalog ) {
+	private function missing_hints( array $query, array $catalog, array $state = array() ) {
 		$sheet     = ASI_Search_Sheet::from_query( $query );
 		$type_keys = ASI_Search_Sheet::type_keys( (array) $this->context['packs'] );
 		$out       = array();
@@ -872,7 +872,8 @@ class ASI_Dialogue {
 		if ( ! ASI_Search_Sheet::has_price( $sheet ) && $this->any_price( $catalog['items'] ) ) {
 			$out[] = $this->lexicon->word( 'hint_budget' );
 		}
-		if ( count( $out ) < 3 ) {
+		// Para qué lo usará, si no lo ha contado ("de trabajo", "somos 5").
+		if ( count( $out ) < 3 && empty( $state['profile'] ) ) {
 			$out[] = $this->lexicon->word( 'hint_use' );
 		}
 		return array_values( array_filter( $out, 'strlen' ) );
@@ -2078,7 +2079,7 @@ class ASI_Dialogue {
 			'selected' => $ints( isset( $state['selected'] ) ? $state['selected'] : array(), 8 ),
 			'quoted'   => $ints( isset( $state['quoted'] ) ? $state['quoted'] : array(), 20 ),
 			'last'     => isset( $state['last'] ) && in_array( $state['last'], array( 'quote', 'compare', 'finance' ), true ) ? $state['last'] : '',
-			'awaiting' => isset( $state['awaiting'] ) && in_array( $state['awaiting'], array( 'compare', 'budget' ), true ) ? $state['awaiting'] : '',
+			'awaiting' => isset( $state['awaiting'] ) && in_array( $state['awaiting'], array( 'compare', 'budget', 'which' ), true ) ? $state['awaiting'] : '',
 			'previewed' => self::clean_action( isset( $state['previewed'] ) ? $state['previewed'] : array(), $ints ),
 			'fin'       => self::clean_fin( isset( $state['fin'] ) ? $state['fin'] : array() ),
 			'fin_ids'   => $ints( isset( $state['fin_ids'] ) ? $state['fin_ids'] : array(), 8 ),

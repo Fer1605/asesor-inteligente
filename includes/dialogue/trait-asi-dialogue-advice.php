@@ -68,8 +68,15 @@ trait ASI_Dialogue_Advice {
 		$own        = $advisor->read_profile( $message, $language, array() );
 		$about_me   = (bool) array_diff( $changed, array( 'budget' ) ) || (bool) array_intersect( $own['changed'], array( 'people', 'kids', 'adults', 'uses', 'cargo_t' ) );
 		$asks       = $advisor->asks_advice( $message, $language );
-		// "Quiero ver más opciones", "ninguna me gustó": otra tanda con el mismo perfil.
-		if ( ! $about_me && $advisor->can_advise( $before ) && '' !== ASI_Lexicon::find_phrase( ASI_Normalizer::normalize( $message ), (array) $this->lexicon->get_list( 'more_options_words' ) ) ) {
+		// "Quiero ver más opciones", "ninguna me gustó": otra tanda con el mismo perfil. Si además
+		// nombra algo ("más opciones nissan", "de gasolina"), eso afina la búsqueda: no es otra tanda.
+		$names_something = (bool) array_filter(
+			$query['groups'],
+			static function ( $group ) {
+				return empty( $group['soft'] ) && ( '' !== (string) $group['term_kind'] || ! isset( $group['known'] ) || $group['known'] );
+			}
+		) || ! empty( $query['attrs'] ) || ASI_Search::has_price_filter( $query );
+		if ( ! $about_me && ! $names_something && $advisor->can_advise( $before ) && '' !== ASI_Lexicon::find_phrase( ASI_Normalizer::normalize( $message ), (array) $this->lexicon->get_list( 'more_options_words' ) ) ) {
 			return $this->recommend( $advisor, $profile, $this->analyzer->analyze( '' ), $state, true );
 		}
 		$only_soft  = ! array_filter(
@@ -189,6 +196,15 @@ trait ASI_Dialogue_Advice {
 		}
 
 		$ids = array_map( 'intval', array_column( $picked, 'post_id' ) );
+		// Si nombró qué busca ("un pickup de trabajo"), eso queda como su búsqueda: "pero quiero
+		// Nissan" la afina (pickups Nissan) en vez de empezar de cero.
+		$sheet = ASI_Search_Sheet::from_query( $query );
+		if ( $has_budget ) {
+			$sheet['min']      = $search['price_min'];
+			$sheet['max']      = $search['price_max'];
+			$sheet['currency'] = $search['price_currency'];
+		}
+		$saved = ASI_Search_Sheet::type_of( $sheet, ASI_Search_Sheet::type_keys( (array) $this->context['packs'] ) ) ? ASI_Search_Sheet::render( $sheet, (array) $this->lexicon->get_list( 'ai_phrases' ) ) : '';
 		return array(
 			'kind'        => 'results',
 			'text'        => $this->sentences( $text ),
@@ -198,7 +214,7 @@ trait ASI_Dialogue_Advice {
 			'suggestions' => $suggestions,
 			'more'        => false,
 			'state'       => array(
-				'q'       => '',
+				'q'       => $saved,
 				'shown'   => array_slice( array_merge( $state['shown'], $ids ), -self::MAX_SHOWN ),
 				'results' => $ids,
 				'focus'   => 0,
