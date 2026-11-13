@@ -150,3 +150,12 @@ $y = $pbot->handle( 'si', $with_offer );
 check( '"sí" solo a una oferta de cotizar: sí cotiza', true, ! empty( $y['state']['pending']['action'] ) || 'quote' === ( $y['state']['last'] ?? '' ) || false !== strpos( $y['text'], 'cotizaci' ) );
 check( '"quiero ver opciones" tras insistir en Nissan: sigue con Nissan', true, ! array_diff( asi_card_ids( $q5 ), array( 61, 62 ) ) );
 check( 'Nissan arriba del presupuesto: no vuelve a pedir el presupuesto', false, false !== strpos( (string) $q4['followup'], 'presupuesto' ) );
+
+// Frase real: "pickup para trabajar" → "quiero nisan" → "que no pase de los 300 mil". El monto es
+// presupuesto (no "la de 300 mil") y la oferta de cotizar de la recomendación ya no vale.
+$w1 = $pbot->handle( 'pickup para trabajar', array() );
+$w2 = $pbot->handle( 'quiero nisan', $w1['state'] );
+$w3 = $pbot->handle( 'que no pase de los 300 mil', $w2['state'] );
+check( 'presupuesto tras recomendación: muestra Nissan hasta 300 mil, no cotiza', array( 'results', array( 61 ), array() ), array( $w3['kind'], asi_card_ids( $w3 ), (array) ( $w3['state']['pending'] ?? array() ) ) );
+$w4 = $pbot->handle( 'cotizame la de 319 mil', $w2['state'] );
+check( '"cotízame la de 319 mil" sí señala la que cuesta eso', array( 62 ), (array) ( $w4['state']['pending']['ids'] ?? array() ) );

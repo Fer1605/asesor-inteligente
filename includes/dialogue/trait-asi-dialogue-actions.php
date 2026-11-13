@@ -1046,6 +1046,14 @@ trait ASI_Dialogue_Actions {
 		if ( ! $recent || ! preg_match( '/[0-9]/', $chunk ) ) {
 			return 0;
 		}
+		// "Que no pase de 300 mil", "hasta 300 mil", "mi presupuesto es 300 mil": es un presupuesto,
+		// no "la de 300 mil".
+		$budget = ASI_Money::extract_budget( $chunk, (array) $this->lexicon->get_list( 'money_words' ), (array) $this->context['money'] );
+		if ( $budget['spans'] && ( null !== $budget['max'] && null === $budget['min'] || null !== $budget['min'] && null === $budget['max'] || ! empty( $budget['budget'] ) ) && preg_match( '/(^|\s)(' . implode( '|', array_map( function ( $w ) {
+			return preg_quote( ASI_Normalizer::normalize( $w ), '/' );
+		}, array_merge( (array) $this->lexicon->get_list( 'money_words' )['max'], (array) $this->lexicon->get_list( 'money_words' )['min'], (array) $this->lexicon->get_list( 'money_words' )['budget'] ) ) ) . ')(\s|$)/', ASI_Normalizer::normalize( $chunk ) ) ) {
+			return 0;
+		}
 		$money  = ASI_Money::config( (array) $this->context['money'] );
 		// "199 990" (la coma se volvió espacio al normalizar) → "199990".
 		$chunk  = preg_replace( '/(\d)\s(?=\d{3}(?:\D|$))/', '$1', $chunk );

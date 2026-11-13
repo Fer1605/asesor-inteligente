@@ -153,7 +153,8 @@ class ASI_Dialogue {
 
 		$response['state'] = array_merge(
 			$state,
-			array( 'awaiting' => '', 'set' => array() ), // 'set': solo vale el turno siguiente.
+			// 'set' y 'offer' (lo que el chat acaba de ofrecer) solo valen el turno siguiente.
+			array( 'awaiting' => '', 'set' => array(), 'offer' => array() ),
 			isset( $response['state'] ) ? $response['state'] : array(),
 			array(
 				'recent' => $this->responder->recent(),
