@@ -7,6 +7,11 @@
  *   sin datos personales. Un INSERT … ON DUPLICATE KEY por evento.
  * - Chat: conversaciones, búsquedas y cada campo que pide (tipo, marca, características,
  *   presupuesto en rangos); cuenta lo que cambió, no lo que ya pedía.
+ * - Sitio: lo que filtra en el listado o busca con el buscador de WordPress, con los mismos
+ *   nombres que el chat. Se leen solos los filtros de Better Post Filter; otro plugin de filtros
+ *   puede avisar con do_action( 'asi_report_site_filter', $picks, $lang ). Cada valor se nombra
+ *   con lo que el plugin sabe del sitio: el pack (características), el rol de la taxonomía o del
+ *   campo (marca, categoría, precio) o su nombre.
  * - Vistas: la ficha del contenido avisa al abrirse (funciona con la caché de página); si se abrió
  *   desde el chat cuenta como chat. También cuenta como vista del chat el detalle que muestra el chat.
  *   Cada visitante cuenta una vez al día por contenido.
@@ -81,7 +86,6 @@ class ASI_Reports {
 						'args'                => array(
 							'id'  => array( 'type' => 'integer', 'required' => true ),
 							'src' => array( 'type' => 'string', 'default' => 'site' ),
-							'in'  => array( 'type' => 'integer', 'default' => 0 ),
 						),
 					)
 				);
@@ -89,6 +93,10 @@ class ASI_Reports {
 		);
 		add_action( 'wp_footer', array( __CLASS__, 'print_beacon' ), 99 );
 		add_action( self::PURGE_HOOK, array( __CLASS__, 'purge' ) );
+		// Lo que se filtra o busca en el sitio.
+		add_filter( 'rest_request_before_callbacks', array( __CLASS__, 'watch_filter_request' ), 10, 3 );
+		add_action( 'asi_report_site_filter', array( __CLASS__, 'site_filter' ), 10, 2 );
+		add_action( 'template_redirect', array( __CLASS__, 'watch_wp_search' ), 20 );
 		if ( ! wp_next_scheduled( self::PURGE_HOOK ) ) {
 			wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', self::PURGE_HOOK );
 		}
@@ -116,8 +124,6 @@ class ASI_Reports {
 	/**
 	 * En la ficha de un contenido: avisa la vista. Va en el HTML (sirve con la caché de página);
 	 * si el visitante llegó desde el chat (marca que deja el chat al abrir un resultado), es "chat".
-	 * Si llegó desde otra página del mismo sitio (le dio clic a su tarjeta en el inventario, la
-	 * portada o una ficha), también es un clic del sitio; si llegó de Google o un enlace, solo vista.
 	 */
 	public static function print_beacon() {
 		if ( is_admin() || ! is_singular( self::tracked_types() ) ) {
@@ -126,7 +132,7 @@ class ASI_Reports {
 		$id  = (int) get_queried_object_id();
 		$url = rest_url( ASI_REST_Controller::NAMESPACE_V1 . '/view' );
 		?>
-<script>(function(){try{var id=<?php echo (int) $id; ?>,src='site';try{var m=JSON.parse(localStorage.getItem('asi_from_chat')||'{}');if(m.id===id&&Date.now()-m.t<1800000){src='chat';}localStorage.removeItem('asi_from_chat');}catch(e){}var ins=0;try{var r=new URL(document.referrer);ins=r.host===location.host&&r.pathname!==location.pathname?1:0;}catch(e){}var b=JSON.stringify({id:id,src:src,'in':ins}),u=<?php echo wp_json_encode( $url ); ?>;if(navigator.sendBeacon){navigator.sendBeacon(u,new Blob([b],{type:'application/json'}));}else{fetch(u,{method:'POST',body:b,keepalive:true,headers:{'Content-Type':'application/json'}});}}catch(e){}})();</script>
+<script>(function(){try{var id=<?php echo (int) $id; ?>,src='site';try{var m=JSON.parse(localStorage.getItem('asi_from_chat')||'{}');if(m.id===id&&Date.now()-m.t<1800000){src='chat';}localStorage.removeItem('asi_from_chat');}catch(e){}var b=JSON.stringify({id:id,src:src}),u=<?php echo wp_json_encode( $url ); ?>;if(navigator.sendBeacon){navigator.sendBeacon(u,new Blob([b],{type:'application/json'}));}else{fetch(u,{method:'POST',body:b,keepalive:true,headers:{'Content-Type':'application/json'}});}}catch(e){}})();</script>
 		<?php
 	}
 
@@ -135,21 +141,10 @@ class ASI_Reports {
 		$src = 'chat' === $request->get_param( 'src' ) ? 'chat' : 'site';
 		if ( $id && 'publish' === get_post_status( $id ) && in_array( get_post_type( $id ), self::tracked_types(), true ) ) {
 			self::view( $id, $src );
-			// Clic en su tarjeta: en el chat (resultado abierto) o en el sitio (desde otra página).
-			if ( 'chat' === $src || (int) $request->get_param( 'in' ) ) {
-				self::click( $id, $src );
-			}
 		}
 		$rest = rest_ensure_response( array( 'ok' => true ) );
 		$rest->header( 'Cache-Control', 'no-store' );
 		return $rest;
-	}
-
-	/** Un clic en la tarjeta de un contenido (una vez al día por visitante y contenido). */
-	public static function click( $post_id, $source ) {
-		if ( self::once( 'click|' . (int) $post_id ) ) {
-			self::add( $source, 'click', '', '', (int) $post_id );
-		}
 	}
 
 	/** Una vista (una vez al día por visitante y contenido). */
@@ -221,20 +216,213 @@ class ASI_Reports {
 
 	/** Una vez al día por visitante (huella de IP y navegador, sin guardarlos) y con tope por minuto. */
 	private static function once( $what ) {
+		if ( ! self::within_rate() ) {
+			return false;
+		}
+		$key = 'asi_ro_' . md5( wp_salt( 'nonce' ) . '|' . self::visitor() . '|' . current_time( 'Y-m-d' ) . '|' . $what );
+		if ( get_transient( $key ) ) {
+			return false;
+		}
+		set_transient( $key, 1, DAY_IN_SECONDS );
+		return true;
+	}
+
+	/** Huella del visitante (IP y navegador); nunca se guarda tal cual. */
+	private static function visitor() {
+		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+		$ua = isset( $_SERVER['HTTP_USER_AGENT'] ) ? substr( sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ), 0, 200 ) : '';
+		return $ip . '|' . $ua;
+	}
+
+	/** Tope de eventos por minuto y visitante. */
+	private static function within_rate() {
 		$ip   = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
-		$ua   = isset( $_SERVER['HTTP_USER_AGENT'] ) ? substr( sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ), 0, 200 ) : '';
 		$rate = 'asi_rp_' . md5( $ip );
 		$n    = (int) get_transient( $rate );
 		if ( $n >= self::PER_MINUTE ) {
 			return false;
 		}
 		set_transient( $rate, $n + 1, MINUTE_IN_SECONDS );
-		$key = 'asi_ro_' . md5( wp_salt( 'nonce' ) . '|' . $ip . '|' . $ua . '|' . current_time( 'Y-m-d' ) . '|' . $what );
-		if ( get_transient( $key ) ) {
-			return false;
-		}
-		set_transient( $key, 1, DAY_IN_SECONDS );
 		return true;
+	}
+
+	// ---------- Lo que se busca en el sitio ----------
+
+	/**
+	 * Better Post Filter (plugin de filtros de listados): lee la petición de filtrado, sin
+	 * cambiarla. Taxonomías por ID, campos por valor, rangos numéricos y texto buscado.
+	 */
+	public static function watch_filter_request( $response, $handler, $request ) {
+		if ( ! $request instanceof WP_REST_Request || '/bpfwe/v1/filter' !== $request->get_route() || is_wp_error( $response ) ) {
+			return $response;
+		}
+		try {
+			$params = $request->get_params();
+			$list   = function ( $key ) use ( $params ) {
+				$value = isset( $params[ $key ] ) ? $params[ $key ] : array();
+				if ( is_string( $value ) ) {
+					$value = json_decode( $value, true );
+				}
+				return is_array( $value ) ? $value : array();
+			};
+			$terms = function ( $row ) {
+				return isset( $row['terms'] ) ? array_values( array_filter( array_map( 'strval', (array) $row['terms'] ), 'strlen' ) ) : array();
+			};
+			$picks = array();
+			foreach ( $list( 'taxonomy_output' ) as $row ) {
+				foreach ( $terms( $row ) as $term ) {
+					$picks[] = array( 'taxonomy' => isset( $row['taxonomy'] ) ? (string) $row['taxonomy'] : '', 'term' => (int) $term );
+				}
+			}
+			foreach ( array( 'custom_field_output', 'custom_field_like_output', 'custom_field_relational_output' ) as $key ) {
+				foreach ( $list( $key ) as $row ) {
+					foreach ( $terms( $row ) as $value ) {
+						$picks[] = array( 'field' => isset( $row['taxonomy'] ) ? (string) $row['taxonomy'] : '', 'value' => $value );
+					}
+				}
+			}
+			foreach ( $list( 'numeric_output' ) as $row ) {
+				$range = $terms( $row );
+				if ( $range ) {
+					$picks[] = array( 'field' => isset( $row['taxonomy'] ) ? (string) $row['taxonomy'] : '', 'min' => (float) $range[0], 'max' => isset( $range[1] ) ? (float) $range[1] : null );
+				}
+			}
+			$text = isset( $params['search_query'] ) ? trim( (string) $params['search_query'] ) : '';
+			if ( '' !== $text ) {
+				$picks[] = array( 'text' => $text );
+			}
+			self::site_filter( $picks, isset( $params['lang'] ) ? (string) $params['lang'] : '' );
+		} catch ( \Throwable $e ) {
+			// La reportería nunca rompe el filtro del sitio.
+		}
+		return $response;
+	}
+
+	/** Buscador de WordPress (?s=) cuando se ven los resultados del sitio. */
+	public static function watch_wp_search() {
+		if ( is_admin() || ! is_search() || is_paged() ) {
+			return;
+		}
+		$text = trim( (string) get_search_query( false ) );
+		if ( '' !== $text ) {
+			self::site_filter( array( array( 'text' => $text ) ) );
+		}
+	}
+
+	/**
+	 * Lo que alguien filtra o busca en el sitio. Cuenta lo que agregó a sus filtros (si después
+	 * solo agrega "gasolina", la marca no se vuelve a contar), como en el chat.
+	 *
+	 * @param array[] $picks { taxonomy, term } | { field, value } | { field, min, max } | { text }.
+	 * @param string  $lang  Idioma (vacío: el del sitio).
+	 */
+	public static function site_filter( $picks, $lang = '' ) {
+		if ( ! is_array( $picks ) || ! $picks || ! apply_filters( 'asi_report_track', true ) || ! self::within_rate() ) {
+			return;
+		}
+		$plugin = ASI_Plugin::instance();
+		if ( ! $plugin->languages ) {
+			return;
+		}
+		$context = ASI_REST_Controller::dialogue_context_for( ASI_Context::resolve( (string) $lang, $plugin->languages ), $plugin->languages );
+		$now     = array();
+		foreach ( self::name_picks( $picks, $context ) as $c ) {
+			$now[ $c['dim'] . '|' . $c['label'] ] = $c;
+		}
+		if ( ! $now ) {
+			return;
+		}
+		$key = 'asi_rf_' . md5( wp_salt( 'nonce' ) . '|' . self::visitor() );
+		$had = get_transient( $key );
+		$had = is_array( $had ) ? $had : array();
+		set_transient( $key, array_fill_keys( array_keys( $now ), 1 ), 30 * MINUTE_IN_SECONDS );
+		$new = array_diff_key( $now, $had );
+		if ( ! $new ) {
+			return;
+		}
+		self::add( 'site', 'search' );
+		foreach ( $new as $c ) {
+			self::add( 'site', 'criterion', $c['dim'], $c['label'] );
+		}
+	}
+
+	/**
+	 * Nombre de cada filtro, igual que en el chat: primero lo que el pack reconoce (características),
+	 * luego el rol que el plugin descubrió para la taxonomía o el campo, y si no, su nombre.
+	 */
+	private static function name_picks( array $picks, array $context ) {
+		$schema = ASI_Schema_Discovery::get_schema();
+		$taxes  = array();
+		$fields = array();
+		foreach ( (array) ( isset( $schema['post_types'] ) ? $schema['post_types'] : array() ) as $record ) {
+			if ( empty( $record['enabled'] ) ) {
+				continue;
+			}
+			$taxes  += isset( $record['taxonomies'] ) ? (array) $record['taxonomies'] : array();
+			$fields += isset( $record['fields'] ) ? (array) $record['fields'] : array();
+		}
+		$out   = array();
+		$named = function ( $text, $role_dim, $fallback_dim ) use ( $context ) {
+			$text = trim( wp_strip_all_tags( html_entity_decode( (string) $text, ENT_QUOTES, 'UTF-8' ) ) );
+			if ( '' === $text ) {
+				return null;
+			}
+			$parsed = ASI_Attributes::parse( (array) $context['packs'], $text, $context['language'] );
+			if ( $parsed['constraints'] && isset( $parsed['labels'][0] ) ) {
+				$keys = array_keys( $parsed['constraints'] );
+				return array( 'dim' => 'attr:' . $keys[0], 'label' => self::cap( preg_replace( '/^(?:de|del|of)\s+/u', '', (string) $parsed['labels'][0] ) ) );
+			}
+			return array( 'dim' => '' !== $role_dim ? $role_dim : $fallback_dim, 'label' => self::cap( ASI_Query_Analyzer::display_name( $text ) ) );
+		};
+		foreach ( $picks as $pick ) {
+			$pick = (array) $pick;
+			if ( isset( $pick['text'] ) ) {
+				$dialogue = new ASI_Dialogue( new ASI_Index_Repository(), $context );
+				$out      = array_merge( $out, $dialogue->report_criteria( (string) $pick['text'] ) );
+				continue;
+			}
+			if ( ! empty( $pick['taxonomy'] ) && ! empty( $pick['term'] ) ) {
+				$tax  = sanitize_key( $pick['taxonomy'] );
+				$term = get_term( (int) $pick['term'], $tax );
+				if ( ! $term || is_wp_error( $term ) ) {
+					continue;
+				}
+				$role  = isset( $taxes[ $tax ]['role'] ) && in_array( $taxes[ $tax ]['role'], array( 'brand' ), true ) ? 'term:' . $taxes[ $tax ]['role'] : '';
+				$label = isset( $taxes[ $tax ]['label'] ) ? (string) $taxes[ $tax ]['label'] : ( get_taxonomy( $tax ) ? get_taxonomy( $tax )->labels->singular_name : $tax );
+				$c     = $named( $term->name, $role, 'tax:' . $label );
+				if ( $c ) {
+					$out[] = $c;
+				}
+				continue;
+			}
+			if ( ! empty( $pick['field'] ) ) {
+				$key   = (string) $pick['field'];
+				$info  = isset( $fields[ $key ] ) ? (array) $fields[ $key ] : array();
+				$role  = isset( $info['role'] ) ? (string) $info['role'] : '';
+				$label = isset( $info['label'] ) ? (string) $info['label'] : $key;
+				if ( array_key_exists( 'min', $pick ) ) {
+					// Rango numérico: si es el precio, en los mismos rangos que el presupuesto del chat.
+					if ( 'price' === $role ) {
+						$sheet = array_merge( ASI_Search_Sheet::blank(), array( 'min' => $pick['min'] > 0 ? (float) $pick['min'] : null, 'max' => isset( $pick['max'] ) && $pick['max'] > 0 ? (float) $pick['max'] : null, 'currency' => isset( $context['money']['base'] ) ? (string) $context['money']['base'] : '' ) );
+						$bucket = ASI_Search_Sheet::budget_bucket( $sheet );
+						if ( '' !== $bucket ) {
+							$out[] = array( 'dim' => 'budget', 'label' => $bucket );
+						}
+					}
+					continue;
+				}
+				$c = $named( isset( $pick['value'] ) ? $pick['value'] : '', 'brand' === $role ? 'term:brand' : '', 'field:' . $label );
+				if ( $c ) {
+					$out[] = $c;
+				}
+			}
+		}
+		return $out;
+	}
+
+	private static function cap( $text ) {
+		$text = trim( (string) $text );
+		return function_exists( 'mb_strtoupper' ) ? mb_strtoupper( mb_substr( $text, 0, 1, 'UTF-8' ), 'UTF-8' ) . mb_substr( $text, 1, null, 'UTF-8' ) : ucfirst( $text );
 	}
 
 	// ---------- Lectura ----------
@@ -287,12 +475,12 @@ class ASI_Reports {
 				'search'       => 0,
 				'chat_leads'   => 0,
 				'view'         => array( 'chat' => 0, 'site' => 0 ),
-				'click'        => array( 'chat' => 0, 'site' => 0 ),
+				'search_site'  => 0,
 				'quote'        => array( 'chat' => 0, 'site' => 0 ),
 				'compare'      => array( 'chat' => 0, 'site' => 0 ),
 			),
 			'criteria' => array(),
-			'items'    => array( 'click' => array(), 'view' => array(), 'quote' => array(), 'compare' => array() ),
+			'items'    => array( 'view' => array(), 'quote' => array(), 'compare' => array() ),
 			'leads'    => 'chat',
 		);
 		$names = self::dim_names();
@@ -301,8 +489,10 @@ class ASI_Reports {
 			$n = (int) $row['n'];
 			switch ( $row['kind'] ) {
 				case 'conversation':
+					$report['counts']['conversation'] += $n;
+					break;
 				case 'search':
-					$report['counts'][ $row['kind'] ] += $n;
+					$report['counts'][ 'site' === $row['source'] ? 'search_site' : 'search' ] += $n;
 					break;
 				case 'lead':
 					// Cotizaciones y comparaciones del chat contadas desde que hay reportería (las
@@ -314,14 +504,13 @@ class ASI_Reports {
 				case 'criterion':
 					$dim = isset( $names[ $row['dim'] ] ) ? $names[ $row['dim'] ] : ucfirst( preg_replace( '/^[a-z]+:/', '', $row['dim'] ) );
 					if ( ! isset( $report['criteria'][ $dim ][ $row['label'] ] ) ) {
-						$report['criteria'][ $dim ][ $row['label'] ] = 0;
+						$report['criteria'][ $dim ][ $row['label'] ] = array( 'chat' => 0, 'site' => 0 );
 					}
-					$report['criteria'][ $dim ][ $row['label'] ] += $n;
+					$report['criteria'][ $dim ][ $row['label'] ][ 'site' === $row['source'] ? 'site' : 'chat' ] += $n;
 					break;
 				case 'view':
-				case 'click':
-					$report['counts'][ $row['kind'] ][ $row['source'] ] += $n;
-					self::add_item( $report['items'][ $row['kind'] ], (int) $row['post_id'], '', $row['source'], $n );
+					$report['counts']['view'][ $row['source'] ] += $n;
+					self::add_item( $report['items']['view'], (int) $row['post_id'], '', $row['source'], $n );
 					break;
 			}
 		}
@@ -358,14 +547,26 @@ class ASI_Reports {
 			}
 		}
 
+		$sum = function ( array $labels ) {
+			$total = 0;
+			foreach ( $labels as $pair ) {
+				$total += $pair['chat'] + $pair['site'];
+			}
+			return $total;
+		};
 		foreach ( $report['criteria'] as $dim => $labels ) {
-			arsort( $labels );
-			$report['criteria'][ $dim ] = array_slice( $labels, 0, self::MAX_ROWS, true );
+			uasort(
+				$labels,
+				function ( $a, $b ) {
+					return ( $b['chat'] + $b['site'] ) - ( $a['chat'] + $a['site'] );
+				}
+			);
+			$report['criteria'][ $dim ] = $labels;
 		}
 		uasort(
 			$report['criteria'],
-			function ( $a, $b ) {
-				return array_sum( $b ) - array_sum( $a );
+			function ( $a, $b ) use ( $sum ) {
+				return $sum( $b ) - $sum( $a );
 			}
 		);
 		self::name_items( $report['items'] );
@@ -531,22 +732,29 @@ class ASI_Reports {
 			$put( array( 'Conversaciones en el chat', $c['conversation'] ) );
 			$put( array( 'Búsquedas en el chat', $c['search'] ) );
 		}
+		if ( 'chat' !== $scope ) {
+			$put( array( 'Búsquedas y filtros en el sitio', $c['search_site'] ) );
+		}
 		$put( array( 'Cotizaciones', $pick( $c['quote'] ) ) );
 		$put( array( 'Comparaciones', $pick( $c['compare'] ) ) );
 		if ( 'site' !== $scope && $c['conversation'] ) {
 			$put( array( 'Conversaciones que terminaron en cotización o comparación', round( 100 * min( 1, $c['chat_leads'] / $c['conversation'] ), 1 ) . '%' ) );
 		}
-		if ( 'site' !== $scope && $report['criteria'] ) {
+		if ( $report['criteria'] ) {
 			$put( array() );
-			$put( array( 'Lo más buscado en el chat' ) );
-			$put( array( 'Campo', 'Valor', 'Veces' ) );
+			$put( array( 'Lo más buscado' ) );
+			$put( 'all' === $scope ? array( 'Campo', 'Valor', 'Total', 'Chat', 'Sitio' ) : array( 'Campo', 'Valor', 'Veces' ) );
 			foreach ( $report['criteria'] as $dim => $labels ) {
-				foreach ( $labels as $label => $n ) {
-					$put( array( $dim, $label, $n ) );
+				$rows = array();
+				foreach ( $labels as $label => $pair ) {
+					$rows[] = array( 'title' => (string) $label, 'chat' => $pair['chat'], 'site' => $pair['site'] );
+				}
+				foreach ( self::top( $rows, $scope ) as $row ) {
+					$put( 'all' === $scope ? array( $dim, $row['title'], $row['chat'] + $row['site'], $row['chat'], $row['site'] ) : array( $dim, $row['title'], $pick( $row ) ) );
 				}
 			}
 		}
-		$titles = array( 'click' => 'Lo más buscado: vehículos más cliqueados', 'view' => 'Lo más visto', 'quote' => 'Lo más cotizado', 'compare' => 'Lo más comparado' );
+		$titles = array( 'view' => 'Lo más visto', 'quote' => 'Lo más cotizado', 'compare' => 'Lo más comparado' );
 		foreach ( $titles as $kind => $title ) {
 			$put( array() );
 			$put( array( $title ) );

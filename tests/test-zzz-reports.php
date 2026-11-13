@@ -11,7 +11,7 @@ check( 'reportes: rango en otra escala y moneda', array( 'Hasta $100,000', 'Hast
 $rbot = new ASI_Dialogue( $yard3, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'money' => $money, 'packs' => array( $autos ) ), function () {
 	return 0;
 } );
-check( 'reportes: sin conversación no hay campos', array(), $rbot->report_criteria( 'suv' ) );
+check( 'reportes: también sin conversación (búsquedas del sitio)', array( array( 'dim' => 'attr:body', 'label' => 'SUV' ) ), $rbot->report_criteria( 'suv' ) );
 $rbot->handle( 'hola' );
 $crit = $rbot->report_criteria( 'camioneta toyota o honda de gasolina hasta 225000' );
 $pairs = array();

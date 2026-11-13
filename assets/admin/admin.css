@@ -1127,7 +1127,7 @@
 .asi-admin .asi-report-filters label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
 .asi-admin .asi-report-filters .asi-report-check { flex-direction: row; align-items: center; gap: 6px; font-weight: 400; padding-bottom: 6px; }
 .asi-admin .asi-report-export { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 18px; }
-.asi-admin .asi-report-criteria { display: grid; grid-template-columns: repeat( auto-fill, minmax( 240px, 1fr ) ); gap: 16px; }
+.asi-admin .asi-report-criteria { display: grid; grid-template-columns: repeat( auto-fill, minmax( 300px, 1fr ) ); gap: 16px; }
 .asi-admin .asi-report-criteria__group h3 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var( --asi-a-muted ); }
 .asi-admin .asi-report-num { white-space: nowrap; text-align: right; width: 1%; }
 .asi-admin .asi-bar { display: inline-block; width: 70px; height: 8px; margin-right: 6px; vertical-align: middle; background: #f0f0f1; border-radius: 4px; overflow: hidden; }
@@ -1141,3 +1141,5 @@
 }
 
 .asi-admin .asi-report-sub { margin: 0 0 4px; font-size: 14px; }
+.asi-admin .asi-report-criteria .asi-report-num { width: 1%; white-space: nowrap; text-align: right; }
+.asi-admin .asi-report-criteria th { font-weight: 600; font-size: 12px; }

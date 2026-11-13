@@ -1021,14 +1021,20 @@ class ASI_Dialogue {
 	/**
 	 * Para la reportería: qué pide una búsqueda guardada, campo por campo, con el nombre con que se
 	 * muestra ("Marca: Toyota", "carrocería: SUV", "Presupuesto: hasta Q 300,000"). Sale de la misma
-	 * ficha que usa la búsqueda, así que sirve para cualquier giro. Solo después de handle().
+	 * ficha que usa la búsqueda, así que sirve para cualquier giro.
 	 *
 	 * @param string $q Búsqueda guardada (state q).
 	 * @return array[] { dim, label }
 	 */
 	public function report_criteria( $q ) {
-		if ( ! $this->analyzer || '' === trim( (string) $q ) ) {
+		if ( '' === trim( (string) $q ) ) {
 			return array();
+		}
+		if ( ! $this->analyzer ) {
+			// Fuera de una conversación (búsqueda del sitio): el mismo análisis, sin turno.
+			$this->lexicon  = ASI_Lexicon::get( $this->context['language'], isset( $this->context['synonyms'] ) ? $this->context['synonyms'] : array() );
+			$this->vocab    = $this->repository->vocabulary( $this->context['lang'] );
+			$this->analyzer = new ASI_Query_Analyzer( $this->lexicon, $this->vocab, (array) $this->context['money'], (array) $this->context['packs'] );
 		}
 		$sheet = ASI_Search_Sheet::from_query( $this->analyzer->analyze( (string) $q ) );
 		$out   = array();

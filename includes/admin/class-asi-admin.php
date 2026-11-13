@@ -1615,6 +1615,7 @@ class ASI_Admin {
 		<div class="asi-stats">
 			<?php
 			$this->stat( 'dashicons-format-chat', 'blue', $fmt( $c['conversation'] ), 'Conversaciones en el chat', $fmt( $c['search'] ) . ' búsquedas' );
+			$this->stat( 'dashicons-filter', 'purple', $fmt( $c['search_site'] ), 'Búsquedas en el sitio', 'Filtros del listado y buscador' );
 			$this->stat( 'dashicons-media-document', 'green', $fmt( $total( $c['quote'] ) ), 'Cotizaciones', 'Chat ' . $fmt( $c['quote']['chat'] ) . ' · Sitio ' . $fmt( $c['quote']['site'] ) );
 			$this->stat( 'dashicons-columns', 'amber', $fmt( $total( $c['compare'] ) ), 'Comparaciones', 'Chat ' . $fmt( $c['compare']['chat'] ) . ' · Sitio ' . $fmt( $c['compare']['site'] ) );
 			$this->stat( 'dashicons-chart-line', 'blue', $c['conversation'] ? round( 100 * $conv, 1 ) . '%' : '—', 'Conversión del chat', $fmt( $c['chat_leads'] ) . ' cotizaciones o comparaciones en ' . $fmt( $c['conversation'] ) . ' conversaciones' );
@@ -1643,27 +1644,36 @@ class ASI_Admin {
 				<?php else : ?>
 					Este sitio no tiene un conector que lea sus formularios: solo se cuentan las del chat.
 				<?php endif; ?>
-				Lo que se busca, se cliquea y se ve se cuenta desde que se activó la reportería; se guarda un año y lo más viejo se borra solo.
+				Lo que se busca y se ve se cuenta desde que se activó la reportería; se guarda un año y lo más viejo se borra solo.
 			</p>
 		<?php $this->card_close(); ?>
 
 		<?php $this->card_open( 'Lo más buscado', 'dashicons-search', 'purple' ); ?>
-			<h3 class="asi-report-sub">En el chat: lo que la gente pide</h3>
-			<p class="asi-muted">Por característica. Cuenta cada vez que alguien lo pide en una búsqueda (si después solo cambia el presupuesto, el tipo no se vuelve a contar).</p>
+			<p class="asi-muted">Qué características busca más la gente: marca, tipo, combustible, presupuesto… <strong>Chat</strong>: lo que le pide al chat. <strong>Sitio</strong>: lo que marca en los filtros del listado o escribe en el buscador del sitio. Cuenta cada vez que lo agrega a su búsqueda (si después solo agrega otra cosa, lo anterior no se vuelve a contar).</p>
 			<?php if ( ! $report['criteria'] ) : ?>
 				<div class="asi-empty"><span class="dashicons dashicons-search" aria-hidden="true"></span>Todavía no hay búsquedas en este periodo.</div>
 			<?php else : ?>
 				<div class="asi-report-criteria">
 				<?php foreach ( $report['criteria'] as $dim => $labels ) : ?>
-					<?php $max = max( $labels ); ?>
+					<?php
+					$rows = array();
+					foreach ( $labels as $label => $pair ) {
+						$rows[] = array( 'title' => (string) $label, 'chat' => $pair['chat'], 'site' => $pair['site'] );
+					}
+					$rows = ASI_Reports::top( $rows, 'all' );
+					$max  = $rows ? $rows[0]['chat'] + $rows[0]['site'] : 1;
+					?>
 					<div class="asi-report-criteria__group">
 						<h3><?php echo esc_html( $dim ); ?></h3>
 						<table class="asi-table asi-table--compact">
+							<thead><tr><th></th><th class="asi-report-num">Chat</th><th class="asi-report-num">Sitio</th><th class="asi-report-num">Total</th></tr></thead>
 							<tbody>
-							<?php foreach ( $labels as $label => $n ) : ?>
+							<?php foreach ( $rows as $row ) : ?>
 								<tr>
-									<td><?php echo esc_html( $label ); ?></td>
-									<td class="asi-report-num"><span class="asi-bar"><span style="width:<?php echo esc_attr( round( 100 * $n / $max ) ); ?>%"></span></span> <?php echo esc_html( $fmt( $n ) ); ?></td>
+									<td><?php echo esc_html( $row['title'] ); ?></td>
+									<td class="asi-report-num"><?php echo esc_html( $fmt( $row['chat'] ) ); ?></td>
+									<td class="asi-report-num"><?php echo esc_html( $fmt( $row['site'] ) ); ?></td>
+									<td class="asi-report-num"><span class="asi-bar"><span style="width:<?php echo esc_attr( round( 100 * ( $row['chat'] + $row['site'] ) / max( 1, $max ) ) ); ?>%"></span></span> <strong><?php echo esc_html( $fmt( $row['chat'] + $row['site'] ) ); ?></strong></td>
 								</tr>
 							<?php endforeach; ?>
 							</tbody>
@@ -1676,14 +1686,13 @@ class ASI_Admin {
 
 		<?php
 		$sections = array(
-			'click'   => array( 'Lo más buscado: vehículos más cliqueados', 'dashicons-search', 'A qué tarjetas le da clic la gente. "Chat": resultados que abrió desde el chat. "Sitio": tarjetas del inventario, la portada o de otra ficha. Cada visitante cuenta una vez al día por vehículo.' ),
 			'view'    => array( 'Lo más visto', 'dashicons-visibility', 'Fichas abiertas por cualquier camino (también desde Google o un enlace). "Chat": las que se abrieron desde el chat o se vieron dentro de él.' ),
 			'quote'   => array( 'Lo más cotizado', 'dashicons-media-document', 'Cada vehículo de una cotización cuenta una vez (la de favoritos suma cada uno).' ),
 			'compare' => array( 'Lo más comparado', 'dashicons-columns', 'Cada vehículo de una comparación cuenta una vez.' ),
 		);
 		foreach ( $sections as $kind => $info ) :
 			$shown = ASI_Reports::top( $report['items'][ $kind ], 'all' );
-			$tones = array( 'click' => 'purple', 'view' => 'blue', 'quote' => 'green', 'compare' => 'amber' );
+			$tones = array( 'view' => 'blue', 'quote' => 'green', 'compare' => 'amber' );
 			$this->card_open( $info[0], $info[1], $tones[ $kind ] );
 			?>
 			<p class="asi-muted"><?php echo esc_html( $info[2] ); ?><?php echo $report['totals'][ $kind ] > ASI_Reports::MAX_ROWS ? ' ' . esc_html( sprintf( 'Se muestran los %1$d primeros de %2$d.', ASI_Reports::MAX_ROWS, $report['totals'][ $kind ] ) ) : ''; ?></p>
