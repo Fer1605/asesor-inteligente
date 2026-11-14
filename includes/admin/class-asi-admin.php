@@ -1593,8 +1593,8 @@ class ASI_Admin {
 		<div class="asi-hero">
 			<span class="asi-hero__icon dashicons dashicons-chart-area" aria-hidden="true"></span>
 			<p class="asi-hero__lead">
-				<strong>Qué busca la gente, qué ve, qué cotiza y qué compara, en el chat y en el sitio.</strong>
-				Así se ve cuánto convierte el chat y qué prefiere hacer la gente: usar el chat o el sitio. No guarda datos de quién visita.
+				<strong>¿El chat da resultados? Aquí se compara con lo que la gente hace normalmente en el sitio.</strong>
+				También qué es lo más buscado, visto, cotizado y comparado. No guarda datos de quién visita.
 			</p>
 		</div>
 
@@ -1628,28 +1628,24 @@ class ASI_Admin {
 		<div class="asi-stats">
 			<?php
 			$this->stat( 'dashicons-format-chat', 'blue', $fmt( $c['conversation'] ), 'Conversaciones en el chat', $fmt( $c['search'] ) . ' búsquedas' );
-			$this->stat( 'dashicons-filter', 'purple', $fmt( $c['search_site'] ), 'Búsquedas en el sitio', 'Filtros del listado y buscador' );
+			$this->stat( 'dashicons-admin-site-alt3', 'purple', $fmt( $c['visitor'] ), 'Personas buscando en el sitio', $fmt( $c['search_site'] ) . ' búsquedas con filtros o buscador' );
 			$this->stat( 'dashicons-media-document', 'green', $fmt( $total( $c['quote'] ) ), 'Cotizaciones', 'Chat ' . $fmt( $c['quote']['chat'] ) . ' · Sitio ' . $fmt( $c['quote']['site'] ) );
 			$this->stat( 'dashicons-columns', 'amber', $fmt( $total( $c['compare'] ) ), 'Comparaciones', 'Chat ' . $fmt( $c['compare']['chat'] ) . ' · Sitio ' . $fmt( $c['compare']['site'] ) );
-			$this->stat( 'dashicons-chart-line', 'blue', $c['conversation'] ? round( 100 * $conv, 1 ) . '%' : '—', 'Conversión del chat', $fmt( $c['chat_leads'] ) . ' cotizaciones o comparaciones en ' . $fmt( $c['conversation'] ) . ' conversaciones' );
 			?>
 		</div>
 
-		<?php $this->card_open( 'Chat o sitio: qué usa más la gente', 'dashicons-randomize', 'blue' ); ?>
-			<table class="asi-table asi-report-split">
-				<thead><tr><th></th><th>Desde el chat</th><th>Desde el sitio</th><th>Total</th><th>Parte del chat</th></tr></thead>
-				<tbody>
-				<?php foreach ( array( 'quote' => 'Cotizaciones', 'compare' => 'Comparaciones' ) as $kind => $label ) : ?>
-					<tr>
-						<th scope="row"><?php echo esc_html( $label ); ?></th>
-						<td><?php echo esc_html( $fmt( $c[ $kind ]['chat'] ) ); ?></td>
-						<td><?php echo esc_html( $fmt( $c[ $kind ]['site'] ) ); ?></td>
-						<td><strong><?php echo esc_html( $fmt( $total( $c[ $kind ] ) ) ); ?></strong></td>
-						<td><span class="asi-bar"><span style="width:<?php echo esc_attr( $total( $c[ $kind ] ) ? round( 100 * $c[ $kind ]['chat'] / $total( $c[ $kind ] ) ) : 0 ); ?>%"></span></span> <?php echo esc_html( $pct( $c[ $kind ]['chat'], $total( $c[ $kind ] ) ) ); ?></td>
-					</tr>
-				<?php endforeach; ?>
-				</tbody>
-			</table>
+		<?php $this->card_open( '¿El chat da resultados?', 'dashicons-chart-line', 'blue' ); ?>
+			<?php $this->chart_results( $report['rate'] ); ?>
+		<?php $this->card_close(); ?>
+
+		<?php $this->card_open( 'Día a día', 'dashicons-calendar-alt', 'purple' ); ?>
+			<?php $this->chart_legend(); ?>
+			<div class="asi-chart-pair">
+				<?php
+				$this->chart_days( $report['daily'], 'conversation', 'visitor', 'Personas: en el chat o buscando en el sitio', array( 'chat' => 'personas en el chat', 'site' => 'personas en el sitio' ) );
+				$this->chart_days( $report['daily'], 'chat', 'site', 'Cotizaciones y comparaciones', array( 'chat' => 'desde el chat', 'site' => 'desde el sitio' ) );
+				?>
+			</div>
 			<p class="asi-muted">
 				Cotizaciones: la de un vehículo y la de varios (favoritos) cuentan igual.
 				<?php if ( 'site' === $report['leads'] ) : ?>
@@ -1657,40 +1653,27 @@ class ASI_Admin {
 				<?php else : ?>
 					Este sitio no tiene un conector que lea sus formularios: solo se cuentan las del chat.
 				<?php endif; ?>
-				Lo que se busca y se ve se cuenta desde que se activó la reportería; se guarda un año y lo más viejo se borra solo.
+				Lo demás se cuenta desde que se activó la reportería; se guarda un año y lo más viejo se borra solo.
 			</p>
 		<?php $this->card_close(); ?>
 
 		<?php $this->card_open( 'Lo más buscado', 'dashicons-search', 'purple' ); ?>
-			<p class="asi-muted">Qué características busca más la gente: marca, tipo, combustible, presupuesto… <strong>Chat</strong>: lo que le pide al chat. <strong>Sitio</strong>: lo que marca en los filtros del listado o escribe en el buscador del sitio. Cuenta cada vez que lo agrega a su búsqueda (si después solo agrega otra cosa, lo anterior no se vuelve a contar).</p>
+			<p class="asi-muted">Qué características busca más la gente. <strong>Chat</strong>: lo que le pide al chat. <strong>Sitio</strong>: lo que marca en los filtros del listado o escribe en el buscador del sitio.</p>
 			<?php if ( ! $report['criteria'] ) : ?>
 				<div class="asi-empty"><span class="dashicons dashicons-search" aria-hidden="true"></span>Todavía no hay búsquedas en este periodo.</div>
 			<?php else : ?>
+				<?php $this->chart_legend(); ?>
 				<div class="asi-report-criteria">
 				<?php foreach ( $report['criteria'] as $dim => $labels ) : ?>
 					<?php
 					$rows = array();
 					foreach ( $labels as $label => $pair ) {
-						$rows[] = array( 'title' => (string) $label, 'chat' => $pair['chat'], 'site' => $pair['site'] );
+						$rows[] = array( 'id' => 0, 'title' => (string) $label, 'chat' => $pair['chat'], 'site' => $pair['site'] );
 					}
-					$rows = ASI_Reports::top( $rows, 'all' );
-					$max  = $rows ? $rows[0]['chat'] + $rows[0]['site'] : 1;
 					?>
 					<div class="asi-report-criteria__group">
 						<h3><?php echo esc_html( $dim ); ?></h3>
-						<table class="asi-table asi-table--compact">
-							<thead><tr><th></th><th class="asi-report-num">Chat</th><th class="asi-report-num">Sitio</th><th class="asi-report-num">Total</th></tr></thead>
-							<tbody>
-							<?php foreach ( $rows as $row ) : ?>
-								<tr>
-									<td><?php echo esc_html( $row['title'] ); ?></td>
-									<td class="asi-report-num"><?php echo esc_html( $fmt( $row['chat'] ) ); ?></td>
-									<td class="asi-report-num"><?php echo esc_html( $fmt( $row['site'] ) ); ?></td>
-									<td class="asi-report-num"><span class="asi-bar"><span style="width:<?php echo esc_attr( round( 100 * ( $row['chat'] + $row['site'] ) / max( 1, $max ) ) ); ?>%"></span></span> <strong><?php echo esc_html( $fmt( $row['chat'] + $row['site'] ) ); ?></strong></td>
-								</tr>
-							<?php endforeach; ?>
-							</tbody>
-						</table>
+						<?php $this->chart_bars( ASI_Reports::top( $rows, 'all' ) ); ?>
 					</div>
 				<?php endforeach; ?>
 				</div>
@@ -1712,24 +1695,204 @@ class ASI_Admin {
 			<?php if ( ! $shown ) : ?>
 				<div class="asi-empty"><span class="dashicons <?php echo esc_attr( $info[1] ); ?>" aria-hidden="true"></span>Nada en este periodo.</div>
 			<?php else : ?>
-				<table class="asi-table asi-report-items">
-					<thead><tr><th>#</th><th>Vehículo / contenido</th><th>Total</th><th>Chat</th><th>Sitio</th></tr></thead>
-					<tbody>
-					<?php foreach ( $shown as $i => $item ) : ?>
-						<tr>
-							<td class="asi-muted"><?php echo (int) $i + 1; ?></td>
-							<td><?php if ( $item['id'] && get_permalink( $item['id'] ) ) : ?><a href="<?php echo esc_url( get_permalink( $item['id'] ) ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $item['title'] ); ?></a><?php else : ?><?php echo esc_html( $item['title'] ); ?><?php endif; ?></td>
-							<td><strong><?php echo esc_html( $fmt( $item['chat'] + $item['site'] ) ); ?></strong></td>
-							<td><?php echo esc_html( $fmt( $item['chat'] ) ); ?></td>
-							<td><?php echo esc_html( $fmt( $item['site'] ) ); ?></td>
-						</tr>
-					<?php endforeach; ?>
-					</tbody>
-				</table>
+				<?php $this->chart_legend(); ?>
+				<?php $this->chart_bars( $shown, true ); ?>
 			<?php endif; ?>
 			<?php
 			$this->card_close();
 		endforeach;
+		?>
+		<div class="asi-chart-tip" role="tooltip" hidden></div>
+		<script>
+		( function () {
+			var tip = document.querySelector( '.asi-chart-tip' );
+			if ( ! tip ) { return; }
+			var show = function ( e ) {
+				var el = e.target.closest ? e.target.closest( '[data-tip]' ) : null;
+				if ( ! el ) { tip.hidden = true; return; }
+				tip.textContent = el.getAttribute( 'data-tip' );
+				tip.hidden = false;
+				var r = el.getBoundingClientRect(), w = tip.offsetWidth;
+				var x = Math.min( window.innerWidth - w - 8, Math.max( 8, ( e.clientX || r.left + r.width / 2 ) - w / 2 ) );
+				tip.style.left = ( x + window.scrollX ) + 'px';
+				tip.style.top = ( r.top + window.scrollY - tip.offsetHeight - 8 ) + 'px';
+			};
+			document.addEventListener( 'mousemove', show );
+			document.addEventListener( 'focusin', show );
+			document.addEventListener( 'scroll', function () { tip.hidden = true; }, true );
+		} )();
+		</script>
+		<?php
+	}
+
+	/** Colores de la reportería: el chat siempre azul y el sitio siempre naranja. */
+	private function chart_legend() {
+		echo '<p class="asi-chart-legend"><span><i class="asi-chart-key asi-chart-key--chat"></i>Chat</span><span><i class="asi-chart-key asi-chart-key--site"></i>Sitio</span></p>';
+	}
+
+	/**
+	 * ¿Da resultados el chat? De cada 100 personas, cuántas cotizan o comparan, en el chat y en el sitio.
+	 *
+	 * @param array $rate chat, site (0-1 o null), base, since.
+	 */
+	private function chart_results( array $rate ) {
+		$per100 = function ( $r ) {
+			$n = 100 * $r;
+			return $n >= 10 ? (string) round( $n ) : rtrim( rtrim( number_format( $n, 1 ), '0' ), '.' );
+		};
+		$b = $rate['base'];
+		if ( null === $rate['chat'] && null === $rate['site'] ) {
+			echo '<div class="asi-empty"><span class="dashicons dashicons-chart-line" aria-hidden="true"></span>Todavía no hay datos en este periodo. Se van llenando con cada conversación y cada visita.</div>';
+			return;
+		}
+		$max = max( (float) $rate['chat'], (float) $rate['site'], 0.0001 );
+		if ( null !== $rate['chat'] && null !== $rate['site'] && $rate['site'] > 0 && $rate['chat'] > 0 ) {
+			$times = $rate['chat'] / $rate['site'];
+			if ( $times >= 1.15 ) {
+				$headline = sprintf( 'Quien usa el chat cotiza o compara %s veces más que quien solo navega el sitio.', number_format( $times, 1 ) );
+			} elseif ( $times <= 0.87 ) {
+				$headline = sprintf( 'Por ahora, quien usa el chat cotiza o compara menos que quien navega el sitio (%s de cada 100 contra %s).', $per100( $rate['chat'] ), $per100( $rate['site'] ) );
+			} else {
+				$headline = 'Quien usa el chat cotiza o compara más o menos igual que quien navega el sitio.';
+			}
+		} elseif ( null !== $rate['chat'] && $rate['chat'] > 0 && null !== $rate['site'] && 0.0 === (float) $rate['site'] ) {
+			$headline = 'En este periodo cotizaron o compararon desde el chat y nadie desde el sitio.';
+		} else {
+			$headline = 'Todavía faltan datos de un lado para comparar.';
+		}
+		?>
+		<p class="asi-chart-headline"><?php echo esc_html( $headline ); ?></p>
+		<div class="asi-chart-compare">
+			<?php
+			$rows = array(
+				'chat' => array( 'Usan el chat', $b['conversation'], $b['chat'], 'conversaciones' ),
+				'site' => array( 'Navegan el sitio sin el chat', $b['visitor'], $b['site'], 'personas que buscaron o vieron vehículos' ),
+			);
+			foreach ( $rows as $side => $row ) :
+				$r   = $rate[ $side ];
+				$tip = null === $r ? 'Sin datos todavía' : sprintf( '%s de %s %s cotizaron o compararon', number_format_i18n( $row[2] ), number_format_i18n( $row[1] ), $row[3] );
+				?>
+				<div class="asi-chart-compare__row" tabindex="0" data-tip="<?php echo esc_attr( $tip ); ?>">
+					<span class="asi-chart-compare__label"><i class="asi-chart-key asi-chart-key--<?php echo esc_attr( $side ); ?>"></i><?php echo esc_html( $row[0] ); ?></span>
+					<span class="asi-chart-compare__track"><span class="asi-chart-compare__bar asi-chart-fill--<?php echo esc_attr( $side ); ?>" style="width:<?php echo esc_attr( null === $r ? 0 : max( 1, round( 100 * $r / $max ) ) ); ?>%"></span></span>
+					<span class="asi-chart-compare__value"><?php echo null === $r ? '—' : '<strong>' . esc_html( $per100( $r ) ) . '</strong> de cada 100'; ?></span>
+				</div>
+			<?php endforeach; ?>
+		</div>
+		<p class="asi-muted">Cuenta a quienes cotizaron o compararon. Del chat: de cada conversación. Del sitio: de cada persona que filtró, buscó o abrió una ficha sin usar el chat (una vez al día).<?php echo $rate['since'] ? ' Las personas del sitio se cuentan desde el ' . esc_html( date_i18n( 'j \d\e F', strtotime( $rate['since'] ) ) ) . '; antes de eso no entran en esta comparación.' : ''; ?></p>
+		<?php
+	}
+
+	/**
+	 * Columnas por día (o por semana / mes si el periodo es largo) de dos medidas: chat y sitio.
+	 *
+	 * @param array  $daily Días.
+	 * @param string $a     Medida del chat.
+	 * @param string $b     Medida del sitio.
+	 * @param string $title Título.
+	 * @param array  $words chat, site: qué es cada número (para el detalle al pasar el mouse).
+	 */
+	private function chart_days( array $daily, $a, $b, $title, array $words ) {
+		$span    = count( $daily );
+		$group   = $span > 180 ? 'm' : ( $span > 62 ? 'w' : 'd' );
+		$buckets = array();
+		foreach ( $daily as $day => $row ) {
+			$t   = strtotime( $day . ' 12:00:00' );
+			$key = 'm' === $group ? gmdate( 'Y-m', $t ) : ( 'w' === $group ? gmdate( 'o-W', $t ) : $day );
+			if ( ! isset( $buckets[ $key ] ) ) {
+				$buckets[ $key ] = array( 'from' => $day, 'to' => $day, 'chat' => 0, 'site' => 0 );
+			}
+			$buckets[ $key ]['to']    = $day;
+			$buckets[ $key ]['chat'] += isset( $row[ $a ] ) ? (int) $row[ $a ] : 0;
+			$buckets[ $key ]['site'] += isset( $row[ $b ] ) ? (int) $row[ $b ] : 0;
+		}
+		$max   = 0;
+		$total = array( 'chat' => 0, 'site' => 0 );
+		foreach ( $buckets as $bucket ) {
+			$max            = max( $max, $bucket['chat'], $bucket['site'] );
+			$total['chat'] += $bucket['chat'];
+			$total['site'] += $bucket['site'];
+		}
+		$name = function ( $bucket ) use ( $group ) {
+			$from = strtotime( $bucket['from'] );
+			if ( 'm' === $group ) {
+				return date_i18n( 'F Y', $from );
+			}
+			return 'w' === $group ? 'Semana del ' . date_i18n( 'j M', $from ) : date_i18n( 'D j M', $from );
+		};
+		$keys = array_keys( $buckets );
+		$show = array( 0 => true, count( $keys ) - 1 => true, (int) floor( ( count( $keys ) - 1 ) / 2 ) => true );
+		?>
+		<figure class="asi-chart-days">
+			<figcaption><strong><?php echo esc_html( $title ); ?></strong>
+				<span class="asi-muted"><?php echo esc_html( sprintf( 'chat %s · sitio %s%s', number_format_i18n( $total['chat'] ), number_format_i18n( $total['site'] ), 'd' === $group ? '' : ( 'w' === $group ? ' · por semana' : ' · por mes' ) ) ); ?></span></figcaption>
+			<?php if ( ! $max ) : ?>
+				<div class="asi-empty asi-empty--small">Sin datos en este periodo.</div>
+			<?php else : ?>
+				<div class="asi-chart-days__plot">
+					<span class="asi-chart-days__max"><?php echo esc_html( number_format_i18n( $max ) ); ?></span>
+					<?php foreach ( array_values( $buckets ) as $i => $bucket ) : ?>
+						<div class="asi-chart-days__col" tabindex="0" data-tip="<?php echo esc_attr( $name( $bucket ) . ': ' . number_format_i18n( $bucket['chat'] ) . ' ' . $words['chat'] . ' · ' . number_format_i18n( $bucket['site'] ) . ' ' . $words['site'] ); ?>">
+							<span class="asi-chart-fill--chat" style="height:<?php echo esc_attr( $bucket['chat'] ? max( 1, round( 100 * $bucket['chat'] / $max, 1 ) ) : 0 ); ?>%"></span>
+							<span class="asi-chart-fill--site" style="height:<?php echo esc_attr( $bucket['site'] ? max( 1, round( 100 * $bucket['site'] / $max, 1 ) ) : 0 ); ?>%"></span>
+						</div>
+					<?php endforeach; ?>
+				</div>
+				<div class="asi-chart-days__axis">
+					<?php foreach ( array_values( $buckets ) as $i => $bucket ) : ?>
+						<span><?php echo isset( $show[ $i ] ) ? esc_html( 'm' === $group ? date_i18n( 'M', strtotime( $bucket['from'] ) ) : date_i18n( 'j M', strtotime( $bucket['from'] ) ) ) : ''; ?></span>
+					<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
+		</figure>
+		<?php
+	}
+
+	/**
+	 * Barras horizontales apiladas (chat + sitio) con el total al final. Las primeras 10 a la vista;
+	 * el resto (hasta 20) y la tabla con los números, al abrir "Ver los 20 y la tabla".
+	 *
+	 * @param array[] $rows  id, title, chat, site (ya ordenadas).
+	 * @param bool    $links Enlazar al contenido.
+	 */
+	private function chart_bars( array $rows, $links = false ) {
+		if ( ! $rows ) {
+			return;
+		}
+		$max  = max( 1, $rows[0]['chat'] + $rows[0]['site'] );
+		$fmt  = 'number_format_i18n';
+		$draw = function ( array $list ) use ( $max, $fmt, $links ) {
+			echo '<ol class="asi-chart-bars">';
+			foreach ( $list as $row ) {
+				$sum  = $row['chat'] + $row['site'];
+				$url  = $links && ! empty( $row['id'] ) ? get_permalink( $row['id'] ) : '';
+				$name = $url ? '<a href="' . esc_url( $url ) . '" target="_blank" rel="noopener">' . esc_html( $row['title'] ) . '</a>' : esc_html( $row['title'] );
+				printf(
+					'<li class="asi-chart-bars__row" tabindex="0" data-tip="%1$s"><span class="asi-chart-bars__label">%2$s</span><span class="asi-chart-bars__track"><span class="asi-chart-fill--chat" style="width:%3$s%%"></span><span class="asi-chart-fill--site" style="width:%4$s%%"></span></span><span class="asi-chart-bars__value">%5$s</span></li>',
+					esc_attr( sprintf( '%s: %s en total · chat %s · sitio %s', $row['title'], call_user_func( $fmt, $sum ), call_user_func( $fmt, $row['chat'] ), call_user_func( $fmt, $row['site'] ) ) ),
+					$name, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escapado arriba.
+					esc_attr( round( 100 * $row['chat'] / $max, 2 ) ),
+					esc_attr( round( 100 * $row['site'] / $max, 2 ) ),
+					esc_html( call_user_func( $fmt, $sum ) )
+				);
+			}
+			echo '</ol>';
+		};
+		$draw( array_slice( $rows, 0, 10 ) );
+		?>
+		<details class="asi-details asi-chart-more">
+			<summary><?php echo count( $rows ) > 10 ? esc_html( sprintf( 'Ver los %d y la tabla', count( $rows ) ) ) : 'Ver la tabla'; ?></summary>
+			<?php if ( count( $rows ) > 10 ) { $draw( array_slice( $rows, 10 ) ); } ?>
+			<table class="asi-table asi-table--compact">
+				<thead><tr><th>#</th><th></th><th class="asi-report-num">Total</th><th class="asi-report-num">Chat</th><th class="asi-report-num">Sitio</th></tr></thead>
+				<tbody>
+				<?php foreach ( $rows as $i => $row ) : ?>
+					<tr><td class="asi-muted"><?php echo (int) $i + 1; ?></td><td><?php echo esc_html( $row['title'] ); ?></td><td class="asi-report-num"><strong><?php echo esc_html( number_format_i18n( $row['chat'] + $row['site'] ) ); ?></strong></td><td class="asi-report-num"><?php echo esc_html( number_format_i18n( $row['chat'] ) ); ?></td><td class="asi-report-num"><?php echo esc_html( number_format_i18n( $row['site'] ) ); ?></td></tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+		</details>
+		<?php
 	}
 
 	/** Descarga del reporte en CSV. */

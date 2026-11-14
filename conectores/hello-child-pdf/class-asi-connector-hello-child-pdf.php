@@ -187,7 +187,7 @@ final class ASI_Connector_Hello_Child_Pdf implements ASI_Connector {
 		$in     = implode( ',', array_fill( 0, count( $forms ), '%s' ) );
 		$rows   = (array) $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 			$wpdb->prepare(
-				"SELECT s.id, s.element_id, s.form_name, s.user_agent, v.`key` AS k, v.value FROM {$subs} s LEFT JOIN {$values} v ON v.submission_id = s.id AND v.`key` IN ('vehiculos_ids', 'vehiculos_consultados') WHERE s.status <> 'trash' AND s.element_id IN ({$in}) AND s.created_at >= %s AND s.created_at < %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT s.id, s.element_id, s.form_name, s.user_agent, s.created_at, v.`key` AS k, v.value FROM {$subs} s LEFT JOIN {$values} v ON v.submission_id = s.id AND v.`key` IN ('vehiculos_ids', 'vehiculos_consultados') WHERE s.status <> 'trash' AND s.element_id IN ({$in}) AND s.created_at >= %s AND s.created_at < %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				array_merge( array_keys( $forms ), array( $from . ' 00:00:00', gmdate( 'Y-m-d', strtotime( $to . ' +1 day' ) ) . ' 00:00:00' ) )
 			),
 			ARRAY_A
@@ -200,6 +200,7 @@ final class ASI_Connector_Hello_Child_Pdf implements ASI_Connector {
 					'action' => $forms[ (string) $row['element_id'] ],
 					'source' => false !== strpos( (string) $row['user_agent'], 'Asesor Inteligente' ) ? 'chat' : 'site',
 					'test'   => false !== strpos( (string) $row['form_name'], '(prueba)' ),
+					'day'    => substr( (string) $row['created_at'], 0, 10 ),
 					'ids'    => '',
 					'names'  => '',
 				);
@@ -224,7 +225,7 @@ final class ASI_Connector_Hello_Child_Pdf implements ASI_Connector {
 					$items[] = array( 'id' => 0, 'title' => wp_strip_all_tags( $title ) );
 				}
 			}
-			$out[] = array( 'action' => $lead['action'], 'source' => $lead['source'], 'test' => $lead['test'], 'items' => $items );
+			$out[] = array( 'action' => $lead['action'], 'source' => $lead['source'], 'test' => $lead['test'], 'day' => $lead['day'], 'items' => $items );
 		}
 		return $out;
 	}

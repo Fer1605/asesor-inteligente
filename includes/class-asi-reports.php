@@ -31,6 +31,7 @@ class ASI_Reports {
 	const KEEP_DAYS            = 365; // Se guarda un año; lo más viejo se borra solo.
 	const MAX_ROWS             = 20;  // Filas por tabla en el panel y en el CSV.
 	const PURGE_HOOK           = 'asi_stats_purge';
+	const VISITORS_SINCE       = 'asi_stats_visitors_since'; // Desde cuándo se cuentan los visitantes del sitio.
 
 	/** Nombre de los tipos de término del sitio. */
 	const TERM_NAMES = array(
@@ -151,6 +152,20 @@ class ASI_Reports {
 	public static function view( $post_id, $source ) {
 		if ( self::once( 'view|' . (int) $post_id ) ) {
 			self::add( $source, 'view', '', '', (int) $post_id );
+		}
+		if ( 'site' === $source ) {
+			self::site_visitor();
+		}
+	}
+
+	/**
+	 * Una persona que buscó o vio contenido en el sitio (sin el chat), una vez al día: es la base para
+	 * comparar cuántos cotizan en el sitio contra cuántos cotizan desde el chat.
+	 */
+	public static function site_visitor() {
+		if ( self::once( 'visitor' ) ) {
+			self::add( 'site', 'visitor' );
+			add_option( self::VISITORS_SINCE, current_time( 'Y-m-d' ), '', false );
 		}
 	}
 
@@ -332,6 +347,7 @@ class ASI_Reports {
 		if ( ! $now ) {
 			return;
 		}
+		self::site_visitor();
 		$key = 'asi_rf_' . md5( wp_salt( 'nonce' ) . '|' . self::visitor() );
 		$had = get_transient( $key );
 		$had = is_array( $had ) ? $had : array();
@@ -468,14 +484,21 @@ class ASI_Reports {
 			ARRAY_A
 		);
 
+		$days  = (array) $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->prepare( "SELECT day, kind, dim, SUM(n) AS n FROM {$table} WHERE day BETWEEN %s AND %s AND kind IN ('conversation','lead','visitor') GROUP BY day, kind, dim", $period['from'], $period['to'] ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			ARRAY_A
+		);
+
 		$report = array(
 			'period'   => $period,
+			'daily'    => array(),
 			'counts'   => array(
 				'conversation' => 0,
 				'search'       => 0,
 				'chat_leads'   => 0,
 				'view'         => array( 'chat' => 0, 'site' => 0 ),
 				'search_site'  => 0,
+				'visitor'      => 0,
 				'quote'        => array( 'chat' => 0, 'site' => 0 ),
 				'compare'      => array( 'chat' => 0, 'site' => 0 ),
 			),
@@ -485,6 +508,27 @@ class ASI_Reports {
 		);
 		$names = self::dim_names();
 
+		// Un renglón por día (para las gráficas): conversaciones, visitantes del sitio y cotizaciones o
+		// comparaciones de cada lado.
+		$day = strtotime( $period['from'] . ' 12:00:00' );
+		$end = strtotime( $period['to'] . ' 12:00:00' );
+		while ( $day <= $end ) {
+			$report['daily'][ gmdate( 'Y-m-d', $day ) ] = array( 'conversation' => 0, 'visitor' => 0, 'chat' => 0, 'site' => 0 );
+			$day += DAY_IN_SECONDS;
+		}
+		foreach ( $days as $row ) {
+			if ( ! isset( $report['daily'][ $row['day'] ] ) ) {
+				continue;
+			}
+			if ( 'lead' === $row['kind'] ) {
+				if ( 'test' !== $row['dim'] || $include_test ) {
+					$report['daily'][ $row['day'] ]['lead'] = ( isset( $report['daily'][ $row['day'] ]['lead'] ) ? $report['daily'][ $row['day'] ]['lead'] : 0 ) + (int) $row['n'];
+				}
+			} else {
+				$report['daily'][ $row['day'] ][ $row['kind'] ] += (int) $row['n'];
+			}
+		}
+
 		foreach ( $rows as $row ) {
 			$n = (int) $row['n'];
 			switch ( $row['kind'] ) {
@@ -493,6 +537,9 @@ class ASI_Reports {
 					break;
 				case 'search':
 					$report['counts'][ 'site' === $row['source'] ? 'search_site' : 'search' ] += $n;
+					break;
+				case 'visitor':
+					$report['counts']['visitor'] += $n;
 					break;
 				case 'lead':
 					// Cotizaciones y comparaciones del chat contadas desde que hay reportería (las
@@ -534,6 +581,9 @@ class ASI_Reports {
 				$action = 'compare' === $lead['action'] ? 'compare' : 'quote';
 				$source = 'chat' === $lead['source'] ? 'chat' : 'site';
 				$report['counts'][ $action ][ $source ]++;
+				if ( isset( $lead['day'] ) && isset( $report['daily'][ $lead['day'] ] ) ) {
+					$report['daily'][ $lead['day'] ][ $source ]++;
+				}
 				foreach ( (array) $lead['items'] as $item ) {
 					self::add_item( $report['items'][ $action ], isset( $item['id'] ) ? (int) $item['id'] : 0, isset( $item['title'] ) ? (string) $item['title'] : '', $source, 1 );
 				}
@@ -545,7 +595,31 @@ class ASI_Reports {
 					$report['counts'][ $row['kind'] ]['chat'] += (int) $row['n'];
 				}
 			}
+			// Sin envíos del sitio: por día, las del chat contadas por la reportería.
+			foreach ( $report['daily'] as $d => $row ) {
+				$report['daily'][ $d ]['chat'] = isset( $row['lead'] ) ? $row['lead'] : 0;
+			}
 		}
+
+		// ¿Da resultados el chat? De cada 100 que usan el chat, cuántos cotizan o comparan; de cada 100
+		// que buscan o ven contenido en el sitio (sin el chat), cuántos. Solo los días en que se contaron
+		// ambos lados, para que no se mezcle el historial de envíos con días sin visitantes contados.
+		$since = (string) get_option( self::VISITORS_SINCE, '' );
+		$base  = array( 'conversation' => 0, 'chat' => 0, 'visitor' => 0, 'site' => 0 );
+		foreach ( $report['daily'] as $d => $row ) {
+			$base['conversation'] += $row['conversation'];
+			$base['chat']         += isset( $row['lead'] ) ? $row['lead'] : 0;
+			if ( '' !== $since && $d >= $since ) {
+				$base['visitor'] += $row['visitor'];
+				$base['site']    += $row['site'];
+			}
+		}
+		$report['rate'] = array(
+			'chat'  => $base['conversation'] ? min( 1, $base['chat'] / $base['conversation'] ) : null,
+			'site'  => $base['visitor'] ? min( 1, $base['site'] / $base['visitor'] ) : null,
+			'base'  => $base,
+			'since' => $since,
+		);
 
 		$sum = function ( array $labels ) {
 			$total = 0;
