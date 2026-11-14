@@ -167,12 +167,12 @@ class ASI_REST_Controller {
 		$dialogue = new ASI_Dialogue( new ASI_Index_Repository(), $dcontext );
 		$response = $dialogue->handle( $message, $state );
 
-		// IA (opcional). Modo "rescate": solo cuando las reglas no entendieron o no leyeron un enganche.
-		// Modo "lee todo": además revisa cada búsqueda y corrige solo si entendió otra cosa.
+		// IA (opcional): revisa cada búsqueda y corrige solo si entendió otra cosa; además rescata lo que
+		// las reglas no entendieron o un enganche que no leyeron.
 		if ( ASI_AI::enabled() ) {
 			$fin_unread = ! empty( $response['fin_unread'] );
 			$lexicon    = ASI_Lexicon::get( $dcontext['language'] );
-			$reads_all  = 'review' === ASI_AI::settings()['mode'] && ! $fin_unread;
+			$reads_all  = ! $fin_unread;
 			$review     = $reads_all && ASI_AI_Interpreter::reviewable( $response, $state, $message, (array) $lexicon->get_list( 'ai_signals' ) );
 			$fixed      = $review ? ASI_AI::review( $dialogue, $message, $state, $dcontext, $response ) : null;
 			// Acciones con vehículos (cuotas, cotizar, comparar): la IA revisa las opciones cuando hay riesgo.

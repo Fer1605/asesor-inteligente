@@ -62,12 +62,12 @@ class ASI_Settings {
 			'test_email'          => '',
 			'finance_rate'        => '',      // Tasa anual en % si el sitio no trae calculadora propia.
 			'finance_down_min'    => 20,      // Enganche mínimo en %.
-			// IA para interpretar lo que las reglas no entienden (opcional). Las claves van en ASI_AI::KEYS_OPTION.
+			// IA que lee cada búsqueda (opcional). Las claves van en ASI_AI::KEYS_OPTION.
 			'ai_enabled'          => false,
-			'ai_order'            => array( 'groq', 'google' ),
-			'ai_models'           => array(),  // proveedor => "modelo1, modelo2" (vacío = los de fábrica).
-			'ai_mode'             => 'rescue', // rescue = solo cuando no entiende; review = lee cada búsqueda.
-			'ai_daily_cap'        => 300,      // Consultas a la IA por día en este sitio (0 = sin tope).
+			'ai_order'            => array( 'groq', 'google' ), // La primera es la elegida; las demás con clave, de respaldo.
+			'ai_models'           => array(),  // proveedor => "modelo1, modelo2" (vacío = automático).
+			'ai_daily_usd'        => 1.0,      // Tope de gasto estimado por día, en dólares (0 = sin tope).
+			'ai_custom'           => array(),  // "Otra IA": name, url, price_in, price_out.
 		);
 	}
 
