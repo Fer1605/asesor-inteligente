@@ -285,6 +285,11 @@ class ASI_Admin {
 				delete_option( ASI_AI::CACHE_OPTION );
 				break;
 
+			case 'ai_on':
+			case 'ai_off':
+				ASI_Settings::update( array( 'ai_enabled' => 'ai_on' === $action ) );
+				break;
+
 			case 'ai_notices_clear':
 				ASI_AI::clear_notices();
 				break;
@@ -598,6 +603,8 @@ class ASI_Admin {
 			'ai_edit'      => 'Guardado: desde ahora el chat lo entiende así.',
 			'ai_clear'     => 'Lista de frases interpretadas vaciada.',
 			'ai_notices_clear' => 'Avisos de la IA borrados.',
+			'ai_on'        => 'IA activada. Ahora elige con qué IA te quieres conectar.',
+			'ai_off'       => 'IA desactivada: el chat funciona sin ella. Las claves y lo aprendido se conservan.',
 		);
 		?>
 		<div class="wrap asi-admin">
@@ -1878,7 +1885,6 @@ class ASI_Admin {
 		$usd = isset( $_POST['ai_daily_usd'] ) ? str_replace( ',', '.', sanitize_text_field( wp_unslash( $_POST['ai_daily_usd'] ) ) ) : '1';
 		ASI_Settings::update(
 			array(
-				'ai_enabled'   => ! empty( $_POST['ai_enabled'] ),
 				'ai_order'     => $order,
 				'ai_models'    => $models,
 				'ai_daily_usd' => is_numeric( $usd ) ? max( 0, min( 1000, round( (float) $usd, 2 ) ) ) : 1.0,
@@ -1907,6 +1913,32 @@ class ASI_Admin {
 			}
 		}
 		?>
+		<?php $this->card_open( 'Usar IA en este chat', 'dashicons-lightbulb', 'purple' ); ?>
+			<p class="asi-muted">La IA lee cada búsqueda del chat y corrige si el chat entendió otra cosa. <strong>No le contesta</strong> al cliente: solo dice qué quiso decir, y el chat responde con los datos del sitio, así que no puede inventar precios ni productos.</p>
+			<div class="asi-ai-switch">
+				<p>Estado:
+					<?php if ( $on ) : ?>
+						<span class="asi-tag asi-tag--ok">Activa · <?php echo esc_html( ASI_AI::label( $working ) ); ?></span>
+					<?php elseif ( $settings['enabled'] ) : ?>
+						<span class="asi-tag asi-tag--warn">Activa, pero falta conectar una IA</span>
+					<?php else : ?>
+						<span class="asi-tag asi-tag--soft">Desactivada</span>
+					<?php endif; ?></p>
+				<?php
+				if ( $settings['enabled'] ) {
+					$this->action_button( 'ai_off', 'Desactivar', 'ia', 'button', 'dashicons-controls-pause' );
+				} else {
+					$this->action_button( 'ai_on', 'Activar', 'ia', 'button button-primary', 'dashicons-controls-play' );
+				}
+				?>
+			</div>
+		<?php $this->card_close(); ?>
+		<?php
+		if ( ! $settings['enabled'] ) {
+			return; // Desactivada: lo demás se muestra al activarla.
+		}
+		?>
+
 		<?php if ( $notices ) : ?>
 			<?php $this->card_open( 'Avisos de la IA', 'dashicons-bell', 'amber', 'asi-ai-avisos' ); ?>
 				<?php if ( ASI_AI::is_down() ) : ?>
@@ -1926,16 +1958,8 @@ class ASI_Admin {
 			<?php $this->card_close(); ?>
 		<?php endif; ?>
 
-		<?php $this->card_open( 'Conectar la IA', 'dashicons-lightbulb', 'purple' ); ?>
-			<p class="asi-muted">La IA lee cada búsqueda del chat y corrige si el chat entendió otra cosa. <strong>No le contesta</strong> al cliente: solo dice qué quiso decir, y el chat responde con los datos del sitio, así que no puede inventar precios ni productos. Antes de enviarle el mensaje se le quitan correos, teléfonos y enlaces. Si la IA no responde o se acaba su límite, el chat sigue funcionando sin ella y te deja un aviso aquí.</p>
-			<p>Estado:
-				<?php if ( $on ) : ?>
-					<span class="asi-tag asi-tag--ok">Conectada · <?php echo esc_html( ASI_AI::label( $working ) ); ?></span>
-				<?php elseif ( $settings['enabled'] ) : ?>
-					<span class="asi-tag asi-tag--warn">Falta la clave</span>
-				<?php else : ?>
-					<span class="asi-tag asi-tag--soft">Apagada</span>
-				<?php endif; ?></p>
+		<?php $this->card_open( 'Conectar la IA', 'dashicons-admin-plugins', 'purple' ); ?>
+			<p class="asi-muted">Antes de enviarle el mensaje a la IA se le quitan correos, teléfonos y enlaces. Si la IA no responde o se acaba su límite, el chat sigue funcionando sin ella y te deja un aviso aquí.</p>
 
 			<?php // Formularios de "Probar" fuera del principal (no se puede anidar un formulario dentro de otro). ?>
 			<?php foreach ( ASI_AI::PROVIDERS as $provider => $info ) : ?>
@@ -2051,7 +2075,6 @@ class ASI_Admin {
 				<p><label><strong>Tope de gasto diario</strong> en este sitio: US$ <input type="text" inputmode="decimal" class="small-text" name="ai_daily_usd" value="<?php echo esc_attr( number_format( $settings['daily_usd'], 2, '.', '' ) ); ?>"></label>
 					<span class="asi-muted">(0 = sin tope)</span><br>
 					<span class="asi-muted">Cuando el gasto de hoy llega a este monto, la IA se apaga hasta mañana y el chat sigue sin ella. Es un cálculo con lo que la IA dice que usó y el precio de lista del modelo; tu factura real la ves en la cuenta de la IA. El día cambia a la medianoche del sitio (<?php echo esc_html( wp_timezone_string() ); ?>).</span></p>
-				<p><label><input type="checkbox" name="ai_enabled" value="1" <?php checked( $settings['enabled'] ); ?>> <strong>Usar la IA en el chat</strong></label></p>
 				<p class="asi-actions"><?php submit_button( 'Guardar', 'primary', 'submit', false ); ?></p>
 			</form>
 			<script>

@@ -1228,3 +1228,6 @@
 	background: #fbfbfc;
 }
 .asi-admin .asi-ai-panel[hidden] { display: none; }
+.asi-admin .asi-ai-switch { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.asi-admin .asi-ai-switch p { margin: 0; }
+.asi-admin .asi-ai-switch .button .dashicons { width: 16px; height: 16px; font-size: 16px; vertical-align: -3px; }
