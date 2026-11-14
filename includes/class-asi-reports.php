@@ -32,6 +32,7 @@ class ASI_Reports {
 	const MAX_ROWS             = 20;  // Filas por tabla en el panel y en el CSV.
 	const PURGE_HOOK           = 'asi_stats_purge';
 	const VISITORS_SINCE       = 'asi_stats_visitors_since'; // Desde cuándo se cuentan los visitantes del sitio.
+	const DEMO_OPTION          = 'asi_stats_demo';           // Hay datos de ejemplo cargados (para enseñar el panel).
 
 	/** Nombre de los tipos de término del sitio. */
 	const TERM_NAMES = array(
@@ -595,9 +596,43 @@ class ASI_Reports {
 					$report['counts'][ $row['kind'] ]['chat'] += (int) $row['n'];
 				}
 			}
-			// Sin envíos del sitio: por día, las del chat contadas por la reportería.
+		}
+
+		// Del lado del chat hay dos cuentas de lo mismo: los envíos (con historial) y lo que la reportería
+		// anotó en cada acción del chat. Se queda la mayor, para no perder ninguna de las dos (y la misma
+		// en las tarjetas y en la gráfica por día).
+		$from_sent = 0;
+		$from_note = 0;
+		foreach ( $report['daily'] as $row ) {
+			$from_sent += $row['chat'];
+			$from_note += isset( $row['lead'] ) ? $row['lead'] : 0;
+		}
+		if ( $from_note > $from_sent || null === $leads ) {
 			foreach ( $report['daily'] as $d => $row ) {
 				$report['daily'][ $d ]['chat'] = isset( $row['lead'] ) ? $row['lead'] : 0;
+			}
+		}
+		if ( null !== $leads && $from_note > $from_sent ) {
+			$noted = array( 'quote' => 0, 'compare' => 0 );
+			$items = array( 'quote' => array(), 'compare' => array() );
+			foreach ( $rows as $row ) {
+				if ( 'test' === $row['dim'] && ! $include_test ) {
+					continue;
+				}
+				if ( 'lead' === $row['kind'] && isset( $noted[ $row['label'] ] ) ) {
+					$noted[ $row['label'] ] += (int) $row['n'];
+				} elseif ( isset( $items[ $row['kind'] ] ) ) {
+					self::add_item( $items[ $row['kind'] ], (int) $row['post_id'], '', 'chat', (int) $row['n'] );
+				}
+			}
+			foreach ( $noted as $kind => $n ) {
+				$report['counts'][ $kind ]['chat'] = $n;
+				foreach ( $report['items'][ $kind ] as $key => $item ) {
+					$report['items'][ $kind ][ $key ]['chat'] = 0;
+				}
+				foreach ( $items[ $kind ] as $item ) {
+					self::add_item( $report['items'][ $kind ], $item['id'], $item['title'], 'chat', $item['chat'] );
+				}
 			}
 		}
 

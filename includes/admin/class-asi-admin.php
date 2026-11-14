@@ -1598,6 +1598,11 @@ class ASI_Admin {
 			</p>
 		</div>
 
+		<?php $demo = get_option( ASI_Reports::DEMO_OPTION ); ?>
+		<?php if ( is_array( $demo ) ) : ?>
+			<p class="asi-note asi-note--warn"><strong>Datos de ejemplo.</strong> Los números de <?php echo esc_html( date_i18n( 'j \d\e F', strtotime( $demo['from'] ) ) ); ?> al <?php echo esc_html( date_i18n( 'j \d\e F', strtotime( $demo['to'] ) ) ); ?> son inventados, para ver cómo se ve el panel completo. No son visitas reales; se quitan antes de usarlo en serio.</p>
+		<?php endif; ?>
+
 		<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" class="asi-report-filters">
 			<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE ); ?>">
 			<input type="hidden" name="tab" value="reportes">
