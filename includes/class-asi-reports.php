@@ -878,4 +878,142 @@ class ASI_Reports {
 		fclose( $out );
 		return $csv;
 	}
+
+	/**
+	 * Reporte en Excel con formato: Resumen, Por día, Lo más buscado, Lo más visto, Lo más cotizado
+	 * y Lo más comparado (los 20 primeros de cada uno).
+	 *
+	 * @param array  $report Reporte (build).
+	 * @param string $scope  all|chat|site.
+	 * @return string|null Archivo .xlsx, o null si el servidor no puede armarlo.
+	 */
+	public static function xlsx( array $report, $scope ) {
+		if ( ! class_exists( 'ASI_Xlsx' ) || ! ASI_Xlsx::available() ) {
+			return null;
+		}
+		$scope  = in_array( $scope, array( 'chat', 'site' ), true ) ? $scope : 'all';
+		$titles = array( 'all' => 'Reporte global: chat y sitio', 'chat' => 'Reporte del chat', 'site' => 'Reporte del sitio' );
+		$c      = $report['counts'];
+		$p      = $report['period'];
+		$sides  = 'all' === $scope ? array( 'chat', 'site' ) : array( $scope );
+		$names  = array( 'chat' => 'Chat', 'site' => 'Sitio' );
+		$head   = function ( array $first, $single = 'Veces' ) use ( $sides, $names ) {
+			$row = array();
+			foreach ( $first as $label ) {
+				$row[] = array( $label, 'header' );
+			}
+			if ( count( $sides ) > 1 ) {
+				$row[] = array( 'Total', 'header_num' );
+			}
+			foreach ( $sides as $side ) {
+				$row[] = array( count( $sides ) > 1 ? $names[ $side ] : $single, 'header_num' );
+			}
+			return $row;
+		};
+		$nums   = function ( array $pair ) use ( $sides ) {
+			$row = array();
+			if ( count( $sides ) > 1 ) {
+				$row[] = (int) ( $pair['chat'] + $pair['site'] );
+			}
+			foreach ( $sides as $side ) {
+				$row[] = (int) $pair[ $side ];
+			}
+			return $row;
+		};
+		$top_of = function ( array $rows ) use ( $scope ) {
+			return self::top( $rows, $scope );
+		};
+		$base   = array(
+			array( array( $titles[ $scope ], 'title' ) ),
+			array( array( wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) . ' · del ' . date_i18n( 'j \\d\\e F Y', strtotime( $p['from'] ) ) . ' al ' . date_i18n( 'j \\d\\e F Y', strtotime( $p['to'] ) ), 'subtitle' ) ),
+			array( array( 'Generado el ' . date_i18n( 'j \\d\\e F Y, H:i' ), 'subtitle' ) ),
+		);
+		$demo = get_option( self::DEMO_OPTION );
+		if ( is_array( $demo ) ) {
+			$base[] = array( array( 'Datos de ejemplo: los números del ' . date_i18n( 'j \\d\\e F', strtotime( $demo['from'] ) ) . ' al ' . date_i18n( 'j \\d\\e F', strtotime( $demo['to'] ) ) . ' son inventados, para ver cómo se ve el reporte.', 'warn' ) );
+		}
+		$base[] = array();
+		$intro  = function ( $section ) use ( $base, $titles, $scope ) {
+			$base[0] = array( array( $section, 'title' ) );
+			$base[1][0][0] = $titles[ $scope ] . ' · ' . $base[1][0][0];
+			return $base;
+		};
+		$book    = new ASI_Xlsx();
+		$wide    = count( $sides ) > 1;
+
+		// Resumen.
+		$rows   = $intro( 'Resumen' );
+		$rows[] = $head( array( 'Indicador' ), 'Total' );
+		$fixed  = count( $rows );
+		$rows[] = array_merge( array( array( 'Personas', 'text' ) ), $nums( array( 'chat' => $c['conversation'], 'site' => $c['visitor'] ) ) );
+		$rows[] = array_merge( array( array( 'Búsquedas', 'text' ) ), $nums( array( 'chat' => $c['search'], 'site' => $c['search_site'] ) ) );
+		$rows[] = array_merge( array( array( 'Cotizaciones', 'text' ) ), $nums( $c['quote'] ) );
+		$rows[] = array_merge( array( array( 'Comparaciones', 'text' ) ), $nums( $c['compare'] ) );
+		$rate   = array( array( 'De cada 100 personas, cuántas cotizan o comparan', 'text' ) );
+		if ( $wide ) {
+			$rate[] = array( '', 'text' );
+		}
+		foreach ( $sides as $side ) {
+			$rate[] = null === $report['rate'][ $side ] ? array( '—', 'text' ) : array( (float) round( $report['rate'][ $side ], 4 ), 'percent' );
+		}
+		$rows[] = $rate;
+		if ( $wide && $report['rate']['chat'] && $report['rate']['site'] ) {
+			$rows[] = array();
+			$rows[] = array( array( sprintf( 'Quien usa el chat cotiza o compara %s veces lo que quien solo navega el sitio.', number_format( $report['rate']['chat'] / $report['rate']['site'], 1 ) ), 'bold' ) );
+		}
+		$rows[] = array();
+		$rows[] = array( array( 'Personas: en el chat, cada conversación; en el sitio, quien filtró, buscó o abrió una ficha sin usar el chat (una vez al día).', 'note' ) );
+		$rows[] = array( array( 'Cotizaciones: la de un vehículo y la de varios (favoritos) cuentan igual.', 'note' ) );
+		$book->add_sheet( 'Resumen', $rows, $wide ? array( 44, 13, 13, 13 ) : array( 44, 14 ), $fixed );
+
+		// Por día.
+		$rows   = $intro( 'Por día' );
+		$first  = array( array( 'Fecha', 'header' ) );
+		foreach ( $sides as $side ) {
+			$first[] = array( 'Personas ' . ( 'chat' === $side ? 'en el chat' : 'en el sitio' ), 'header_num' );
+		}
+		foreach ( $sides as $side ) {
+			$first[] = array( 'Cotizaciones y comparaciones ' . ( 'chat' === $side ? 'del chat' : 'del sitio' ), 'header_num' );
+		}
+		$rows[] = $first;
+		$fixed  = count( $rows );
+		foreach ( $report['daily'] as $day => $d ) {
+			$row = array( array( date_i18n( 'D j M Y', strtotime( $day . ' 12:00:00' ) ), 'text' ) );
+			foreach ( $sides as $side ) {
+				$row[] = (int) ( 'chat' === $side ? $d['conversation'] : $d['visitor'] );
+			}
+			foreach ( $sides as $side ) {
+				$row[] = (int) $d[ $side ];
+			}
+			$rows[] = $row;
+		}
+		$book->add_sheet( 'Por día', $rows, array_merge( array( 18 ), array_fill( 0, 2 * count( $sides ), 16 ) ), $fixed );
+
+		// Lo más buscado.
+		$rows   = $intro( 'Lo más buscado' );
+		$rows[] = $head( array( 'Característica', 'Valor' ) );
+		$fixed  = count( $rows );
+		foreach ( $report['criteria'] as $dim => $labels ) {
+			$list = array();
+			foreach ( $labels as $label => $pair ) {
+				$list[] = array( 'title' => (string) $label, 'chat' => $pair['chat'], 'site' => $pair['site'] );
+			}
+			foreach ( array_values( $top_of( $list ) ) as $i => $item ) {
+				$rows[] = array_merge( array( array( 0 === $i ? $dim : '', 0 === $i ? 'bold' : 'text' ), array( $item['title'], 'text' ) ), $nums( $item ) );
+			}
+		}
+		$book->add_sheet( 'Lo más buscado', $rows, $wide ? array( 22, 26, 12, 12, 12 ) : array( 22, 26, 12 ), $fixed );
+
+		// Lo más visto, cotizado y comparado.
+		foreach ( array( 'view' => 'Lo más visto', 'quote' => 'Lo más cotizado', 'compare' => 'Lo más comparado' ) as $kind => $title ) {
+			$rows   = $intro( $title );
+			$rows[] = $head( array( '#', 'Vehículo / contenido' ) );
+			$fixed  = count( $rows );
+			foreach ( array_values( $top_of( $report['items'][ $kind ] ) ) as $i => $item ) {
+				$rows[] = array_merge( array( $i + 1, array( $item['title'], 'text' ) ), $nums( $item ) );
+			}
+			$book->add_sheet( $title, $rows, $wide ? array( 5, 46, 12, 12, 12 ) : array( 5, 46, 12 ), $fixed );
+		}
+		return $book->build();
+	}
 }

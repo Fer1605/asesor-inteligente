@@ -1328,3 +1328,5 @@
 	.asi-admin .asi-chart-headline { font-size: 16px; }
 	.asi-admin .asi-chart-pair { grid-template-columns: 1fr; }
 }
+.asi-admin .asi-chart-days--single .asi-chart-days__col span { flex-basis: 16px; }
+.asi-admin .asi-chart-big { font-size: 28px; color: #1d2327; }
