@@ -20,6 +20,9 @@ class ASI_Admin {
 	const PAGE  = 'asesor-inteligente';
 	const NONCE = 'asi_admin_action';
 
+	/** @var bool Se está armando la versión para imprimir o guardar en PDF. */
+	private $chart_print = false;
+
 	const TABS = array(
 		'inicio'     => 'Inicio',
 		'apariencia' => 'Apariencia',
@@ -85,6 +88,7 @@ class ASI_Admin {
 		add_action( 'admin_menu', array( $this, 'menu' ) );
 		add_action( 'admin_post_asi_action', array( $this, 'handle_action' ) );
 		add_action( 'admin_post_asi_report_csv', array( $this, 'report_csv' ) );
+		add_action( 'admin_post_asi_report_print', array( $this, 'report_print' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'assets' ) );
 	}
 
@@ -1624,12 +1628,56 @@ class ASI_Admin {
 		</script>
 
 		<div class="asi-report-export">
-			<span class="asi-muted">Descargar reporte (Excel / CSV):</span>
+			<span class="asi-muted">Reporte con gráficas:</span>
+			<a class="button button-primary" href="<?php echo esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'asi_report_print', 'periodo' => $period['key'], 'desde' => $period['from'], 'hasta' => $period['to'], 'f' => 1, 'pruebas' => $test ? 1 : 0 ), admin_url( 'admin-post.php' ) ), 'asi_report_print' ) ); ?>" target="_blank" rel="noopener"><span class="dashicons dashicons-pdf" aria-hidden="true"></span> Descargar PDF</a>
+		</div>
+		<div class="asi-report-export">
+			<span class="asi-muted">Solo los datos (Excel / CSV):</span>
 			<a class="button" href="<?php echo esc_url( $csv( 'all' ) ); ?>"><span class="dashicons dashicons-download" aria-hidden="true"></span> Global: chat y sitio</a>
 			<a class="button" href="<?php echo esc_url( $csv( 'chat' ) ); ?>"><span class="dashicons dashicons-format-chat" aria-hidden="true"></span> Solo chat</a>
 			<a class="button" href="<?php echo esc_url( $csv( 'site' ) ); ?>"><span class="dashicons dashicons-admin-site-alt3" aria-hidden="true"></span> Solo sitio</a>
 		</div>
 
+		<?php $this->report_body( $report ); ?>
+		<div class="asi-chart-tip" role="tooltip" hidden></div>
+		<script>
+		( function () {
+			var tip = document.querySelector( '.asi-chart-tip' );
+			if ( ! tip ) { return; }
+			var show = function ( e ) {
+				var el = e.target.closest ? e.target.closest( '[data-tip]' ) : null;
+				if ( ! el ) { tip.hidden = true; return; }
+				tip.textContent = el.getAttribute( 'data-tip' );
+				tip.hidden = false;
+				var r = el.getBoundingClientRect(), w = tip.offsetWidth;
+				var x = Math.min( window.innerWidth - w - 8, Math.max( 8, ( e.clientX || r.left + r.width / 2 ) - w / 2 ) );
+				tip.style.left = ( x + window.scrollX ) + 'px';
+				tip.style.top = ( r.top + window.scrollY - tip.offsetHeight - 8 ) + 'px';
+			};
+			document.addEventListener( 'mousemove', show );
+			document.addEventListener( 'focusin', show );
+			document.addEventListener( 'scroll', function () { tip.hidden = true; }, true );
+		} )();
+		</script>
+		<?php
+	}
+
+	/**
+	 * Cuerpo del reporte (tarjetas, gráficas y listas). Lo usan el panel y la versión para PDF.
+	 *
+	 * @param array $report ASI_Reports::build.
+	 * @param bool  $print  Versión para imprimir (sin tablas desplegables).
+	 */
+	private function report_body( array $report, $print = false ) {
+		$c     = $report['counts'];
+		$total = function ( array $pair ) {
+			return $pair['chat'] + $pair['site'];
+		};
+		$fmt   = function ( $n ) {
+			return number_format_i18n( (int) $n );
+		};
+		$this->chart_print = $print;
+		?>
 		<div class="asi-stats">
 			<?php
 			$this->stat( 'dashicons-format-chat', 'blue', $fmt( $c['conversation'] ), 'Conversaciones en el chat', $fmt( $c['search'] ) . ' búsquedas' );
@@ -1696,7 +1744,7 @@ class ASI_Admin {
 			$tones = array( 'view' => 'blue', 'quote' => 'green', 'compare' => 'amber' );
 			$this->card_open( $info[0], $info[1], $tones[ $kind ] );
 			?>
-			<p class="asi-muted"><?php echo esc_html( $info[2] ); ?><?php echo $report['totals'][ $kind ] > ASI_Reports::MAX_ROWS ? ' ' . esc_html( sprintf( 'Se muestran los %1$d primeros de %2$d.', ASI_Reports::MAX_ROWS, $report['totals'][ $kind ] ) ) : ''; ?></p>
+			<p class="asi-muted"><?php echo esc_html( $info[2] ); ?><?php $limit = $print ? 10 : ASI_Reports::MAX_ROWS; ?><?php echo $report['totals'][ $kind ] > $limit ? ' ' . esc_html( sprintf( 'Se muestran los %1$d primeros de %2$d.', $limit, $report['totals'][ $kind ] ) ) : ''; ?></p>
 			<?php if ( ! $shown ) : ?>
 				<div class="asi-empty"><span class="dashicons <?php echo esc_attr( $info[1] ); ?>" aria-hidden="true"></span>Nada en este periodo.</div>
 			<?php else : ?>
@@ -1707,26 +1755,6 @@ class ASI_Admin {
 			$this->card_close();
 		endforeach;
 		?>
-		<div class="asi-chart-tip" role="tooltip" hidden></div>
-		<script>
-		( function () {
-			var tip = document.querySelector( '.asi-chart-tip' );
-			if ( ! tip ) { return; }
-			var show = function ( e ) {
-				var el = e.target.closest ? e.target.closest( '[data-tip]' ) : null;
-				if ( ! el ) { tip.hidden = true; return; }
-				tip.textContent = el.getAttribute( 'data-tip' );
-				tip.hidden = false;
-				var r = el.getBoundingClientRect(), w = tip.offsetWidth;
-				var x = Math.min( window.innerWidth - w - 8, Math.max( 8, ( e.clientX || r.left + r.width / 2 ) - w / 2 ) );
-				tip.style.left = ( x + window.scrollX ) + 'px';
-				tip.style.top = ( r.top + window.scrollY - tip.offsetHeight - 8 ) + 'px';
-			};
-			document.addEventListener( 'mousemove', show );
-			document.addEventListener( 'focusin', show );
-			document.addEventListener( 'scroll', function () { tip.hidden = true; }, true );
-		} )();
-		</script>
 		<?php
 	}
 
@@ -1826,7 +1854,7 @@ class ASI_Admin {
 			return 'w' === $group ? 'Semana del ' . date_i18n( 'j M', $from ) : date_i18n( 'D j M', $from );
 		};
 		$keys = array_keys( $buckets );
-		$show = array( 0 => true, count( $keys ) - 1 => true, (int) floor( ( count( $keys ) - 1 ) / 2 ) => true );
+		$show = array( 0 => true, (int) floor( ( count( $keys ) - 1 ) / 2 ) => true, count( $keys ) - 1 => true ); // Primera, del medio y última.
 		?>
 		<figure class="asi-chart-days">
 			<figcaption><strong><?php echo esc_html( $title ); ?></strong>
@@ -1844,8 +1872,9 @@ class ASI_Admin {
 					<?php endforeach; ?>
 				</div>
 				<div class="asi-chart-days__axis">
-					<?php foreach ( array_values( $buckets ) as $i => $bucket ) : ?>
-						<span><?php echo isset( $show[ $i ] ) ? esc_html( 'm' === $group ? date_i18n( 'M', strtotime( $bucket['from'] ) ) : date_i18n( 'j M', strtotime( $bucket['from'] ) ) ) : ''; ?></span>
+					<?php foreach ( array_keys( $show ) as $i ) : ?>
+						<?php $bucket = $buckets[ $keys[ $i ] ]; ?>
+						<span><?php echo esc_html( 'm' === $group ? date_i18n( 'M', strtotime( $bucket['from'] ) ) : date_i18n( 'j M', strtotime( $bucket['from'] ) ) ); ?></span>
 					<?php endforeach; ?>
 				</div>
 			<?php endif; ?>
@@ -1884,6 +1913,9 @@ class ASI_Admin {
 			echo '</ol>';
 		};
 		$draw( array_slice( $rows, 0, 10 ) );
+		if ( $this->chart_print ) {
+			return;
+		}
 		?>
 		<details class="asi-details asi-chart-more">
 			<summary><?php echo count( $rows ) > 10 ? esc_html( sprintf( 'Ver los %d y la tabla', count( $rows ) ) ) : 'Ver la tabla'; ?></summary>
@@ -1898,6 +1930,74 @@ class ASI_Admin {
 			</table>
 		</details>
 		<?php
+	}
+
+	/**
+	 * Reporte con gráficas en una página limpia, lista para guardar en PDF (se abre el diálogo de
+	 * imprimir del navegador: "Guardar como PDF").
+	 */
+	public function report_print() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Sin permisos.', 'asesor-inteligente' ) );
+		}
+		check_admin_referer( 'asi_report_print' );
+		list( $period, $test ) = $this->report_filters();
+		$report = ASI_Reports::build( $period, $test );
+		$site   = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
+		$range  = date_i18n( 'j \\d\\e F Y', strtotime( $period['from'] ) ) . ' al ' . date_i18n( 'j \\d\\e F Y', strtotime( $period['to'] ) );
+		$demo   = get_option( ASI_Reports::DEMO_OPTION );
+		nocache_headers();
+		?>
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?php echo esc_html( 'Reporte del asesor · ' . $site . ' · ' . $period['from'] . ' a ' . $period['to'] ); ?></title>
+<link rel="stylesheet" href="<?php echo esc_url( includes_url( 'css/dashicons.min.css' ) ); ?>">
+<link rel="stylesheet" href="<?php echo esc_url( ASI_URL . 'assets/admin/admin.css?ver=' . ASI_VERSION ); ?>">
+<style>
+	body { margin: 0; background: #f0f0f1; font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; color: #1d2327; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+	.asi-print { max-width: 1000px; margin: 0 auto; padding: 24px; }
+	.asi-print__head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 16px; }
+	.asi-print__head h1 { margin: 0; font-size: 22px; }
+	.asi-print__head p { margin: 4px 0 0; color: #50575e; }
+	.asi-print__bar { display: flex; gap: 8px; }
+	.asi-print__bar button { padding: 8px 14px; border: 0; border-radius: 6px; background: #2271b1; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+	.asi-print__bar button:hover { background: #135e96; }
+	.asi-print .asi-panel, .asi-print .asi-stat { break-inside: avoid; }
+	.asi-print .asi-chart-bars__label a { color: inherit; text-decoration: none; }
+	@page { size: A4; margin: 12mm; }
+	@media print {
+		body { background: #fff; }
+		.asi-print { max-width: none; padding: 0; }
+		.asi-print__bar { display: none; }
+		.asi-print .asi-panel { box-shadow: none; }
+		.asi-print .asi-chart-pair { grid-template-columns: 1fr 1fr; }
+		.asi-print .asi-stats { grid-template-columns: repeat( 4, 1fr ); }
+	}
+</style>
+</head>
+<body>
+<div class="asi-admin asi-print">
+	<header class="asi-print__head">
+		<div>
+			<h1>Reporte del asesor inteligente</h1>
+			<p><?php echo esc_html( $site . ' · ' . $range ); ?></p>
+			<p class="asi-muted"><?php echo esc_html( 'Generado el ' . date_i18n( 'j \\d\\e F Y, H:i' ) . ( $test ? ' · incluye pruebas del chat' : '' ) ); ?></p>
+		</div>
+		<div class="asi-print__bar"><button type="button" onclick="window.print()">Guardar como PDF</button></div>
+	</header>
+	<?php if ( is_array( $demo ) ) : ?>
+		<p class="asi-note asi-note--warn"><strong>Datos de ejemplo.</strong> Los números de <?php echo esc_html( date_i18n( 'j \\d\\e F', strtotime( $demo['from'] ) ) ); ?> al <?php echo esc_html( date_i18n( 'j \\d\\e F', strtotime( $demo['to'] ) ) ); ?> son inventados, para ver cómo se ve el reporte.</p>
+	<?php endif; ?>
+	<?php $this->report_body( $report, true ); ?>
+</div>
+<script>window.addEventListener( 'load', function () { setTimeout( function () { window.print(); }, 400 ); } );</script>
+</body>
+</html>
+		<?php
+		exit;
 	}
 
 	/** Descarga del reporte en CSV. */
