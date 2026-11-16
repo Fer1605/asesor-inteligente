@@ -113,16 +113,25 @@ class ASI_Settings {
 	public static function contact_items( $detected_whatsapp = '' ) {
 		$c     = self::all()['contact'];
 		$items = array();
-		$wa    = '' !== trim( $c['whatsapp'] ) ? trim( $c['whatsapp'] ) : trim( (string) $detected_whatsapp );
-		if ( '' !== $wa ) {
+		// Cada campo admite varios valores separados por coma ("ventas@…, info@…").
+		$list = static function ( $value ) {
+			return array_values( array_filter( array_map( 'trim', explode( ',', (string) $value ) ), 'strlen' ) );
+		};
+		$whatsapps = $list( $c['whatsapp'] );
+		if ( ! $whatsapps && '' !== trim( (string) $detected_whatsapp ) ) {
+			$whatsapps = array( trim( (string) $detected_whatsapp ) );
+		}
+		foreach ( $whatsapps as $wa ) {
 			$is_url  = (bool) preg_match( '#^https?://#', $wa );
 			$items[] = array( 'type' => 'whatsapp', 'value' => $is_url ? 'WhatsApp' : $wa, 'url' => $is_url ? $wa : 'https://wa.me/' . preg_replace( '/[^0-9]/', '', $wa ) );
 		}
-		if ( '' !== trim( $c['phone'] ) ) {
-			$items[] = array( 'type' => 'phone', 'value' => trim( $c['phone'] ), 'url' => 'tel:' . preg_replace( '/[^0-9+]/', '', $c['phone'] ) );
+		foreach ( $list( $c['phone'] ) as $phone ) {
+			$items[] = array( 'type' => 'phone', 'value' => $phone, 'url' => 'tel:' . preg_replace( '/[^0-9+]/', '', $phone ) );
 		}
-		if ( is_email( trim( $c['email'] ) ) ) {
-			$items[] = array( 'type' => 'email', 'value' => trim( $c['email'] ), 'url' => 'mailto:' . trim( $c['email'] ) );
+		foreach ( $list( $c['email'] ) as $email ) {
+			if ( is_email( $email ) ) {
+				$items[] = array( 'type' => 'email', 'value' => $email, 'url' => 'mailto:' . $email );
+			}
 		}
 		if ( '' !== trim( $c['address'] ) ) {
 			$maps    = '' !== trim( $c['maps'] ) ? trim( $c['maps'] ) : 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( trim( $c['address'] ) );
