@@ -865,6 +865,7 @@ class ASI_Dialogue {
 				continue;
 			}
 			$keep  = ASI_Search_Sheet::render( $sheet, $phrases );
+			$found['cheapest_first'] = true; // Lo más cercano a su presupuesto primero.
 			$reply = $this->search_flow( $text, $found, $state, array( 'opening' => 'refine' === $mode ? 'refine_over_budget' : 'new_over_budget', 'refine' => '' !== $label ? $label : $found['label'], 'budget' => $this->budget_text( $this->analyzer->analyze( $keep ) ) ) );
 			$reply['state']['q']   = $keep;
 			$reply['over_budget'] = true; // Lo usa budget_check; no se envía al navegador.
@@ -882,7 +883,10 @@ class ASI_Dialogue {
 
 	/** Lo más económico del catálogo, cuando en el monto que pidió no hay nada. null si no hay precios. */
 	private function cheapest_instead( array $budget, $keep, array $state ) {
-		$all              = $this->analyzer->analyze( '' );
+		// Con lo que no quiere ("no quiero pickup") y sus atributos, sin el tope de precio.
+		$all              = $budget;
+		$all['groups']    = array();
+		$all['price_max'] = null;
 		$all['price_min'] = 0.01; // Todo lo que tiene precio.
 		$result           = $this->search->search( $this->context['lang'], $all, array( 'roles' => array( 'catalog' ), 'limit' => 400 ) );
 		$priced           = array();

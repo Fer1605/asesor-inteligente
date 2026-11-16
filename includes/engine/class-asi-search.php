@@ -234,6 +234,10 @@ class ASI_Search {
 			}
 		);
 
+		if ( ! empty( $query['cheapest_first'] ) ) {
+			$pool = $this->cheapest_first( $pool );
+		}
+
 		$ids     = array_map( 'intval', array_column( $pool, 'post_id' ) );
 		$exclude = array_flip( array_map( 'intval', $options['exclude'] ) );
 		$items   = array();
@@ -260,6 +264,25 @@ class ASI_Search {
 			'body_only' => ! array_filter( array_column( $pool, 'strong' ) ),
 			'excluded'  => $this->excluded_hits, // Cuántos quitó "que no sea X" (0 = no quitó nada).
 		);
+	}
+
+	/**
+	 * Del más barato al más caro; lo que no tiene precio, al final. Se usa cuando lo pedido no
+	 * alcanza con su presupuesto: lo primero que ve es lo más cercano a lo que puede pagar.
+	 */
+	private function cheapest_first( array $pool ) {
+		foreach ( $pool as &$row ) {
+			$price        = ASI_Money::card_price( (array) $row['card'], $this->money );
+			$row['_base'] = null === $price['base'] || $price['base'] <= 0 ? INF : (float) $price['base'];
+		}
+		unset( $row );
+		usort(
+			$pool,
+			static function ( $a, $b ) {
+				return $a['_base'] === $b['_base'] ? strcmp( $a['title'], $b['title'] ) : ( $a['_base'] < $b['_base'] ? -1 : 1 );
+			}
+		);
+		return $pool;
 	}
 
 	/**
@@ -321,6 +344,9 @@ class ASI_Search {
 				return $a['final'] === $b['final'] ? strcmp( $a['title'], $b['title'] ) : ( $a['final'] < $b['final'] ? 1 : -1 );
 			}
 		);
+		if ( ! empty( $query['cheapest_first'] ) ) {
+			$pool = $this->cheapest_first( $pool );
+		}
 		$exclude = array_flip( array_map( 'intval', $options['exclude'] ) );
 		$items   = array();
 		foreach ( $pool as $row ) {

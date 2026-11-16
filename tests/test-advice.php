@@ -170,6 +170,21 @@ $s = array();
 $r = $chat( 'quiero un carro de menos de cincuenta mil', $s );
 check( 'sin nada en el monto: lo dice y muestra lo más barato', array( true, 5 ), array( false !== strpos( $r['text'], 'Q 50,000' ) && false !== strpos( $r['text'], 'Q 135,990' ), (int) ( $r['cards'][0]['id'] ?? 0 ) ) );
 echo '   [50 mil] ' . $r['text'] . ' | ' . implode( ',', asi_card_ids( $r ) ) . "\n";
+// Conversación real: tope, "no quiero pickup", "quiero sedan".
+$s = array();
+$chat( 'quiero un carro de menos de cincuenta mil', $s );
+$r = $chat( 'no quiero pickup', $s );
+check( 'conv real: lo más barato respeta "no quiero pickup"', array( false, false ), array( in_array( 6, asi_card_ids( $r ), true ), in_array( 7, asi_card_ids( $r ), true ) ) );
+echo '   [no pickup] ' . $r['text'] . ' | ' . implode( ',', asi_card_ids( $r ) ) . "\n";
+$s = array();
+$chat( 'quiero un carro de menos de cincuenta mil', $s );
+$r = $chat( 'quiero suv', $s );
+$prices = array_map( function ( $c ) { return ASI_Money::parse_display_price( $c['price'] ); }, $r['cards'] );
+$sorted = $prices;
+sort( $sorted );
+check( 'conv real: fuera de presupuesto, del más barato al más caro', $sorted, $prices );
+check( 'conv real: sigue con el presupuesto de antes', true, false !== strpos( $r['text'], 'Q 50,000' ) );
+echo '   [suv] ' . $r['text'] . ' | ' . implode( ',', $prices ) . "\n";
 check( 'monto: "gracias mil" y "somos dos" no son montos', array( 'gracias mil', 'somos dos' ), array( ASI_Money::spell_amounts( 'gracias mil' ), ASI_Money::spell_amounts( 'somos dos' ) ) );
 check( 'monto: "ciento cincuenta mil", "treinta y cinco mil", "entre cien y doscientos mil"', array( '150 mil', '35 mil', 'entre cien y 200 mil' ), array( ASI_Money::spell_amounts( 'ciento cincuenta mil' ), ASI_Money::spell_amounts( 'treinta y cinco mil' ), ASI_Money::spell_amounts( 'entre cien y doscientos mil' ) ) );
 
