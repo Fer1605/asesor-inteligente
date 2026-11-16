@@ -306,6 +306,16 @@ final class ASI_Pack_Autos implements ASI_Pack, ASI_Advisor, ASI_Similarity {
 	 *
 	 * @return string[]
 	 */
+	/**
+	 * Palabras que nombran todo el catálogo ("vehículos", "carros", "autos"): no filtran nada.
+	 * Sin esto, "quiero ver los vehículos BYD" se leía como el tipo AUTOMÓVIL y escondía las SUV.
+	 *
+	 * @return string[]
+	 */
+	public function catalog_words() {
+		return array( 'vehiculo', 'vehiculos', 'vehicle', 'vehicles', 'carro', 'carros', 'auto', 'autos', 'coche', 'coches', 'car', 'cars', 'unidad', 'unidades' );
+	}
+
 	public function query_words() {
 		$words = array( 'carro', 'auto', 'automovil', 'vehiculo', 'automatica', 'automatico', 'mecanica', 'mecanico', 'manual', 'estandar', 'diesel', 'gasolina', 'hibrido', 'hibrida', 'electrico', 'electrica', 'pasajeros', 'puertas', 'traccion', 'usado', 'usada', 'seminuevo', 'nuevo', 'nueva', 'pickup', 'camioneta', 'sedan', 'hatchback', 'microbus', 'camion', 'panel', 'motocicleta' );
 		// Solo los tipos de una palabra: "camioneta familiar" no hace de "familia" un error de dedo.

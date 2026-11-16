@@ -51,6 +51,9 @@ class ASI_Query_Analyzer {
 	/** @var array<string,bool> Palabras que entienden los packs. */
 	private $pack_words = array();
 
+	/** @var array<string,bool> Palabras que nombran todo el catálogo según los packs ("vehículos"): no filtran. */
+	private $catalog_words = array();
+
 	public function __construct( ASI_Lexicon $lexicon, array $vocab, array $money = array(), array $packs = array() ) {
 		$this->lexicon = $lexicon;
 		$this->money   = ASI_Money::config( $money );
@@ -59,6 +62,11 @@ class ASI_Query_Analyzer {
 		$this->vocab   = array_merge( array( 'docs' => 0, 'tokens' => array(), 'phrases' => array() ), $vocab );
 		// Palabras de los packs (tipos de vehículo, transmisión, combustible…): el corrector también las conoce.
 		foreach ( $packs as $pack ) {
+			if ( is_object( $pack ) && method_exists( $pack, 'catalog_words' ) ) {
+				foreach ( (array) $pack->catalog_words() as $word ) {
+					$this->catalog_words[ ASI_Normalizer::normalize( $word ) ] = true;
+				}
+			}
 			if ( is_object( $pack ) && method_exists( $pack, 'query_words' ) ) {
 				foreach ( (array) $pack->query_words() as $word ) {
 					$this->pack_words[ ASI_Normalizer::normalize( $word ) ] = true;
@@ -122,7 +130,8 @@ class ASI_Query_Analyzer {
 		$text = $this->extract_negation( $text, $result, $display );
 
 		// 1. Tokens con contenido, en forma normal, recordando cómo los escribió el usuario.
-		$tokens = array();
+		$tokens  = array();
+		$catalog = array();
 		foreach ( explode( ' ', $text ) as $token ) {
 			if ( '' === $token || $this->lexicon->is_stopword( $token ) ) {
 				continue;
@@ -137,6 +146,12 @@ class ASI_Query_Analyzer {
 			if ( in_array( $token, $this->request_words, true ) ) {
 				continue;
 			}
+			// "Vehículos", "carros"…: en un sitio de vehículos es todo el catálogo, no un tipo. Junto a
+			// otra cosa ("vehículos BYD") no filtran; solas ("quiero un carro") se buscan como siempre.
+			if ( isset( $this->catalog_words[ $token ] ) ) {
+				$catalog[] = $token;
+				continue;
+			}
 			if ( 1 === strlen( $token ) && ! ctype_digit( $token ) ) {
 				continue;
 			}
@@ -145,6 +160,16 @@ class ASI_Query_Analyzer {
 				'raw'     => $token,
 				'display' => isset( $display[ $token ] ) ? $display[ $token ] : $token,
 			);
+		}
+
+		if ( ! $tokens && ! $result['attrs'] && null === $result['price_max'] && null === $result['price_min'] ) {
+			foreach ( $catalog as $token ) {
+				$tokens[] = array(
+					'normal'  => ASI_Normalizer::singular( $token ),
+					'raw'     => $token,
+					'display' => isset( $display[ $token ] ) ? $display[ $token ] : $token,
+				);
+			}
 		}
 
 		// 2. Códigos que existen en el sitio.

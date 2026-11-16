@@ -157,6 +157,12 @@ $chat( 'busco una suv', $s );
 $chat( 'tengo 300 mil', $s );
 $r = $chat( 'mejor hasta 200 mil', $s );
 check( 'monto nuevo reemplaza al anterior', array( 3 ), asi_card_ids( $r ) );
+// "Vehículos/carros/autos" nombran todo el catálogo: con una marca no la limitan al tipo Automóvil.
+foreach ( array( 'quiero ver los vehiculos toyota', 'busco carros toyota', 'que autos toyota tienen' ) as $q ) {
+	$s = array();
+	$r = $chat( $q, $s );
+	check( 'catálogo: "' . $q . '" trae todos los Toyota, no solo el automóvil', array( 4, 5, 6 ), array_values( array_intersect( array( 4, 5, 6 ), (array) $r['state']['results'] ) ) );
+}
 $s = array();
 $r = $chat( 'quiero una suv que no sea toyota', $s );
 check( 'negación normal sigue funcionando', false, in_array( 4, asi_card_ids( $r ), true ) );
