@@ -101,24 +101,41 @@ trait ASI_Autos_Advisor {
 			$profile['people'] = (int) $profile['adults'];
 		}
 
-		// Para qué lo usa.
-		$uses = isset( $profile['uses'] ) ? (array) $profile['uses'] : array();
-		$rest = $text;
-		if ( preg_match( '/[^a-z](para ir al trabajo|ir a trabajar|ir a la oficina|al trabajo y|uso diario|diario|en la ciudad|para la ciudad|ciudad|trafico|commute|city)[^a-z]/', $rest ) ) {
+		// Para qué lo usa. Lo negado no cuenta y quita lo que hubiera dicho antes:
+		// "no quiero de trabajo", "no es para finca", "sin carga".
+		$uses     = isset( $profile['uses'] ) ? (array) $profile['uses'] : array();
+		$rest     = $text;
+		$negated  = array();
+		$use_words = array(
+			'city'    => '(?:para ir al trabajo|ir a trabajar|ir a la oficina|al trabajo y|uso diario|diario|en la ciudad|para la ciudad|ciudad|trafico|commute|city)',
+			'work'    => '(?:trabaj[a-z]*|negocios?|carga|cargar|mercaderia|herramientas?|reparto|repartir|distribuir|construccion|obras?|work|business|haul|hauling|tools|deliveries)',
+			'rough'   => '(?:fincas?|campos?|terracerias?|montanas?|caminos? de tierra|lodo|off ?road|aldeas?|cerros?|rios?|farms?|dirt|mountains?)',
+			'highway' => '(?:carretera|viajes|viajar|paseos|interior|road trips?|highway|long trips)',
+		);
+		// Entre el "no" y el uso solo caben palabras de enlace ("no lo quiero para el trabajo").
+		$link = '(?:(?:lo|la|los|las|quiero|queremos|quisiera|necesito|necesitamos|busco|buscamos|es|sera|seria|va|a|ser|usar|usare|usaria|uso|vamos|voy|de|del|para|pa|el|un|una|tanto|mucho|muy|tan|solo|que|sea|sean|tipo|it|is|for|the|want|need|i|we|don t|dont)\s+){0,4}';
+		foreach ( $use_words as $use => $words ) {
+			if ( preg_match_all( '/[^a-z](?:no|ni|sin|nada de|not|without|no es)\s+' . $link . $words . '(?=[^a-z])/', $rest, $neg ) ) {
+				$uses      = array_values( array_diff( $uses, array( $use ) ) );
+				$negated[] = $use;
+				foreach ( $neg[0] as $span ) {
+					$rest = str_replace( $span, ' ', $rest );
+				}
+			}
+		}
+		if ( preg_match( '/[^a-z]' . $use_words['city'] . '[^a-z]/', $rest ) ) {
 			$uses[] = 'city';
 			$rest   = preg_replace( '/(para ir al trabajo|ir a trabajar|ir a la oficina)/', ' ', $rest );
 		}
-		if ( preg_match( '/[^a-z](trabaj[a-z]*|negocios?|carga|cargar|mercaderia|herramientas?|reparto|repartir|distribuir|construccion|obras?|work|business|haul|hauling|tools|deliveries)[^a-z]/', $rest ) ) {
-			$uses[] = 'work';
-		}
-		if ( preg_match( '/[^a-z](fincas?|campos?|terracerias?|montanas?|caminos? de tierra|lodo|off ?road|aldeas?|cerros?|rios?|farms?|dirt|mountains?)[^a-z]/', $rest ) ) {
-			$uses[] = 'rough';
-		}
-		if ( preg_match( '/[^a-z](carretera|viajes|viajar|paseos|interior|road trips?|highway|long trips)[^a-z]/', $rest ) ) {
-			$uses[] = 'highway';
+		foreach ( array( 'work', 'rough', 'highway' ) as $use ) {
+			if ( preg_match( '/[^a-z]' . $use_words[ $use ] . '[^a-z]/', $rest ) ) {
+				$uses[] = $use;
+			}
 		}
 		if ( $uses ) {
 			$profile['uses'] = array_values( array_unique( $uses ) );
+		} else {
+			unset( $profile['uses'] );
 		}
 
 		// Carga en toneladas.
@@ -131,7 +148,10 @@ trait ASI_Autos_Advisor {
 				$changed[] = $key;
 			}
 		}
-		return array( 'profile' => $profile, 'changed' => $changed );
+		if ( isset( $before['uses'] ) && ! isset( $profile['uses'] ) ) {
+			$changed[] = 'uses';
+		}
+		return array( 'profile' => $profile, 'changed' => $changed, 'negated' => $negated );
 	}
 
 	public function asks_advice( $message, $language ) {

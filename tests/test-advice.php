@@ -20,6 +20,11 @@ check( 'perfil: trabajo + finca', array( 'work', 'rough' ), $p( 'lo quiero para 
 check( 'perfil: "ir al trabajo" es ciudad, no carga', array( 'city' ), $p( 'es para ir al trabajo todos los días' )['uses'] );
 check( 'perfil: toneladas', 3.0, $p( 'necesito cargar 3 toneladas' )['cargo_t'] );
 check( 'perfil: "7 pasajeros" no es el tamaño de la familia', false, isset( $p( 'suv de 7 pasajeros' )['people'] ) );
+check( 'perfil: "no quiero de trabajo" no es trabajo', false, isset( $p( 'no quiero de trabajo' )['uses'] ) );
+check( 'perfil: "no quiero de trabajo" quita el trabajo dicho antes', false, isset( $p( 'no quiero de trabajo', array( 'uses' => array( 'work' ) ) )['uses'] ) );
+check( 'perfil: "no es para finca, es para la ciudad"', array( 'city' ), $p( 'no es para finca, es para la ciudad' )['uses'] );
+check( 'perfil: "sin carga" no es trabajo; viajar sí cuenta', array( 'highway' ), $p( 'algo sin carga, para viajar' )['uses'] );
+check( 'perfil: "no tengo mucho, es para trabajar" sí es trabajo', array( 'work' ), $p( 'no tengo mucho, es para trabajar' )['uses'] );
 check( 'perfil: se acumula', array( 4, array( 'rough' ) ), ( function ( $x ) { return array( $x['people'], $x['uses'] ); } )( $p( 'y lo usamos en la finca', array( 'people' => 4 ) ) ) );
 
 // Recomendación (reglas).
@@ -163,6 +168,15 @@ foreach ( array( 'quiero ver los vehiculos toyota', 'busco carros toyota', 'que 
 	$r = $chat( $q, $s );
 	check( 'catálogo: "' . $q . '" trae todos los Toyota, no solo el automóvil', array( 4, 5, 6 ), array_values( array_intersect( array( 4, 5, 6 ), (array) $r['state']['results'] ) ) );
 }
+$s = array();
+$r = $chat( 'no quiero de trabajo', $s );
+check( 'conv: "no quiero de trabajo" solo: pregunta para qué lo usará, sin pickups', array( false, false ), array( false !== strpos( $r['text'] . ( $r['followup'] ?? '' ), 'trabajo y carga' ), in_array( 6, asi_card_ids( $r ), true ) ) );
+echo '   [solo] ' . $r['text'] . ' / ' . ( $r['followup'] ?? '' ) . ' | ' . implode( ',', asi_card_ids( $r ) ) . "\n";
+$s = array();
+$chat( 'lo quiero para trabajo, somos 4', $s );
+$r = $chat( 'no quiero de trabajo', $s );
+check( 'conv: "no quiero de trabajo" después: ya no recomienda por trabajo', false, false !== strpos( $r['text'], 'trabajar y cargar' ) );
+echo '   [despues] ' . $r['text'] . ' | ' . implode( ',', asi_card_ids( $r ) ) . "\n";
 $s = array();
 $r = $chat( 'quiero una suv que no sea toyota', $s );
 check( 'negación normal sigue funcionando', false, in_array( 4, asi_card_ids( $r ), true ) );

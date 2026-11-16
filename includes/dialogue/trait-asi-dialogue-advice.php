@@ -66,7 +66,7 @@ trait ASI_Dialogue_Advice {
 		// Habla de su situación aunque no sea nuevo ("no no, somos 4, 2 adultos y 2 niños…"):
 		// cuenta lo que dice el mensaje por sí solo, no solo lo que cambió.
 		$own        = $advisor->read_profile( $message, $language, array() );
-		$about_me   = (bool) array_diff( $changed, array( 'budget' ) ) || (bool) array_intersect( $own['changed'], array( 'people', 'kids', 'adults', 'uses', 'cargo_t' ) );
+		$about_me   = (bool) array_diff( $changed, array( 'budget' ) ) || (bool) array_intersect( $own['changed'], array( 'people', 'kids', 'adults', 'uses', 'cargo_t' ) ) || ! empty( $read['negated'] );
 		$asks       = $advisor->asks_advice( $message, $language );
 		// "Quiero ver más opciones", "ninguna me gustó": otra tanda con el mismo perfil. Si además
 		// nombra algo ("más opciones nissan", "de gasolina"), eso afina la búsqueda: no es otra tanda.
