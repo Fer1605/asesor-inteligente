@@ -67,7 +67,7 @@ class ASI_REST_Controller {
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( $this, 'admin_find' ),
 				'permission_callback' => function () {
-					return current_user_can( 'manage_options' );
+					return current_user_can( ASI_Access::CAP );
 				},
 				'args'                => array(
 					'q'    => array(

@@ -130,10 +130,10 @@ class ASI_Admin {
 	}
 
 	public function menu() {
-		add_menu_page( 'Asesor inteligente', 'Asesor inteligente', 'manage_options', self::PAGE, array( $this, 'render' ), 'dashicons-format-chat', 58 );
+		add_menu_page( 'Asesor inteligente', 'Asesor inteligente', ASI_Access::CAP, self::PAGE, array( $this, 'render' ), 'dashicons-format-chat', 58 );
 		// Una entrada del menú de WordPress por pantalla (antes eran pestañas dentro de la página).
 		foreach ( self::TABS as $key => $label ) {
-			add_submenu_page( self::PAGE, $label . ' · Asesor inteligente', $label, 'manage_options', 'inicio' === $key ? self::PAGE : self::PAGE . '&tab=' . $key, 'inicio' === $key ? array( $this, 'render' ) : '__return_null' );
+			add_submenu_page( self::PAGE, $label . ' · Asesor inteligente', $label, ASI_Access::CAP, 'inicio' === $key ? self::PAGE : self::PAGE . '&tab=' . $key, 'inicio' === $key ? array( $this, 'render' ) : '__return_null' );
 		}
 		add_filter( 'submenu_file', array( $this, 'submenu_file' ), 10, 2 );
 	}
@@ -218,7 +218,7 @@ class ASI_Admin {
 	 * Acciones del panel (POST con nonce).
 	 */
 	public function handle_action() {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( ASI_Access::CAP ) ) {
 			wp_die( esc_html__( 'Sin permisos.', 'asesor-inteligente' ) );
 		}
 		check_admin_referer( self::NONCE );
@@ -2195,7 +2195,7 @@ class ASI_Admin {
 	 * imprimir del navegador: "Guardar como PDF").
 	 */
 	public function report_print() {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( ASI_Access::CAP ) ) {
 			wp_die( esc_html__( 'Sin permisos.', 'asesor-inteligente' ) );
 		}
 		check_admin_referer( 'asi_report_print' );
@@ -2262,7 +2262,7 @@ class ASI_Admin {
 
 	/** Descarga del reporte en CSV. */
 	public function report_csv() {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( ASI_Access::CAP ) ) {
 			wp_die( esc_html__( 'Sin permisos.', 'asesor-inteligente' ) );
 		}
 		check_admin_referer( 'asi_report_csv' );

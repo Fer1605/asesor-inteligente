@@ -244,7 +244,7 @@ class ASI_Settings {
 		if ( 'public' === $mode ) {
 			return true;
 		}
-		return 'admin' === $mode && current_user_can( 'manage_options' );
+		return 'admin' === $mode && current_user_can( ASI_Access::CAP );
 	}
 
 	/**

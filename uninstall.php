@@ -17,6 +17,9 @@ foreach ( array( 'asi_settings', 'asi_schema', 'asi_languages', 'asi_reindex_sta
 	delete_option( $option );
 }
 
+// El rol "Asesor inteligente" (quien lo tenga queda sin rol; un administrador le asigna otro).
+remove_role( 'asi_asesor' );
+
 // Cachés (vocabulario, sellos, formularios, logo) y nombres de los PDFs temporales.
 $wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '\\_transient\\_asi\\_%' OR option_name LIKE '\\_transient\\_timeout\\_asi\\_%' OR option_name LIKE 'asi\\_file\\_%'" );
 

@@ -323,7 +323,7 @@ final class ASI_Actions implements ASI_Action_Runner {
 		$ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'cli';
 		$key = 'asi_' . ( 'action' === $kind ? 'act' : substr( $kind, 0, 4 ) ) . '_' . md5( $ip );
 		$n   = (int) get_transient( $key );
-		if ( $n >= $max && ! current_user_can( 'manage_options' ) ) {
+		if ( $n >= $max && ! current_user_can( ASI_Access::CAP ) ) {
 			return false;
 		}
 		set_transient( $key, $n + 1, HOUR_IN_SECONDS );

@@ -467,7 +467,7 @@ class ASI_AI {
 
 	/** Nota técnica en la respuesta (solo la ve un administrador en la pestaña Probar). */
 	private static function mark( array $response, $phrase, $model, $cached ) {
-		if ( function_exists( 'current_user_can' ) && current_user_can( 'manage_options' ) ) {
+		if ( function_exists( 'current_user_can' ) && current_user_can( ASI_Access::CAP ) ) {
 			$response['ai'] = array( 'phrase' => $phrase, 'model' => $model, 'cached' => $cached );
 		}
 		return $response;

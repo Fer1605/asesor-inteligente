@@ -61,7 +61,7 @@ class ASI_Chat_Page {
 	 */
 	public function render() {
 		if ( ! ASI_Settings::current_user_can_use() ) {
-			return current_user_can( 'manage_options' )
+			return current_user_can( ASI_Access::CAP )
 				? '<p><em>' . esc_html__( 'El Asesor inteligente está apagado. Actívalo en Asesor inteligente → Inicio.', 'asesor-inteligente' ) . '</em></p>'
 				: '';
 		}
