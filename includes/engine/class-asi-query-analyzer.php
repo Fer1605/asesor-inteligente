@@ -768,7 +768,7 @@ class ASI_Query_Analyzer {
 		$result['price_max']      = $budget['max'];
 		$result['price_currency'] = $budget['currency'];
 		$result['budget']         = $budget['budget'];
-		return ASI_Normalizer::normalize( str_replace( $budget['spans'], ' ', ASI_Money::fold( $message ) ) );
+		return ASI_Normalizer::normalize( str_replace( $budget['spans'], ' ', ASI_Money::spell_amounts( $message ) ) );
 	}
 
 	/**

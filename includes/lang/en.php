@@ -474,6 +474,10 @@ return array(
 			'Done, I narrowed it down with “{refine}”: {n} left.',
 			'Got it, filtered by {refine}. I have {n}.',
 		),
+		'budget_none_cheapest' => array(
+			'I have nothing {budget}. The most affordable starts at {price}; here are the cheapest:',
+		),
+		'budget_none_followup' => array( 'Want to see financing or adjust the budget?' ),
 		'new_over_budget' => array(
 			'Within your budget {budget} I have no {label}; here is what there is:',
 		),

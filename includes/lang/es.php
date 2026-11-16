@@ -588,6 +588,11 @@ return array(
 			'Listo, filtré por {refine}. Tengo {n}.',
 			'Hecho: con {refine} encontré {n}.',
 		),
+		'budget_none_cheapest' => array(
+			'No tengo opciones {budget}. Lo más económico que tengo empieza en {price}; te muestro lo más accesible:',
+			'En ese monto ({budget}) no tengo nada por ahora. Lo más accesible arranca en {price}:',
+		),
+		'budget_none_followup' => array( '¿Te muestro alguna con financiamiento o ajustamos el presupuesto?' ),
 		'new_over_budget' => array(
 			'Dentro de tu presupuesto {budget} no tengo {label}; te muestro lo que hay:',
 		),

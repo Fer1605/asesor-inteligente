@@ -279,7 +279,96 @@ final class ASI_Money {
 	 * @return array{min:float|null,max:float|null,currency:string,budget:bool,spans:string[]}
 	 *         min/max en la moneda que dijo el cliente (currency; '' = no dijo → base).
 	 */
+	/** Números en letras (es/en) para leer montos: "cien mil", "ciento cincuenta mil", "two hundred". */
+	const NUMBER_WORDS = array(
+		'un' => 1, 'uno' => 1, 'una' => 1, 'dos' => 2, 'tres' => 3, 'cuatro' => 4, 'cinco' => 5, 'seis' => 6, 'siete' => 7, 'ocho' => 8, 'nueve' => 9,
+		'diez' => 10, 'once' => 11, 'doce' => 12, 'trece' => 13, 'catorce' => 14, 'quince' => 15, 'dieciseis' => 16, 'diecisiete' => 17, 'dieciocho' => 18, 'diecinueve' => 19,
+		'veinte' => 20, 'veinti' => 20, 'veintiuno' => 21, 'veintiun' => 21, 'veintidos' => 22, 'veintitres' => 23, 'veinticuatro' => 24, 'veinticinco' => 25, 'veintiseis' => 26, 'veintisiete' => 27, 'veintiocho' => 28, 'veintinueve' => 29,
+		'treinta' => 30, 'cuarenta' => 40, 'cincuenta' => 50, 'sesenta' => 60, 'setenta' => 70, 'ochenta' => 80, 'noventa' => 90,
+		'cien' => 100, 'ciento' => 100, 'doscientos' => 200, 'trescientos' => 300, 'cuatrocientos' => 400, 'quinientos' => 500, 'seiscientos' => 600, 'setecientos' => 700, 'ochocientos' => 800, 'novecientos' => 900,
+		'one' => 1, 'two' => 2, 'three' => 3, 'four' => 4, 'five' => 5, 'six' => 6, 'seven' => 7, 'eight' => 8, 'nine' => 9, 'ten' => 10, 'twenty' => 20, 'thirty' => 30, 'forty' => 40, 'fifty' => 50, 'sixty' => 60, 'seventy' => 70, 'eighty' => 80, 'ninety' => 90,
+	);
+
+	/**
+	 * Montos en letras a cifras: "menos de cienmil" → "menos de 100 mil", "ciento cincuenta mil" →
+	 * "150 mil", "un millon" → "1000 mil". Solo los que llevan mil/millón y una cifra antes: "dos
+	 * personas" o "gracias mil" quedan igual. También separa los pegados ("cienmil", "veintemil").
+	 *
+	 * @param string $text Texto.
+	 * @return string Texto en minúsculas y sin acentos, con los montos en cifras.
+	 */
+	public static function spell_amounts( $text ) {
+		$text  = self::fold( $text );
+		$units = implode( '|', array_map( 'preg_quote', array_keys( self::NUMBER_WORDS ) ) );
+		$text  = preg_replace( '/\b(' . $units . ')(mil|millones|millon)\b/', '$1 $2', $text );
+		if ( ! preg_match( '/\b(mil|millon|millones|thousand|million)\b/', $text ) ) {
+			return $text;
+		}
+		$parts = preg_split( '/(\s+)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE );
+		$out   = array();
+		$run   = array(); // Índices de $out del tramo actual.
+		$total = 0;
+		$cur   = 0;
+		$big   = false;
+		$word  = '';
+		$flush = static function () use ( &$out, &$run, &$total, &$cur, &$big ) {
+			if ( $run && $big ) {
+				$value = $total + $cur;
+				$first = $run[0];
+				$last  = end( $run );
+				$tail  = preg_replace( '/^[a-z]+/', '', $out[ $last ] );
+				for ( $i = $first; $i <= $last; $i++ ) {
+					$out[ $i ] = '';
+				}
+				$out[ $first ] = ( 0 === $value % 1000 ? ( $value / 1000 ) . ' mil' : (string) $value ) . $tail;
+			}
+			$run   = array();
+			$total = 0;
+			$cur   = 0;
+			$big   = false;
+		};
+		foreach ( $parts as $part ) {
+			$out[] = $part;
+			$index = count( $out ) - 1;
+			if ( '' === trim( $part ) ) {
+				continue;
+			}
+			$prev = $word;
+			$word = preg_match( '/^([a-z]+)[^a-z0-9]*$/', $part, $m ) ? $m[1] : '';
+			if ( isset( self::NUMBER_WORDS[ $word ] ) ) {
+				$cur  += self::NUMBER_WORDS[ $word ];
+				$run[] = $index;
+			} elseif ( $run && in_array( $word, array( 'y', 'and' ), true ) && in_array( $prev, array( 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa', 'hundred' ), true ) ) {
+				// "treinta y cinco", "two hundred and fifty"; no "entre cien y doscientos".
+				$run[] = $index;
+			} elseif ( $run && 'hundred' === $word ) {
+				$cur  *= 100;
+				$run[] = $index;
+			} elseif ( $run && in_array( $word, array( 'mil', 'thousand' ), true ) && $cur > 0 ) {
+				$total += $cur * 1000;
+				$cur    = 0;
+				$big    = true;
+				$run[]  = $index;
+			} elseif ( $run && in_array( $word, array( 'millon', 'millones', 'million' ), true ) && $cur > 0 ) {
+				$total += $cur * 1000000;
+				$cur    = 0;
+				$big    = true;
+				$run[]  = $index;
+			} else {
+				$flush();
+				continue;
+			}
+			// Un signo al final ("cienmil.") cierra el tramo.
+			if ( preg_match( '/[^a-z]$/', $part ) ) {
+				$flush();
+			}
+		}
+		$flush();
+		return preg_replace( '/ {2,}/', ' ', implode( '', $out ) );
+	}
+
 	public static function extract_budget( $message, array $words, array $money ) {
+		$message = self::spell_amounts( $message );
 		$money  = self::config( $money );
 		$text   = self::fold( $message );
 		$result = array( 'min' => null, 'max' => null, 'currency' => '', 'budget' => false, 'spans' => array() );

@@ -524,6 +524,13 @@ class ASI_Dialogue {
 			$catalog['items'] = array();
 		}
 
+		// Solo un monto ("un carro de menos de 50 mil") y nada en ese rango: lo más económico.
+		if ( ! $catalog['items'] && ASI_Search::has_price_filter( $query ) && ! $this->has_critical( $query ) && empty( $query['attrs'] ) ) {
+			$cheap = $this->cheapest_instead( $query, $text, $state );
+			if ( $cheap ) {
+				return $cheap;
+			}
+		}
 		if ( ! $catalog['items'] && ! $pages['items'] ) {
 			return $this->none( $text, $intro, $query );
 		}
@@ -863,7 +870,52 @@ class ASI_Dialogue {
 			$reply['over_budget'] = true; // Lo usa budget_check; no se envía al navegador.
 			return $reply;
 		}
+		// Solo dijo el monto ("un carro de menos de 50 mil") y no hay nada en ese rango: se dice
+		// y se muestra lo más económico que hay, en vez de "no encontré nada".
+		$open = ASI_Search_Sheet::without_price( $sheet );
+		if ( ! $open['terms'] && ! $open['attrs'] && ! $open['words'] ) {
+			$keep = ASI_Search_Sheet::render( $sheet, $phrases );
+			return $this->cheapest_instead( $this->analyzer->analyze( $keep ), $keep, $state );
+		}
 		return null;
+	}
+
+	/** Lo más económico del catálogo, cuando en el monto que pidió no hay nada. null si no hay precios. */
+	private function cheapest_instead( array $budget, $keep, array $state ) {
+		$all              = $this->analyzer->analyze( '' );
+		$all['price_min'] = 0.01; // Todo lo que tiene precio.
+		$result           = $this->search->search( $this->context['lang'], $all, array( 'roles' => array( 'catalog' ), 'limit' => 400 ) );
+		$priced           = array();
+		foreach ( $result['items'] as $row ) {
+			$price = $this->base_price( $row );
+			if ( $price > 0 ) {
+				$priced[] = array( $price, $row );
+			}
+		}
+		if ( ! $priced ) {
+			return null;
+		}
+		usort(
+			$priced,
+			static function ( $x, $y ) {
+				return $x[0] <=> $y[0];
+			}
+		);
+		$rows  = array_column( array_slice( $priced, 0, 4 ), 1 );
+		$ids   = array_map( 'intval', array_column( $rows, 'post_id' ) );
+		$cards = $this->cards( $rows, $all );
+		$price = isset( $cards[0]['price'] ) && '' !== (string) $cards[0]['price'] ? $cards[0]['price'] : $rows[0]['card']['price'];
+		return array(
+			'kind'        => 'results',
+			'text'        => $this->responder->say( 'budget_none_cheapest', array( 'budget' => $this->budget_text( $budget ), 'price' => $price ) ),
+			'cards'       => $cards,
+			'followup'    => $this->responder->say( 'budget_none_followup' ),
+			'links'       => array(),
+			'suggestions' => array(),
+			'more'        => false,
+			'over_budget' => true,
+			'state'       => array( 'q' => $this->short( $keep, 200 ), 'shown' => $ids, 'results' => $ids, 'focus' => 0 ),
+		);
 	}
 
 	/**

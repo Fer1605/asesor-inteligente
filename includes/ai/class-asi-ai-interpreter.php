@@ -305,7 +305,9 @@ class ASI_AI_Interpreter {
 		$current = 0;
 		$total   = 0;
 		$active  = false;
-		foreach ( preg_split( '/\s+/', ASI_Normalizer::normalize( (string) $message ) ) as $word ) {
+		// "cienmil" pegado se lee como "cien mil".
+		$message = preg_replace( '/\b(' . implode( '|', array_keys( ASI_Money::NUMBER_WORDS ) ) . ')(mil|millones|millon)\b/', '$1 $2', ASI_Normalizer::normalize( (string) $message ) );
+		foreach ( preg_split( '/\s+/', $message ) as $word ) {
 			if ( isset( $units[ $word ] ) ) {
 				$current += $units[ $word ];
 				$active   = true;

@@ -162,6 +162,17 @@ $chat( 'busco una suv', $s );
 $chat( 'tengo 300 mil', $s );
 $r = $chat( 'mejor hasta 200 mil', $s );
 check( 'monto nuevo reemplaza al anterior', array( 3 ), asi_card_ids( $r ) );
+// Montos en letras y montos sin nada en ese rango.
+$s = array();
+$r = $chat( 'quiero un carro de menos de doscientosmil', $s );
+check( 'monto en letras pegado: "doscientosmil" = hasta 200 mil', true, (bool) $r['cards'] && ! array_filter( $r['cards'], function ( $c ) { return ASI_Money::parse_display_price( $c['price'] ) > 200000; } ) );
+$s = array();
+$r = $chat( 'quiero un carro de menos de cincuenta mil', $s );
+check( 'sin nada en el monto: lo dice y muestra lo más barato', array( true, 5 ), array( false !== strpos( $r['text'], 'Q 50,000' ) && false !== strpos( $r['text'], 'Q 135,990' ), (int) ( $r['cards'][0]['id'] ?? 0 ) ) );
+echo '   [50 mil] ' . $r['text'] . ' | ' . implode( ',', asi_card_ids( $r ) ) . "\n";
+check( 'monto: "gracias mil" y "somos dos" no son montos', array( 'gracias mil', 'somos dos' ), array( ASI_Money::spell_amounts( 'gracias mil' ), ASI_Money::spell_amounts( 'somos dos' ) ) );
+check( 'monto: "ciento cincuenta mil", "treinta y cinco mil", "entre cien y doscientos mil"', array( '150 mil', '35 mil', 'entre cien y 200 mil' ), array( ASI_Money::spell_amounts( 'ciento cincuenta mil' ), ASI_Money::spell_amounts( 'treinta y cinco mil' ), ASI_Money::spell_amounts( 'entre cien y doscientos mil' ) ) );
+
 // "Vehículos/carros/autos" nombran todo el catálogo: con una marca no la limitan al tipo Automóvil.
 foreach ( array( 'quiero ver los vehiculos toyota', 'busco carros toyota', 'que autos toyota tienen' ) as $q ) {
 	$s = array();
