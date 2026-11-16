@@ -76,6 +76,24 @@ class ASI_Admin {
 		'reset_hover'  => array( 'Nueva conversación · al pasar el mouse', 'Fondo de ese botón en hover.' ),
 	);
 
+	/** Colores de las tarjetas de producto. data-show = qué parte de la vista previa se enseña al cambiarlo. */
+	const CARD_LABELS = array(
+		'card_flag'  => array( 'Etiqueta sobre la foto', 'Fondo de “Nuevo”, “Oferta” y otras etiquetas en la esquina de la foto. El texto se pone blanco o negro solo.' ),
+		'card_num'   => array( 'Número de la tarjeta', 'Círculo con el 1, 2, 3… que usa el visitante para decir “cotízame la 2”.' ),
+		'card_price' => array( 'Precio', 'Color del precio en las tarjetas.' ),
+	);
+
+	/** Colores de las sugerencias: cuando no hay lo que pidió y se muestra lo más cercano. */
+	const SUGGEST_LABELS = array(
+		'notice_bg'     => array( 'Aviso · fondo', 'Fondo del aviso “No tenemos…” que sale arriba de las sugerencias.' ),
+		'notice_border' => array( 'Aviso · borde', 'Línea alrededor de ese aviso.' ),
+		'notice_text'   => array( 'Aviso · texto', 'Título, texto e ícono del aviso.' ),
+		'sug_border'    => array( 'Tarjeta de sugerencia · borde', 'Borde punteado de las tarjetas que son sugerencia (no lo que pidió).' ),
+		'sug_badge'     => array( 'Etiqueta “Sugerencia”', 'Texto y borde de la etiqueta sobre la foto de esas tarjetas.' ),
+		'over_bg'       => array( '“+ Q… sobre tu presupuesto” · fondo', 'Recuadro debajo del precio que dice cuánto se pasa.' ),
+		'over_text'     => array( '“+ Q… sobre tu presupuesto” · texto', 'Texto de ese recuadro.' ),
+	);
+
 	const RADIUS_LABELS = array(
 		'square'  => 'Rectas',
 		'soft'    => 'Suaves',
@@ -870,6 +888,24 @@ class ASI_Admin {
 						</div>
 					<?php $this->card_close(); ?>
 
+					<?php $this->card_open( 'Tarjetas de producto', 'dashicons-screenoptions', 'teal' ); ?>
+						<p class="asi-muted">Vacío = siguen a tus colores (etiqueta y precio usan el acento; el número, el principal).</p>
+						<div class="asi-colors" data-show="asi-preview-cards">
+							<?php foreach ( self::CARD_LABELS as $key => $label ) : ?>
+								<?php $this->color_row( $key, $label, $settings, $palette, $kit ); ?>
+							<?php endforeach; ?>
+						</div>
+					<?php $this->card_close(); ?>
+
+					<?php $this->card_open( 'Sugerencias (cuando no hay lo que pidió)', 'dashicons-lightbulb', 'amber' ); ?>
+						<p class="asi-muted">Si alguien pide algo que no hay (por ejemplo, un sedán de hasta Q 80,000), el chat lo avisa y muestra lo más cercano. Estos colores hacen que se note que son sugerencias y no lo que pidió. Al cambiar uno, la vista previa baja a ese ejemplo.</p>
+						<div class="asi-colors" data-show="asi-preview-suggest">
+							<?php foreach ( self::SUGGEST_LABELS as $key => $label ) : ?>
+								<?php $this->color_row( $key, $label, $settings, $palette, $kit ); ?>
+							<?php endforeach; ?>
+						</div>
+					<?php $this->card_close(); ?>
+
 					<?php $this->card_open( 'Esquinas', 'dashicons-image-crop', 'teal' ); ?>
 						<div class="asi-options asi-options--inline">
 							<?php foreach ( self::RADIUS_LABELS as $key => $label ) : ?>
@@ -944,7 +980,7 @@ class ASI_Admin {
 	 * Una fila de color: selector + de dónde sale el color actual.
 	 */
 	private function color_row( $key, array $label, array $settings, array $palette, array $kit ) {
-		$all_labels = self::COLOR_LABELS + self::BUTTON_LABELS;
+		$all_labels = self::COLOR_LABELS + self::BUTTON_LABELS + self::CARD_LABELS + self::SUGGEST_LABELS;
 		$source     = $palette[ $key ]['source'];
 		$texts      = array( 'custom' => 'propio', 'kit' => 'Kit de Elementor', 'default' => 'por defecto' );
 		$text       = isset( $texts[ $source ] ) ? $texts[ $source ] : 'igual que ' . strtolower( $all_labels[ $palette[ $key ]['from'] ][0] );
@@ -975,7 +1011,7 @@ class ASI_Admin {
 	private function preview( array $settings, $avatar ) {
 		$name = $settings['assistant_name'];
 		?>
-		<div class="asi-chat<?php echo ( ! $name && ! $avatar ) ? ' asi-chat--anonymous' : ''; ?>" id="asi-preview" style="<?php echo esc_attr( ASI_Appearance::css_variables() ); ?>;height:560px;min-height:0">
+		<div class="asi-chat<?php echo ( ! $name && ! $avatar ) ? ' asi-chat--anonymous' : ''; ?>" id="asi-preview" style="<?php echo esc_attr( ASI_Appearance::css_variables() ); ?>;height:640px;min-height:0">
 			<div class="asi-chat__header">
 				<div class="asi-chat__identity">
 					<img class="asi-chat__avatar" id="asi-preview-avatar" src="<?php echo esc_url( $avatar ); ?>" alt="" style="<?php echo $avatar ? '' : 'display:none'; ?>">
@@ -987,11 +1023,19 @@ class ASI_Admin {
 				<div class="asi-msg asi-msg--bot"><div class="asi-msg__bubble">¡Hola! Cuéntame qué necesitas y te ayudo a encontrarlo.</div></div>
 				<div class="asi-msg asi-msg--user"><div class="asi-msg__bubble">busco protector solar</div></div>
 				<div class="asi-msg asi-msg--bot"><div class="asi-msg__bubble">¡Claro! Encontré 2 opciones de protector solar.</div></div>
-				<div class="asi-cards">
-					<a class="asi-card" href="#" onclick="return false"><div class="asi-card__media asi-card__media--empty"><span class="asi-card__flag">Oferta</span></div><div class="asi-card__body"><span class="asi-card__meta">Protector solar · Marca</span><strong class="asi-card__title">Producto de ejemplo</strong><span class="asi-card__price">Q120.00</span></div></a>
-					<a class="asi-card" href="#" onclick="return false"><div class="asi-card__media asi-card__media--empty"></div><div class="asi-card__body"><span class="asi-card__meta">Protector solar</span><strong class="asi-card__title">Otro producto</strong><span class="asi-card__price">Q80.00</span></div></a>
+				<div class="asi-cards" id="asi-preview-cards">
+					<a class="asi-card" href="#" onclick="return false"><div class="asi-card__media asi-card__media--empty"><span class="asi-card__num">1</span><span class="asi-card__flag">Oferta</span></div><div class="asi-card__body"><span class="asi-card__meta">Protector solar · Marca</span><strong class="asi-card__title">Producto de ejemplo</strong><span class="asi-card__price">Q120.00</span></div></a>
+					<a class="asi-card" href="#" onclick="return false"><div class="asi-card__media asi-card__media--empty"><span class="asi-card__num">2</span></div><div class="asi-card__body"><span class="asi-card__meta">Protector solar</span><strong class="asi-card__title">Otro producto</strong><span class="asi-card__price">Q80.00</span></div></a>
 				</div>
 				<div class="asi-chips"><button type="button" class="asi-chip asi-chip--primary">Ver más opciones</button><button type="button" class="asi-chip">Cuidado de la piel</button></div>
+				<div class="asi-msg asi-msg--user" id="asi-preview-suggest"><div class="asi-msg__bubble">algo de menos de Q50</div></div>
+				<div class="asi-notice" role="status"><span class="asi-notice__icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.5h.01"/></svg></span><div class="asi-notice__copy"><strong class="asi-notice__title">No tenemos opciones de hasta Q50.00</strong><span class="asi-notice__text">Estos son los más cercanos a tu presupuesto, pero cuestan más.</span></div></div>
+				<div class="asi-suggest-head">Sugerencias, arriba de tu presupuesto</div>
+				<div class="asi-cards">
+					<a class="asi-card asi-card--suggested" href="#" onclick="return false"><div class="asi-card__media asi-card__media--empty"><span class="asi-card__num">1</span><span class="asi-card__flag asi-card__flag--suggested">Sugerencia</span></div><div class="asi-card__body"><span class="asi-card__meta">Protector solar</span><strong class="asi-card__title">Otro producto</strong><span class="asi-card__price">Q80.00</span><span class="asi-card__over">+ Q30.00 sobre tu presupuesto</span></div></a>
+					<a class="asi-card asi-card--suggested" href="#" onclick="return false"><div class="asi-card__media asi-card__media--empty"><span class="asi-card__num">2</span><span class="asi-card__flag asi-card__flag--suggested">Sugerencia</span></div><div class="asi-card__body"><span class="asi-card__meta">Protector solar · Marca</span><strong class="asi-card__title">Producto de ejemplo</strong><span class="asi-card__price">Q120.00</span><span class="asi-card__over">+ Q70.00 sobre tu presupuesto</span></div></a>
+				</div>
+				<div class="asi-chips"><button type="button" class="asi-chip asi-chip--primary">Subir a Q80.00</button></div>
 			</div>
 			<div class="asi-chat__form"><input class="asi-chat__input" placeholder="Escribe lo que buscas…" disabled><button type="button" class="asi-chat__send"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg></button></div>
 		</div>

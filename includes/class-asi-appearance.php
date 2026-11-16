@@ -23,6 +23,14 @@ class ASI_Appearance {
 		'reset_bg'     => 'background',
 		'reset_text'   => 'primary',
 		'reset_hover'  => 'surface',
+		// Tarjetas: siguen a los colores base hasta que se elija uno propio.
+		'card_flag'    => 'accent',
+		'card_num'     => 'primary',
+		'card_price'   => 'accent',
+		// Sugerencias: siguen al aviso de "no hay".
+		'sug_badge'    => 'notice_text',
+		'over_bg'      => 'notice_bg',
+		'over_text'    => 'notice_text',
 	);
 
 	/** Valores neutros si no hay Kit ni ajuste. */
@@ -32,6 +40,11 @@ class ASI_Appearance {
 		'text'       => '#1f2937',
 		'background' => '#ffffff',
 		'surface'    => '#f3f4f6',
+		// Aviso "No tenemos… / estos se pasan de tu presupuesto": ámbar que se nota sin leer.
+		'notice_bg'     => '#fff4d6',
+		'notice_border' => '#f2cf7a',
+		'notice_text'   => '#8a4b06',
+		'sug_border'    => '#cfd4da',
 	);
 
 	/**
@@ -119,6 +132,8 @@ class ASI_Appearance {
 		$vars['--asi-on-accent']       = self::contrast( $vars['--asi-accent'] );
 		$vars['--asi-on-button']       = self::contrast( $vars['--asi-button'] );
 		$vars['--asi-on-button_hover'] = self::contrast( $vars['--asi-button_hover'] );
+		$vars['--asi-on-card_flag']    = self::contrast( $vars['--asi-card_flag'] );
+		$vars['--asi-on-card_num']     = self::contrast( $vars['--asi-card_num'] );
 		$radius                  = isset( ASI_Settings::RADII[ $settings['radius'] ] ) ? ASI_Settings::RADII[ $settings['radius'] ] : ASI_Settings::RADII['rounded'];
 		$vars['--asi-radius']     = $radius . 'px';
 

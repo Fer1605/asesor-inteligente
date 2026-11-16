@@ -53,6 +53,18 @@
 		preview.style.setProperty( '--asi-on-accent', contrast( current( 'accent' ) ) );
 		preview.style.setProperty( '--asi-on-button', contrast( current( 'button' ) ) );
 		preview.style.setProperty( '--asi-on-button_hover', contrast( current( 'button_hover' ) ) );
+		preview.style.setProperty( '--asi-on-card_flag', contrast( current( 'card_flag' ) ) );
+		preview.style.setProperty( '--asi-on-card_num', contrast( current( 'card_num' ) ) );
+	}
+
+	// Al cambiar un color de tarjetas o de sugerencias, la vista previa baja a ese ejemplo.
+	const log = preview.querySelector( '.asi-chat__log' );
+	function reveal( input ) {
+		const group = input.closest( '[data-show]' );
+		const target = group ? document.getElementById( group.dataset.show ) : null;
+		if ( log && target ) {
+			log.scrollTop = Math.max( 0, target.offsetTop - log.offsetTop - 12 );
+		}
 	}
 
 	inputs.forEach( function ( input ) {
@@ -62,10 +74,12 @@
 			change: function ( event, ui ) {
 				values[ key ] = ui.color.toString();
 				refresh();
+				reveal( input );
 			},
 			clear: function () {
 				values[ key ] = '';
 				refresh();
+				reveal( input );
 			},
 		} );
 	} );

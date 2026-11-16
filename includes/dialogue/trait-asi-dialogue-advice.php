@@ -205,7 +205,7 @@ trait ASI_Dialogue_Advice {
 			$sheet['currency'] = $search['price_currency'];
 		}
 		$saved = ASI_Search_Sheet::type_of( $sheet, ASI_Search_Sheet::type_keys( (array) $this->context['packs'] ) ) ? ASI_Search_Sheet::render( $sheet, (array) $this->lexicon->get_list( 'ai_phrases' ) ) : '';
-		return array(
+		$reply = array(
 			'kind'        => 'results',
 			'text'        => $this->sentences( $text ),
 			'cards'       => $this->cards( $picked ),
@@ -224,6 +224,8 @@ trait ASI_Dialogue_Advice {
 				'pending' => array(),
 			),
 		);
+		// Lo que recomienda se pasa de su presupuesto: que se note en las tarjetas, no solo en el texto.
+		return $over ? $this->as_suggestion( $reply, $search, '', false, $this->responder->say( 'suggest_title_advice', array( 'budget' => $this->budget_text( $search ) ) ) ) : $reply;
 	}
 
 	/**

@@ -121,7 +121,7 @@
 	}
 
 	function card( data, number ) {
-		const link = el( 'a', 'asi-card' );
+		const link = el( 'a', 'asi-card' + ( data.suggested ? ' asi-card--suggested' : '' ) );
 		link.href = safeUrl( data.url );
 		if ( data.id ) {
 			link.dataset.asiId = data.id;
@@ -141,9 +141,14 @@
 		} else {
 			media.classList.add( 'asi-card__media--empty' );
 		}
-		( data.flags || [] ).slice( 0, 2 ).forEach( function ( flag ) {
-			media.appendChild( el( 'span', 'asi-card__flag', flag ) );
-		} );
+		// Una sugerencia (no es lo que pidió) lleva su etiqueta en lugar de "Nuevo" u "Oferta".
+		if ( data.suggested ) {
+			media.appendChild( el( 'span', 'asi-card__flag asi-card__flag--suggested', data.badge || '' ) );
+		} else {
+			( data.flags || [] ).slice( 0, 2 ).forEach( function ( flag ) {
+				media.appendChild( el( 'span', 'asi-card__flag', flag ) );
+			} );
+		}
 		link.appendChild( media );
 
 		const body = el( 'div', 'asi-card__body' );
@@ -164,6 +169,9 @@
 				price.appendChild( el( 'small', 'asi-card__price-alt', data.price_alt ) );
 			}
 			body.appendChild( price );
+		}
+		if ( data.over ) {
+			body.appendChild( el( 'span', 'asi-card__over', data.over ) );
 		}
 		link.appendChild( body );
 		return link;
@@ -308,9 +316,30 @@
 		log.appendChild( wrap );
 	}
 
-	function renderBot( data ) {
+	// Aviso de que lo que sigue no es lo que pidió ("No tenemos sedán de hasta Q 80,000").
+	function notice( data ) {
+		const box = el( 'div', 'asi-notice' );
+		box.setAttribute( 'role', 'status' );
+		const icon = el( 'span', 'asi-notice__icon' );
+		icon.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.5h.01"/></svg>';
+		const copy = el( 'div', 'asi-notice__copy' );
+		copy.appendChild( el( 'strong', 'asi-notice__title', data.title || '' ) );
 		if ( data.text ) {
+			copy.appendChild( el( 'span', 'asi-notice__text', data.text ) );
+		}
+		box.append( icon, copy );
+		log.appendChild( box );
+		if ( data.heading ) {
+			log.appendChild( el( 'div', 'asi-suggest-head', data.heading ) );
+		}
+	}
+
+	function renderBot( data ) {
+		if ( data.text && ! ( data.notice && data.notice.replace ) ) {
 			bubble( 'bot', data.text );
+		}
+		if ( data.notice ) {
+			notice( data.notice );
 		}
 		quote( data.quote );
 		places( data.places );

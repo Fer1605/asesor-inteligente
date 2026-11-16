@@ -869,7 +869,7 @@ class ASI_Dialogue {
 			$reply = $this->search_flow( $text, $found, $state, array( 'opening' => 'refine' === $mode ? 'refine_over_budget' : 'new_over_budget', 'refine' => '' !== $label ? $label : $found['label'], 'budget' => $this->budget_text( $this->analyzer->analyze( $keep ) ) ) );
 			$reply['state']['q']   = $keep;
 			$reply['over_budget'] = true; // Lo usa budget_check; no se envía al navegador.
-			return $reply;
+			return $this->as_suggestion( $reply, $this->analyzer->analyze( $keep ), '' !== $label ? $label : $found['label'] );
 		}
 		// Solo dijo el monto ("un carro de menos de 50 mil") y no hay nada en ese rango: se dice
 		// y se muestra lo más económico que hay, en vez de "no encontré nada".
@@ -909,7 +909,7 @@ class ASI_Dialogue {
 		$ids   = array_map( 'intval', array_column( $rows, 'post_id' ) );
 		$cards = $this->cards( $rows, $all );
 		$price = isset( $cards[0]['price'] ) && '' !== (string) $cards[0]['price'] ? $cards[0]['price'] : $rows[0]['card']['price'];
-		return array(
+		$reply = array(
 			'kind'        => 'results',
 			'text'        => $this->responder->say( 'budget_none_cheapest', array( 'budget' => $this->budget_text( $budget ), 'price' => $price ) ),
 			'cards'       => $cards,
@@ -920,6 +920,64 @@ class ASI_Dialogue {
 			'over_budget' => true,
 			'state'       => array( 'q' => $this->short( $keep, 200 ), 'shown' => $ids, 'results' => $ids, 'focus' => 0 ),
 		);
+		return $this->as_suggestion( $reply, $budget, '' );
+	}
+
+	/**
+	 * Lo que se muestra no es lo que pidió (se pasa del presupuesto): se marca como sugerencia para
+	 * que se note sin leer. Aviso de color arriba ("No tenemos sedán de hasta Q 80,000"), tarjetas con
+	 * la etiqueta "Sugerencia" y, debajo del precio, cuánto se pasa. Cierra con un botón para subir
+	 * el tope a lo más barato que hay.
+	 *
+	 * @param array  $reply   Respuesta con tarjetas.
+	 * @param array  $budget  Consulta con el presupuesto.
+	 * @param string $label   Lo que pidió ("sedán"), o '' si solo dio el monto.
+	 * @param bool   $replace El aviso reemplaza al texto (false: el texto se queda, p. ej. el del asesor).
+	 */
+	private function as_suggestion( array $reply, array $budget, $label, $replace = true, $title = '' ) {
+		if ( empty( $reply['cards'] ) ) {
+			return $reply;
+		}
+		$money  = ASI_Money::config( (array) $this->context['money'] );
+		$iso    = ! empty( $budget['price_currency'] ) ? $budget['price_currency'] : $money['base'];
+		$max    = null !== $budget['price_max'] ? ASI_Money::to_base( $budget['price_max'], $iso, $money ) : null;
+		$words  = $this->budget_text( $budget );
+		$ids    = array_map( 'intval', array_column( $reply['cards'], 'id' ) );
+		$prices = array();
+		foreach ( $this->repository->rows( $this->context['lang'], $ids ) as $row ) {
+			$prices[ (int) $row['post_id'] ] = $this->base_price( $row );
+		}
+		$cheapest = null;
+		foreach ( $reply['cards'] as &$card ) {
+			$card['suggested'] = true;
+			$card['badge']     = $this->responder->say( 'suggest_badge' );
+			$price             = isset( $prices[ (int) $card['id'] ] ) ? $prices[ (int) $card['id'] ] : 0.0;
+			if ( null !== $max && $price > $max ) {
+				$card['over'] = $this->responder->say( 'suggest_over', array( 'amount' => ASI_Money::format( round( $price - $max ), $money['base'] ) ) );
+				$cheapest     = null === $cheapest ? $price : min( $cheapest, $price );
+			}
+		}
+		unset( $card );
+		$reply['notice'] = array(
+			'title'   => '' !== $title ? $title : ( '' !== trim( (string) $label ) ? $this->responder->say( 'suggest_title', array( 'label' => $label, 'budget' => $words ) ) : $this->responder->say( 'suggest_title_any', array( 'budget' => $words ) ) ),
+			'text'    => $this->responder->say( 'suggest_detail' ),
+			'heading' => $this->responder->say( 'suggest_heading' ),
+			'replace' => (bool) $replace,
+		);
+		unset( $reply['extra'] );
+		// Botón para subir el tope a lo más barato que se mostró, redondeado hacia arriba (Q 85,990 → Q 86,000).
+		$chips = array();
+		if ( null !== $cheapest ) {
+			$step    = pow( 10, max( 0, strlen( (string) (int) $cheapest ) - 2 ) );
+			$chips[] = $this->responder->say( 'suggest_raise', array( 'amount' => ASI_Money::format( ceil( $cheapest / $step ) * $step, $money['base'] ) ) );
+		}
+		if ( $replace ) {
+			$reply['followup']    = $this->responder->say( 'suggest_followup' );
+			$reply['suggestions'] = array_slice( array_merge( $chips, ! empty( $reply['more'] ) ? array( $this->lexicon->word( 'more_chip' ) ) : array() ), 0, 3 );
+		} elseif ( $chips ) {
+			$reply['suggestions'] = array_slice( array_merge( $chips, (array) $reply['suggestions'] ), 0, 3 );
+		}
+		return $reply;
 	}
 
 	/**

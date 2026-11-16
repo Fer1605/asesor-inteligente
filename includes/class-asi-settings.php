@@ -25,7 +25,7 @@ class ASI_Settings {
 	const SEARCH_MODES = array( 'none', 'redirect', 'choice' );
 
 	/** Colores configurables del chat. Vacío = se toma del Kit de Elementor o del valor por defecto. */
-	const COLOR_KEYS = array( 'primary', 'accent', 'text', 'background', 'surface', 'button', 'button_hover', 'reset_bg', 'reset_text', 'reset_hover' );
+	const COLOR_KEYS = array( 'primary', 'accent', 'text', 'background', 'surface', 'button', 'button_hover', 'reset_bg', 'reset_text', 'reset_hover', 'card_flag', 'card_num', 'card_price', 'notice_bg', 'notice_border', 'notice_text', 'sug_badge', 'sug_border', 'over_bg', 'over_text' );
 
 	const RADII = array(
 		'square'  => 2,
