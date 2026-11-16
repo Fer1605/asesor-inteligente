@@ -24,6 +24,22 @@ class ASI_Chat_Page {
 		add_shortcode( self::SHORTCODE, array( $this, 'render' ) );
 		add_action( 'asi_mode_changed', array( $this, 'sync_status' ) );
 		add_action( 'asi_discovered', array( $this, 'create_pages_once' ) );
+		add_filter( 'body_class', array( $this, 'body_class' ) );
+	}
+
+	/**
+	 * Marca la página del chat con la clase "asi-chat-page", para que el sitio pueda ajustar ahí lo
+	 * suyo (p. ej. ocultar un botón del pie que se confunde con "enviar") sin depender del ID de la página.
+	 *
+	 * @param string[] $classes Clases del body.
+	 * @return string[]
+	 */
+	public function body_class( $classes ) {
+		$post = is_singular( 'page' ) ? get_queried_object() : null;
+		if ( $post instanceof WP_Post && self::is_chat_page( $post ) ) {
+			$classes[] = 'asi-chat-page';
+		}
+		return $classes;
 	}
 
 	/**
