@@ -3,3 +3,11 @@
 /vendor/
 .idea/
 .vscode/
+
+# Audios, videos y capturas de reuniones: nunca al repositorio público.
+*.ogg
+*.opus
+*.mp3
+*.m4a
+*.wav
+*.mp4

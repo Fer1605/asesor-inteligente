@@ -753,8 +753,9 @@ class ASI_Admin {
 		$state     = ASI_Indexer::get_state();
 		$stats     = ASI_Index_Table::stats();
 		$next      = wp_next_scheduled( ASI_Indexer::CRON_BATCH );
-		$questions = ASI_Learning::questions();
-		$documents = array_sum( array_map( 'intval', wp_list_pluck( $stats, 'total' ) ) );
+		// Con la IA activa aprende sola: las preguntas por revisar solo importan en modo manual.
+		$manual    = ! ( class_exists( 'ASI_AI' ) && ASI_AI::enabled() );
+		$questions = $manual ? ASI_Learning::questions() : array();
 		$countries = count( $this->plugin->languages->countries() );
 		$pages     = 0;
 		foreach ( array_keys( $languages ) as $slug ) {
@@ -765,18 +766,18 @@ class ASI_Admin {
 			<span class="asi-hero__icon dashicons dashicons-lightbulb" aria-hidden="true"></span>
 			<p class="asi-hero__lead">
 				<strong>Un asistente que entiende lo que buscan tus visitantes</strong> y responde con los productos, servicios e información de tu sitio,
-				en el idioma y país de cada página. Se configura solo al activarse, todo corre en tu servidor y no usa servicios externos ni tiene costo por uso.
+				en el idioma y país de cada página. Se configura solo al activarse y todo corre en tu servidor; la IA es opcional y tiene su propio tope de gasto diario.
 			</p>
 		</div>
-		<p class="asi-note asi-note--ok"><strong>¿Primera vez aquí?</strong> Los pasos para empezar, qué puede preguntar la gente y cómo enseñarle están en la <a href="<?php echo esc_url( $this->tab_url( 'guia' ) ); ?>">Guía</a>.</p>
 
 		<div class="asi-stats">
 			<?php
-			$this->stat( 'dashicons-media-document', 'blue', number_format_i18n( $documents ), 'Documentos indexados', ! empty( $state['running'] ) ? 'Indexando…' : 'Al día' );
 			$this->stat( 'dashicons-translation', 'teal', count( $languages ), 1 === count( $languages ) ? 'Idioma' : 'Idiomas', $this->adapter_label() );
 			$this->stat( 'dashicons-admin-site-alt3', 'purple', max( 1, $countries ), 1 >= $countries ? 'País' : 'Países', $countries > 1 ? 'Sitio multipaís' : 'Sin filtro de país' );
 			$this->stat( 'dashicons-format-chat', 'green', $pages . ' / ' . count( $languages ), 'Páginas del chat', $pages < count( $languages ) ? 'Faltan páginas' : 'Listas' );
-			$this->stat( 'dashicons-welcome-learn-more', 'amber', count( $questions ), 'Preguntas por revisar', count( $questions ) ? 'Enséñale en Aprendizaje' : 'Nada pendiente' );
+			if ( $manual ) {
+				$this->stat( 'dashicons-welcome-learn-more', 'amber', count( $questions ), 'Preguntas por revisar', count( $questions ) ? 'Enséñale en Aprendizaje' : 'Nada pendiente' );
+			}
 			?>
 		</div>
 
