@@ -714,7 +714,7 @@ class ASI_Query_Analyzer {
 	 * @return string Texto sin la parte negada.
 	 */
 	private function extract_negation( $text, array &$result, array $display ) {
-		$marker = ASI_Lexicon::find_phrase( $text, (array) $this->lexicon->get_list( 'negation_markers' ) );
+		$marker = $this->negation_marker( $text );
 		if ( '' === $marker ) {
 			return $text;
 		}
@@ -777,8 +777,29 @@ class ASI_Query_Analyzer {
 	 *
 	 * @return string[] { lo que quiere, lo negado ('' si no hay negación) }
 	 */
+	/**
+	 * Dónde empieza lo que no quiere: "que no sea", "no quiero"… o, al inicio del mensaje, un "no",
+	 * "sin" o "ni" solo ("no pickup", "sin diésel", "ni toyota"), como se contesta en un chat.
+	 */
+	private function negation_marker( $text ) {
+		$marker = ASI_Lexicon::find_phrase( $text, (array) $this->lexicon->get_list( 'negation_markers' ) );
+		if ( '' !== $marker ) {
+			return $marker;
+		}
+		// Solo en respuestas cortas: "no no, somos 4…" es una aclaración, no algo que excluir.
+		if ( count( preg_split( '/\s+/', trim( $text ) ) ) > 4 ) {
+			return '';
+		}
+		foreach ( (array) $this->lexicon->get_list( 'negation_leads' ) as $lead ) {
+			if ( 0 === strpos( trim( $text ) . ' ', $lead . ' ' ) ) {
+				return $lead;
+			}
+		}
+		return '';
+	}
+
 	private function split_negation( $normalized ) {
-		$marker = ASI_Lexicon::find_phrase( $normalized, (array) $this->lexicon->get_list( 'negation_markers' ) );
+		$marker = $this->negation_marker( $normalized );
 		if ( '' === $marker ) {
 			return array( $normalized, '' );
 		}

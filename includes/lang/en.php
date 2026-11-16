@@ -168,6 +168,7 @@ return array(
 	'refine_markers' => array( 'and', 'only', 'just', 'but', 'in', 'with', 'without', 'brand', 'color', 'colour', 'that are' ),
 
 	'negation_stops'   => array( 'i want', 'i need', 'only', 'just', 'but', 'rather' ),
+	'negation_leads'   => array( 'no', 'not', 'without' ),
 	'negation_markers' => array( 'that is not', 'that are not', 'that isnt', 'that arent', 'not the', 'except', 'excluding', 'other than', 'but not', 'i dont want' ),
 
 	'evidence' => array(

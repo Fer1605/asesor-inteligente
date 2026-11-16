@@ -525,7 +525,7 @@ class ASI_Dialogue {
 		}
 
 		// Solo un monto ("un carro de menos de 50 mil") y nada en ese rango: lo más económico.
-		if ( ! $catalog['items'] && ASI_Search::has_price_filter( $query ) && ! $this->has_critical( $query ) && empty( $query['attrs'] ) ) {
+		if ( ! $catalog['items'] && ASI_Search::has_price_filter( $query ) && ! $this->has_critical( $query ) && ! $this->wants_attrs( $query ) ) {
 			$cheap = $this->cheapest_instead( $query, $text, $state );
 			if ( $cheap ) {
 				return $cheap;
@@ -609,7 +609,12 @@ class ASI_Dialogue {
 			$left_out = array_merge( $left_out, preg_replace( '/^(de|of) /u', '', (array) $query['attr_not_labels'] ) );
 		}
 		if ( $left_out ) {
-			$intro[] = $this->responder->say( 'excluded', array( 'excluded' => $this->responder->join_list( array_values( array_unique( $left_out ) ), 'and' ) ) );
+			// "pick up" y "pickup" son lo mismo: se nombra una vez.
+			$named = array();
+			foreach ( $left_out as $item ) {
+				$named[ str_replace( array( ' ', '-' ), '', ASI_Normalizer::normalize( (string) $item ) ) ] = $item;
+			}
+			$intro[] = $this->responder->say( 'excluded', array( 'excluded' => $this->responder->join_list( array_values( $named ), 'and' ) ) );
 		}
 		// Un solo producto (o el que nombró): se describe con los datos de su ficha.
 		$single = 1 === $total || $catalog['named'];
@@ -873,12 +878,23 @@ class ASI_Dialogue {
 		}
 		// Solo dijo el monto ("un carro de menos de 50 mil") y no hay nada en ese rango: se dice
 		// y se muestra lo más económico que hay, en vez de "no encontré nada".
+		// Solo si de verdad no hay nada en ese monto ("no quiero pickup" con Q 400,000 sí tiene SUV).
 		$open = ASI_Search_Sheet::without_price( $sheet );
-		if ( ! $open['terms'] && ! $open['attrs'] && ! $open['words'] ) {
-			$keep = ASI_Search_Sheet::render( $sheet, $phrases );
+		$keep = ASI_Search_Sheet::render( $sheet, $phrases );
+		if ( ! $open['terms'] && ! $open['attrs'] && ! $open['words'] && ! $this->exact( $this->analyzer->analyze( $keep ) ) ) {
 			return $this->cheapest_instead( $this->analyzer->analyze( $keep ), $keep, $state );
 		}
 		return null;
+	}
+
+	/** ¿Pidió un atributo (SUV, 4x4…)? Lo que no quiere ("no pickup") no cuenta. */
+	private function wants_attrs( array $query ) {
+		foreach ( (array) $query['attrs'] as $rule ) {
+			if ( ! isset( $rule['not_in'] ) || count( (array) $rule ) > 1 ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Lo más económico del catálogo, cuando en el monto que pidió no hay nada. null si no hay precios. */

@@ -170,6 +170,21 @@ $s = array();
 $r = $chat( 'quiero un carro de menos de cincuenta mil', $s );
 check( 'sin nada en el monto: lo dice y muestra lo más barato', array( true, 5 ), array( false !== strpos( $r['text'], 'Q 50,000' ) && false !== strpos( $r['text'], 'Q 135,990' ), (int) ( $r['cards'][0]['id'] ?? 0 ) ) );
 echo '   [50 mil] ' . $r['text'] . ' | ' . implode( ',', asi_card_ids( $r ) ) . "\n";
+// Negación corta, como se contesta en un chat: "no pick-up", "no pickup", "sin pickup".
+foreach ( array( 'no pick-up', 'no pickup', 'sin pickup', 'no quiero pick-up' ) as $q ) {
+	$s = array();
+	$chat( 'quiero algo de menos de 400 mil', $s );
+	$r = $chat( $q, $s );
+	check( 'negación corta: "' . $q . '" quita las pickups y deja lo demás', array( false, false, true ), array( in_array( 6, asi_card_ids( $r ), true ), in_array( 7, asi_card_ids( $r ), true ), in_array( 1, asi_card_ids( $r ), true ) ) );
+}
+$s = array();
+$chat( 'toyota', $s );
+$r = $chat( 'no pick-up', $s );
+check( 'negación corta: nombra "pick up" una sola vez', 1, substr_count( strtolower( str_replace( array( ' ', '-' ), '', $r['text'] ) ), 'pickup' ) );
+$s = array();
+$r = $chat( 'sin pickups, una suv', $s );
+check( 'negación corta: "sin pickups, una suv" muestra SUV', true, (bool) $r['cards'] && in_array( 1, asi_card_ids( $r ), true ) && ! in_array( 6, asi_card_ids( $r ), true ) );
+
 // Conversación real: tope, "no quiero pickup", "quiero sedan".
 $s = array();
 $chat( 'quiero un carro de menos de cincuenta mil', $s );

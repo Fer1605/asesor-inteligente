@@ -210,7 +210,9 @@ return array(
 
 	// "Que no sea eléctrico", "excepto los usados": lo que sigue se excluye de los resultados.
 	// Dónde termina lo que se niega: "que no sean eléctricos, solo diésel".
-	'negation_stops'   => array( 'quiero', 'quisiera', 'busco', 'solo', 'solamente', 'unicamente', 'pero', 'mejor', 'que sean', 'que sea' ),
+	'negation_stops'   => array( 'quiero', 'quisiera', 'busco', 'solo', 'solamente', 'unicamente', 'pero', 'mejor', 'que sean', 'que sea', 'una', 'un' ),
+	// Al inicio del mensaje también niegan solos: "no pickup", "sin diésel", "ni toyota".
+	'negation_leads'   => array( 'nada de', 'no', 'sin', 'ni' ),
 	'negation_markers' => array( 'que no sea', 'que no sean', 'que no tenga', 'que no tengan', 'no quiero', 'no me muestres', 'no me interesan', 'no me interesa', 'excepto', 'salvo', 'menos los', 'menos las', 'menos el', 'menos la', 'pero no', 'no sea', 'no sean', 'sin incluir' ),
 
 	// Palabras que suelen estar en la frase que responde cada pregunta informativa.
