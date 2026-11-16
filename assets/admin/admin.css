@@ -1330,3 +1330,126 @@
 }
 .asi-admin .asi-chart-days--single .asi-chart-days__col span { flex-basis: 16px; }
 .asi-admin .asi-chart-big { font-size: 28px; color: #1d2327; }
+
+/* ============================================================================
+   Estilo de tablero (como el Panel Kinsta), a todo el ancho.
+
+   Una pantalla por entrada del menú de WordPress; título grande y una línea que dice qué
+   contesta; tarjetas blancas con un borde gris fino (sin franjas de color: se leen como
+   "hecho con IA"); números grandes en azul. panel.js acomoda las tarjetas en la rejilla.
+   ========================================================================= */
+
+body.toplevel_page_asesor-inteligente #wpcontent { background: #f5f7fa; }
+
+.asi-admin {
+	--asi-k-marca: #1f7ae0;
+	--asi-k-marca-suave: #e7f1fd;
+	--asi-k-borde: #e6e7ee;
+	--asi-k-texto: #1b1b2f;
+	--asi-k-apagado: #6b6f80;
+	--asi-k-tenue: #9598a8;
+	--asi-k-radio: 10px;
+	--asi-k-sombra: 0 1px 2px rgba( 20, 20, 63, 0.04 ), 0 4px 12px rgba( 20, 20, 63, 0.04 );
+	--asi-a-accent: var( --asi-k-marca );
+	--asi-a-border: var( --asi-k-borde );
+	--asi-a-radius: var( --asi-k-radio );
+	max-width: none;
+	margin-right: 20px;
+	color: var( --asi-k-texto );
+	font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Encabezado de cada pantalla */
+.asi-admin .asi-cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin: 18px 0 18px; }
+.asi-admin .asi-cabecera__titulo { margin: 0; padding: 0; font-size: 29px; font-weight: 700; letter-spacing: -0.6px; line-height: 1.2; color: var( --asi-k-texto ); }
+.asi-admin .asi-cabecera__sub { margin: 3px 0 0; color: var( --asi-k-apagado ); font-size: 13px; }
+.asi-admin .asi-cabecera__acciones { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.asi-admin .asi-pastilla { display: inline-flex; align-items: center; padding: 7px 15px; border: 1px solid var( --asi-k-borde ); border-radius: 999px; background: #fff; color: var( --asi-k-texto ); font-size: 12.5px; font-weight: 500; cursor: pointer; }
+.asi-admin .asi-pastilla:hover { border-color: var( --asi-k-marca ); }
+
+/* Rejilla de 12 columnas */
+.asi-admin .asi-rejilla { display: grid; grid-template-columns: repeat( 12, minmax( 0, 1fr ) ); gap: 18px; align-items: start; }
+.asi-admin .asi-rejilla > * { grid-column: span 12; margin: 0 !important; min-width: 0; }
+.asi-admin .asi-rejilla > .asi-c4 { grid-column: span 4; }
+.asi-admin .asi-rejilla > .asi-c5 { grid-column: span 5; }
+.asi-admin .asi-rejilla > .asi-c6 { grid-column: span 6; }
+.asi-admin .asi-rejilla > .asi-c7 { grid-column: span 7; }
+.asi-admin .asi-rejilla > .asi-c8 { grid-column: span 8; }
+.asi-admin .asi-rejilla > .asi-alto { align-self: stretch; }
+@media ( max-width: 1280px ) {
+	.asi-admin .asi-rejilla > .asi-c4, .asi-admin .asi-rejilla > .asi-c5, .asi-admin .asi-rejilla > .asi-c7, .asi-admin .asi-rejilla > .asi-c8 { grid-column: span 6; }
+}
+@media ( max-width: 980px ) {
+	.asi-admin .asi-rejilla > [class*="asi-c"] { grid-column: span 12; }
+}
+
+/* Tarjetas */
+.asi-admin .asi-panel,
+.asi-admin .asi-panel--accent,
+.asi-admin [class*="asi-panel--"] { border: 1px solid var( --asi-k-borde ) !important; }
+.asi-admin .asi-panel { background: #fff; border-radius: var( --asi-k-radio ); box-shadow: var( --asi-k-sombra ); padding: 0 20px 18px; }
+.asi-admin .asi-panel__title { font-size: 15.5px; font-weight: 700; letter-spacing: -0.2px; margin: 0 -20px 16px; padding: 15px 20px; border-bottom: 1px solid #f0f1f6; color: var( --asi-k-texto ); }
+.asi-admin .asi-panel__title .asi-icon { display: none; }
+
+/* Introducción de la pantalla: una franja azul suave */
+.asi-admin .asi-hero { display: flex; gap: 12px; align-items: center; background: var( --asi-k-marca-suave ); border: 1px solid #c2dbf8; box-shadow: none; padding: 12px 16px; border-radius: var( --asi-k-radio ); }
+.asi-admin .asi-hero__icon { font-size: 20px; width: 20px; height: 20px; color: var( --asi-k-marca ); }
+.asi-admin .asi-hero p, .asi-admin .asi-hero__lead { margin: 0; font-size: 13.5px; }
+
+/* Cifras */
+.asi-admin .asi-stats { grid-template-columns: repeat( auto-fit, minmax( 210px, 1fr ) ); gap: 18px; margin: 0; }
+.asi-admin .asi-stat { padding: 18px 20px; align-items: flex-start; border-color: var( --asi-k-borde ); border-radius: var( --asi-k-radio ); box-shadow: var( --asi-k-sombra ); }
+.asi-admin .asi-stat .asi-icon { display: none; }
+.asi-admin .asi-stat__value { font-size: 38px; line-height: 1.1; letter-spacing: -1.2px; color: var( --asi-k-marca ); }
+.asi-admin .asi-stat__label { display: block; margin-top: 4px; font-size: 13.5px; font-weight: 600; color: var( --asi-k-texto ); }
+.asi-admin .asi-stat__hint { display: block; font-size: 12px; color: var( --asi-k-apagado ); }
+
+/* Tablas */
+.asi-admin .asi-table th,
+.asi-admin .asi-table thead th { font-size: 11px; font-weight: 600; color: var( --asi-k-tenue ); text-transform: uppercase; letter-spacing: 0.5px; background: #fbfbfd; border-bottom: 1px solid var( --asi-k-borde ); }
+.asi-admin .asi-table td { font-size: 13.5px; border-bottom: 1px solid #f3f4f9; }
+.asi-admin .asi-table tbody tr:hover { background: #fbfbfe; }
+
+/* Botones y campos */
+.asi-admin .button-primary { background: var( --asi-k-marca ); border-color: var( --asi-k-marca ); border-radius: 7px; font-weight: 600; }
+.asi-admin .button-primary:hover,
+.asi-admin .button-primary:focus { background: #1868c4; border-color: #1868c4; }
+.asi-admin .button { border-radius: 7px; }
+.asi-admin input[type="text"], .asi-admin input[type="url"], .asi-admin input[type="email"], .asi-admin input[type="number"],
+.asi-admin input[type="date"], .asi-admin input[type="password"], .asi-admin select, .asi-admin textarea { border-color: var( --asi-k-borde ); border-radius: 7px; }
+
+/* Reportería: filtros y descargas en una barra */
+.asi-admin .asi-herramientas { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: flex-end; justify-content: space-between; padding: 14px 20px; background: #fff; border: 1px solid var( --asi-k-borde ); border-radius: var( --asi-k-radio ); box-shadow: var( --asi-k-sombra ); }
+.asi-admin .asi-herramientas__filtros { flex: 1 1 520px; }
+.asi-admin .asi-herramientas__descargas { display: grid; gap: 8px; flex: 0 1 auto; }
+.asi-admin .asi-herramientas .asi-report-filters { margin: 0 !important; padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; }
+.asi-admin .asi-herramientas .asi-report-export { margin: 0 !important; }
+.asi-admin .asi-demo-note { margin: -6px 0 0; font-size: 12.5px; }
+.asi-admin .asi-rejilla > .asi-c4 .asi-chart-bars__row { grid-template-columns: minmax( 80px, 46% ) 1fr 40px; font-size: 12.5px; }
+
+/* Apariencia y Contacto: ajustes en dos columnas, vista previa fija a la derecha */
+.asi-admin .asi-split { grid-template-columns: minmax( 0, 1fr ) minmax( 380px, 460px ); gap: 18px; }
+.asi-admin .asi-split > div:first-child:not( .asi-sticky ) { display: grid; grid-template-columns: repeat( 2, minmax( 0, 1fr ) ); gap: 18px; align-content: start; }
+.asi-admin .asi-split > div:first-child > .asi-panel { margin: 0; }
+.asi-admin .asi-split > div:first-child > .asi-actions { grid-column: 1 / -1; }
+.asi-admin .asi-sticky { top: 46px; }
+.asi-admin #asi-contact-form .asi-split > div:first-child { grid-template-columns: 1fr; }
+@media ( max-width: 1280px ) {
+	.asi-admin .asi-split > div:first-child:not( .asi-sticky ) { grid-template-columns: 1fr; }
+}
+@media ( max-width: 980px ) {
+	.asi-admin .asi-split { grid-template-columns: 1fr; }
+}
+
+/* Recorrido guiado */
+.asi-tour-foco { position: fixed; z-index: 100000; border-radius: 10px; pointer-events: none; box-shadow: 0 0 0 9999px rgba( 15, 23, 42, 0.62 ); outline: 3px solid #fff; outline-offset: 2px; transition: all 0.25s ease; }
+.asi-tour-globo { position: fixed; z-index: 100001; width: 330px; max-width: calc( 100vw - 32px ); background: #fff; border-radius: 12px; padding: 18px 18px 14px; box-shadow: 0 18px 50px rgba( 0, 0, 0, 0.28 ); transition: top 0.25s ease, left 0.25s ease; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+.asi-tour-globo__paso { font-size: 11.5px; font-weight: 700; color: #1f7ae0; text-transform: uppercase; letter-spacing: 0.5px; }
+.asi-tour-globo h4 { margin: 4px 0 6px; font-size: 16px; }
+.asi-tour-globo p { margin: 0; color: #4a4e5e; font-size: 13.5px; }
+.asi-tour-globo__puntos { display: flex; gap: 5px; margin: 14px 0 12px; }
+.asi-tour-globo__puntos i { width: 7px; height: 7px; border-radius: 50%; background: #dfe1ea; }
+.asi-tour-globo__puntos i.on { width: 18px; border-radius: 999px; background: #1f7ae0; }
+.asi-tour-globo__botones { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.asi-tour-globo__saltar { background: none; border: 0; padding: 6px 0; color: #6b6f80; font-size: 12.5px; cursor: pointer; }
+.asi-tour-globo__saltar:hover { color: #1b1b2f; }

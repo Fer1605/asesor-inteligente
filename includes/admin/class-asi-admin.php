@@ -26,17 +26,32 @@ class ASI_Admin {
 	/** @var string Qué se grafica: all (chat y sitio), chat o site. */
 	private $chart_scope = 'all';
 
+	/** Pantallas, en el orden del menú: primero lo que se mira a diario, al final la configuración. */
 	const TABS = array(
-		'inicio'     => 'Inicio',
-		'apariencia' => 'Apariencia',
-		'conexion'   => 'Conexión',
-		'contacto'   => 'Contacto',
-		'contenido'  => 'Contenido',
+		'inicio'      => 'Inicio',
+		'reportes'    => 'Reportería',
+		'probar'      => 'Probar',
 		'aprendizaje' => 'Aprendizaje',
-		'reportes'   => 'Reportería',
-		'ia'         => 'IA',
-		'probar'     => 'Probar',
-		'guia'       => 'Guía',
+		'contenido'   => 'Contenido',
+		'ia'          => 'IA',
+		'apariencia'  => 'Apariencia',
+		'contacto'    => 'Contacto',
+		'conexion'    => 'Conexión',
+		'guia'        => 'Guía',
+	);
+
+	/** Qué contesta cada pantalla (la línea debajo del título). */
+	const TAB_QUESTIONS = array(
+		'inicio'      => '¿El chat está encendido, para quién y en qué idiomas?',
+		'apariencia'  => '¿Cómo se ve el chat? Cada cambio se ve en la vista previa.',
+		'conexion'    => 'Cotizar y comparar, el buscador del sitio y las páginas del chat.',
+		'contacto'    => '¿Qué datos deja el chat cuando el cliente se despide?',
+		'contenido'   => '¿Qué sabe del sitio y cómo lee precios y sellos?',
+		'aprendizaje' => '¿Qué entendió de cada búsqueda y qué hay que corregir?',
+		'reportes'    => '¿El chat da resultados comparado con lo que la gente hace sola en el sitio?',
+		'ia'          => '¿Está conectada, cuánto gasta hoy y qué pasa si se acaba?',
+		'probar'      => '¿Cómo responde a esto? Escribe como lo haría un cliente.',
+		'guia'        => 'Qué puede preguntar la gente y cómo enseñarle.',
 	);
 
 	const POST_TYPE_ROLES = array(
@@ -116,6 +131,20 @@ class ASI_Admin {
 
 	public function menu() {
 		add_menu_page( 'Asesor inteligente', 'Asesor inteligente', 'manage_options', self::PAGE, array( $this, 'render' ), 'dashicons-format-chat', 58 );
+		// Una entrada del menú de WordPress por pantalla (antes eran pestañas dentro de la página).
+		foreach ( self::TABS as $key => $label ) {
+			add_submenu_page( self::PAGE, $label . ' · Asesor inteligente', $label, 'manage_options', 'inicio' === $key ? self::PAGE : self::PAGE . '&tab=' . $key, 'inicio' === $key ? array( $this, 'render' ) : '__return_null' );
+		}
+		add_filter( 'submenu_file', array( $this, 'submenu_file' ), 10, 2 );
+	}
+
+	/** Marca en el menú la pantalla abierta. */
+	public function submenu_file( $submenu_file, $parent_file ) {
+		if ( self::PAGE !== $parent_file && ! ( isset( $_GET['page'] ) && self::PAGE === $_GET['page'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			return $submenu_file;
+		}
+		$tab = $this->current_tab();
+		return 'inicio' === $tab ? self::PAGE : self::PAGE . '&tab=' . $tab;
 	}
 
 	/**
@@ -129,6 +158,13 @@ class ASI_Admin {
 		}
 		wp_enqueue_style( 'asi-admin', ASI_URL . 'assets/admin/admin.css', array(), ASI_VERSION );
 		$tab = $this->current_tab();
+		// Acomodo en rejilla y recorrido guiado.
+		wp_enqueue_script( 'asi-admin-panel', ASI_URL . 'assets/admin/panel.js', array(), ASI_VERSION, true );
+		$urls = array();
+		foreach ( array_keys( self::TABS ) as $key ) {
+			$urls[ $key ] = $this->tab_url( $key );
+		}
+		wp_localize_script( 'asi-admin-panel', 'asiPanel', array( 'tab' => $tab, 'urls' => $urls ) );
 		if ( 'apariencia' === $tab ) {
 			wp_enqueue_media();
 			wp_enqueue_style( 'wp-color-picker' );
@@ -660,30 +696,24 @@ class ASI_Admin {
 		);
 		?>
 		<div class="wrap asi-admin">
-			<header class="asi-header">
-				<div class="asi-header__brand">
-					<span class="asi-header__logo dashicons dashicons-format-chat" aria-hidden="true"></span>
-					<div>
-						<h1 class="asi-header__title">Asesor inteligente</h1>
-						<p class="asi-header__subtitle">Asistente de búsqueda conversacional · v<?php echo esc_html( ASI_VERSION ); ?></p>
-					</div>
+			<header class="asi-cabecera">
+				<div>
+					<h1 class="asi-cabecera__titulo"><?php echo esc_html( self::TABS[ $tab ] ); ?></h1>
+					<p class="asi-cabecera__sub"><?php echo esc_html( self::TAB_QUESTIONS[ $tab ] ); ?></p>
 				</div>
-				<?php $this->mode_badge(); ?>
+				<div class="asi-cabecera__acciones">
+					<?php $this->mode_badge(); ?>
+					<button type="button" class="asi-pastilla" data-asi-tour>Ver el recorrido</button>
+				</div>
 			</header>
 
 			<?php if ( isset( $messages[ $notice ] ) ) : ?>
 				<div class="notice notice-success is-dismissible"><p><?php echo esc_html( $messages[ $notice ] ); ?></p></div>
 			<?php endif; ?>
 
-			<nav class="asi-tabs" aria-label="Secciones">
-				<?php foreach ( self::TABS as $key => $label ) : ?>
-					<a href="<?php echo esc_url( $this->tab_url( $key ) ); ?>" class="asi-tabs__item<?php echo $tab === $key ? ' is-active' : ''; ?>" <?php echo $tab === $key ? 'aria-current="page"' : ''; ?>>
-						<span class="dashicons <?php echo esc_attr( self::TAB_ICONS[ $key ] ); ?>" aria-hidden="true"></span>
-						<?php echo esc_html( $label ); ?>
-						<?php if ( 'ia' === $key && 'ia' !== $tab && class_exists( 'ASI_AI' ) && ( $unseen = ASI_AI::unseen( get_current_user_id() ) ) ) : ?><span class="asi-tabs__badge" title="Avisos nuevos de la IA"><?php echo (int) $unseen; ?></span><?php endif; ?>
-					</a>
-				<?php endforeach; ?>
-			</nav>
+			<?php if ( 'ia' !== $tab && class_exists( 'ASI_AI' ) && ( $unseen = ASI_AI::unseen( get_current_user_id() ) ) ) : ?>
+				<p class="asi-note asi-note--warn"><a href="<?php echo esc_url( $this->tab_url( 'ia' ) ); ?>"><?php echo (int) $unseen; ?> <?php echo 1 === (int) $unseen ? 'aviso nuevo' : 'avisos nuevos'; ?> de la IA →</a></p>
+			<?php endif; ?>
 
 			<div class="asi-admin__tab">
 				<?php call_user_func( array( $this, 'tab_' . $tab ) ); ?>
