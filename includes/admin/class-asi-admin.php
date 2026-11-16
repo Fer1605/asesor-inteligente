@@ -30,6 +30,7 @@ class ASI_Admin {
 		'inicio'     => 'Inicio',
 		'apariencia' => 'Apariencia',
 		'conexion'   => 'Conexión',
+		'contacto'   => 'Contacto',
 		'contenido'  => 'Contenido',
 		'aprendizaje' => 'Aprendizaje',
 		'reportes'   => 'Reportería',
@@ -133,6 +134,9 @@ class ASI_Admin {
 			wp_enqueue_style( 'wp-color-picker' );
 			wp_enqueue_style( 'asi-chat', ASI_URL . 'assets/chat/chat.css', array(), ASI_VERSION );
 			wp_enqueue_script( 'asi-admin-appearance', ASI_URL . 'assets/admin/appearance.js', array( 'wp-color-picker', 'jquery' ), ASI_VERSION, true );
+		}
+		if ( 'contacto' === $tab ) {
+			wp_enqueue_style( 'asi-chat', ASI_URL . 'assets/chat/chat.css', array(), ASI_VERSION );
 		}
 		if ( 'aprendizaje' === $tab ) {
 			wp_enqueue_script( 'asi-admin-learning', ASI_URL . 'assets/admin/learning.js', array(), ASI_VERSION, true );
@@ -248,6 +252,27 @@ class ASI_Admin {
 						'test_email'       => $email,
 						'finance_rate'     => isset( $_POST['finance_rate'] ) ? (string) max( 0, (float) str_replace( ',', '.', sanitize_text_field( wp_unslash( $_POST['finance_rate'] ) ) ) ) : '',
 						'finance_down_min' => isset( $_POST['finance_down_min'] ) ? max( 0, min( 90, (int) $_POST['finance_down_min'] ) ) : 20,
+					)
+				);
+				break;
+
+			case 'contact':
+				$in      = isset( $_POST['contact'] ) && is_array( $_POST['contact'] ) ? wp_unslash( $_POST['contact'] ) : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+				$text    = function ( $key ) use ( $in ) {
+					return isset( $in[ $key ] ) ? sanitize_text_field( (string) $in[ $key ] ) : '';
+				};
+				ASI_Settings::update(
+					array(
+						'contact' => array(
+							'on_closing' => ! empty( $in['on_closing'] ),
+							'phone'      => $text( 'phone' ),
+							'whatsapp'   => $text( 'whatsapp' ),
+							'email'      => sanitize_email( $text( 'email' ) ),
+							'address'    => $text( 'address' ),
+							'maps'       => esc_url_raw( $text( 'maps' ) ),
+							'hours'      => $text( 'hours' ),
+							'page'       => esc_url_raw( $text( 'page' ) ),
+						),
 					)
 				);
 				break;
@@ -596,6 +621,7 @@ class ASI_Admin {
 		'inicio'     => 'dashicons-admin-home',
 		'apariencia' => 'dashicons-admin-appearance',
 		'conexion'   => 'dashicons-admin-links',
+		'contacto'   => 'dashicons-phone',
 		'contenido'  => 'dashicons-database',
 		'aprendizaje' => 'dashicons-welcome-learn-more',
 		'reportes'   => 'dashicons-chart-area',
@@ -614,6 +640,7 @@ class ASI_Admin {
 			'batch'        => 'Se procesó un lote.',
 			'schema'       => 'Correcciones guardadas. El reindexado empezó en segundo plano.',
 			'appearance'   => 'Apariencia guardada.',
+			'contact'      => 'Datos de contacto guardados.',
 			'connection'   => 'Conexión guardada.',
 			'create_pages' => $this->pages_notice(),
 			'synonyms'     => 'Sinónimos guardados. Se aplican desde la próxima búsqueda.',
@@ -852,6 +879,110 @@ class ASI_Admin {
 			esc_html( $label ),
 			esc_html( $hint )
 		);
+	}
+
+	// ---------- Contacto ----------
+
+	private function tab_contacto() {
+		$c        = ASI_Settings::all()['contact'];
+		$detected = ASI_WhatsApp::get();
+		$fields   = array(
+			'whatsapp' => array( 'WhatsApp', 'Número con código de país (+502 5555 0123) o un enlace de WhatsApp.', '' !== $detected['value'] ? 'Vacío = ' . $detected['value'] . ' (' . $detected['source'] . ')' : 'Vacío = no se muestra.' ),
+			'phone'    => array( 'Teléfono', 'Como lo marca un cliente: +502 2222-0100.', '' ),
+			'email'    => array( 'Correo', 'El correo de ventas o de contacto.', '' ),
+			'address'  => array( 'Dirección', 'Una línea: calle, zona y ciudad.', '' ),
+			'maps'     => array( 'Enlace de Google Maps', 'Opcional. Vacío = el chat busca la dirección en Google Maps.', '' ),
+			'hours'    => array( 'Horario', 'Una línea: “Lunes a viernes 8:00 a 18:30, sábado 8:00 a 16:00”.', '' ),
+			'page'     => array( 'Página de contacto', 'Opcional. URL de la página “Contáctanos” del sitio.', '' ),
+		);
+		?>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="asi-contact-form">
+			<?php $this->hidden_fields( 'contact', 'contacto' ); ?>
+			<div class="asi-split">
+				<div>
+					<?php $this->card_open( 'Datos de contacto', 'dashicons-phone', 'green' ); ?>
+						<p class="asi-muted">Cuando el visitante se despide (“gracias”, “eso es todo”), el chat le deja estos datos a la mano. Lo que dejes vacío no se muestra.</p>
+						<p><label><input type="checkbox" name="contact[on_closing]" value="1" <?php checked( ! empty( $c['on_closing'] ) ); ?>> <strong>Mostrar los datos de contacto al despedirse</strong></label></p>
+						<div class="asi-contact-fields">
+							<?php foreach ( $fields as $key => $field ) : ?>
+								<p class="asi-field">
+									<label for="asi-contact-<?php echo esc_attr( $key ); ?>"><strong><?php echo esc_html( $field[0] ); ?></strong> <span class="asi-muted"><?php echo esc_html( $field[1] ); ?></span></label>
+									<input type="<?php echo in_array( $key, array( 'maps', 'page' ), true ) ? 'url' : ( 'email' === $key ? 'email' : 'text' ); ?>" class="large-text" id="asi-contact-<?php echo esc_attr( $key ); ?>" name="contact[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $c[ $key ] ); ?>" data-contact="<?php echo esc_attr( $key ); ?>" placeholder="<?php echo esc_attr( $field[2] ); ?>">
+								</p>
+							<?php endforeach; ?>
+						</div>
+						<p class="asi-actions"><?php submit_button( 'Guardar contacto', 'primary', 'submit', false ); ?></p>
+					<?php $this->card_close(); ?>
+
+					<?php $this->card_open( 'Cómo llenarlo en otro sitio', 'dashicons-book-alt', 'blue' ); ?>
+						<ol class="asi-steps">
+							<li><strong>Busca los datos en el propio sitio:</strong> la página “Contáctanos” o “Ubicaciones” y el pie de página suelen tener teléfono, correo, dirección y horario. Cópialos tal cual, en una línea cada uno.</li>
+							<li><strong>WhatsApp:</strong> el plugin lo detecta solo del botón de WhatsApp del sitio (aparece abajo del campo). Escríbelo solo si quieres usar otro número.</li>
+							<li><strong>Teléfono:</strong> con código de país (+502, +503, +504…) para que el botón “llamar” funcione desde el celular.</li>
+							<li><strong>Dirección:</strong> si el negocio tiene varias sucursales, pon la principal; las demás las encuentra el chat cuando le preguntan por ubicaciones.</li>
+							<li><strong>Página de contacto:</strong> copia la URL desde el navegador (por ejemplo <code>https://sitio.com/contactanos/</code>).</li>
+							<li>Guarda y revisa la vista previa. Para probarlo de verdad, ve a <a href="<?php echo esc_url( add_query_arg( array( 'page' => self::PAGE, 'tab' => 'probar' ), admin_url( 'admin.php' ) ) ); ?>">Probar</a> y escribe “gracias”.</li>
+						</ol>
+					<?php $this->card_close(); ?>
+				</div>
+				<div class="asi-sticky">
+					<?php $this->card_open( 'Vista previa', 'dashicons-visibility', 'green' ); ?>
+						<p class="asi-muted">Así lo ve el visitante cuando escribe “gracias”. Cambia mientras escribes.</p>
+						<div class="asi-chat" style="<?php echo esc_attr( ASI_Appearance::css_variables() ); ?>;height:auto;min-height:0">
+							<div class="asi-chat__log" style="max-height:none">
+								<div class="asi-msg asi-msg--user"><div class="asi-msg__bubble">gracias</div></div>
+								<div class="asi-msg asi-msg--bot"><div class="asi-msg__bubble">¡Gracias a ti! Si necesitas algo más, aquí estaré.</div></div>
+								<div class="asi-contact" id="asi-contact-preview"></div>
+							</div>
+						</div>
+					<?php $this->card_close(); ?>
+				</div>
+			</div>
+		</form>
+		<script>
+		( function () {
+			const box = document.getElementById( 'asi-contact-preview' );
+			const site = <?php echo wp_json_encode( ASI_Settings::all()['assistant_site_name'] ? ASI_Settings::all()['assistant_site_name'] : wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) ); ?>;
+			const detected = <?php echo wp_json_encode( $detected['value'] ); ?>;
+			const labels = { whatsapp: 'WhatsApp', phone: 'Teléfono', email: 'Correo', address: 'Dirección', hours: 'Horario' };
+			const icons = { whatsapp: '<path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3z"/>', phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>', email: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>', address: '<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>', hours: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' };
+			const val = ( k ) => ( document.querySelector( '[data-contact="' + k + '"]' ) || { value: '' } ).value.trim();
+			function draw() {
+				box.textContent = '';
+				const items = [];
+				const wa = val( 'whatsapp' ) || detected;
+				if ( wa ) items.push( [ 'whatsapp', /^https?:/.test( wa ) ? 'WhatsApp' : wa ] );
+				[ 'phone', 'email', 'address', 'hours' ].forEach( ( k ) => { if ( val( k ) ) items.push( [ k, val( k ) ] ); } );
+				if ( ! items.length ) {
+					box.innerHTML = '<p class="asi-contact__title">Llena al menos un dato para que aparezca.</p>';
+					return;
+				}
+				const title = document.createElement( 'p' );
+				title.className = 'asi-contact__title';
+				title.textContent = 'Si quieres hablar con alguien de ' + site + ', aquí nos encuentras:';
+				const list = document.createElement( 'div' );
+				list.className = 'asi-contact__list';
+				items.forEach( ( item ) => {
+					const row = document.createElement( 'div' );
+					row.className = 'asi-contact__item asi-contact__item--' + item[0];
+					row.innerHTML = '<span class="asi-contact__icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + icons[ item[0] ] + '</svg></span><span class="asi-contact__copy"><span class="asi-contact__label"></span><span class="asi-contact__value"></span></span>';
+					row.querySelector( '.asi-contact__label' ).textContent = labels[ item[0] ];
+					row.querySelector( '.asi-contact__value' ).textContent = item[1];
+					list.appendChild( row );
+				} );
+				box.append( title, list );
+				if ( val( 'page' ) ) {
+					const page = document.createElement( 'span' );
+					page.className = 'asi-contact__page';
+					page.textContent = 'Ver página de contacto';
+					box.appendChild( page );
+				}
+			}
+			document.querySelectorAll( '[data-contact]' ).forEach( ( input ) => input.addEventListener( 'input', draw ) );
+			draw();
+		}() );
+		</script>
+		<?php
 	}
 
 	// ---------- Apariencia ----------

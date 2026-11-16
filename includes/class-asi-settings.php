@@ -58,6 +58,17 @@ class ASI_Settings {
 			'currency_map'        => array(), // valor guardado en el sitio => ISO ('1' => 'USD').
 			'currency_rates'      => array(), // ISO => unidades de la base por 1 unidad.
 			'card_flags'          => array(), // Sellos de las tarjetas: etiqueta => array( show, as ). Vacío = automático.
+			// Datos de contacto que el chat ofrece al despedirse ("gracias"). Vacío = no se muestra ese dato.
+			'contact'             => array(
+				'on_closing' => true,
+				'phone'      => '',
+				'whatsapp'   => '', // Vacío = el que se detecta solo en el sitio.
+				'email'      => '',
+				'address'    => '',
+				'maps'       => '', // Enlace de Google Maps; vacío = se busca la dirección.
+				'hours'      => '',
+				'page'       => '', // Página de contacto (URL).
+			),
 			'actions_mode'        => 'test',  // Cotizar/comparar desde el chat: off, test (aviso a ventas solo al correo de prueba), live.
 			'test_email'          => '',
 			'finance_rate'        => '',      // Tasa anual en % si el sitio no trae calculadora propia.
@@ -89,7 +100,38 @@ class ASI_Settings {
 		$settings = get_option( self::OPTION );
 		$settings = wp_parse_args( is_array( $settings ) ? $settings : array(), self::defaults() );
 		$settings['colors'] = wp_parse_args( (array) $settings['colors'], array_fill_keys( self::COLOR_KEYS, '' ) );
+		$settings['contact'] = wp_parse_args( (array) $settings['contact'], self::defaults()['contact'] );
 		return $settings;
+	}
+
+	/**
+	 * Datos de contacto listos para el chat: solo los que tienen valor, con su enlace.
+	 *
+	 * @param string $detected_whatsapp WhatsApp detectado en el sitio (si no se escribió otro).
+	 * @return array[] type, value, url
+	 */
+	public static function contact_items( $detected_whatsapp = '' ) {
+		$c     = self::all()['contact'];
+		$items = array();
+		$wa    = '' !== trim( $c['whatsapp'] ) ? trim( $c['whatsapp'] ) : trim( (string) $detected_whatsapp );
+		if ( '' !== $wa ) {
+			$is_url  = (bool) preg_match( '#^https?://#', $wa );
+			$items[] = array( 'type' => 'whatsapp', 'value' => $is_url ? 'WhatsApp' : $wa, 'url' => $is_url ? $wa : 'https://wa.me/' . preg_replace( '/[^0-9]/', '', $wa ) );
+		}
+		if ( '' !== trim( $c['phone'] ) ) {
+			$items[] = array( 'type' => 'phone', 'value' => trim( $c['phone'] ), 'url' => 'tel:' . preg_replace( '/[^0-9+]/', '', $c['phone'] ) );
+		}
+		if ( is_email( trim( $c['email'] ) ) ) {
+			$items[] = array( 'type' => 'email', 'value' => trim( $c['email'] ), 'url' => 'mailto:' . trim( $c['email'] ) );
+		}
+		if ( '' !== trim( $c['address'] ) ) {
+			$maps    = '' !== trim( $c['maps'] ) ? trim( $c['maps'] ) : 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( trim( $c['address'] ) );
+			$items[] = array( 'type' => 'address', 'value' => trim( $c['address'] ), 'url' => $maps );
+		}
+		if ( '' !== trim( $c['hours'] ) ) {
+			$items[] = array( 'type' => 'hours', 'value' => trim( $c['hours'] ), 'url' => '' );
+		}
+		return $items;
 	}
 
 	/**

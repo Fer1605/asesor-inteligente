@@ -1734,7 +1734,7 @@ class ASI_Dialogue {
 			$text[] = $this->responder->say( 'closing_advisor', array( 'site' => $this->context['site_name'] ) );
 		}
 		$text[] = $this->responder->say( 'closing_door' );
-		return array(
+		$reply  = array(
 			'kind'        => 'smalltalk',
 			'text'        => $this->sentences( $text ),
 			'followup'    => '',
@@ -1744,6 +1744,24 @@ class ASI_Dialogue {
 			'more'        => false,
 			'state'       => array( 'pending' => array(), 'offer' => array(), 'q' => '' ),
 		);
+		// Al despedirse deja a la mano cómo contactar al negocio (se configura en el panel, pestaña Contacto).
+		$contact = isset( $this->context['contact'] ) ? (array) $this->context['contact'] : array();
+		if ( ! empty( $contact['on_closing'] ) && ! empty( $contact['items'] ) ) {
+			$labels = array();
+			foreach ( array( 'whatsapp', 'phone', 'email', 'address', 'hours' ) as $type ) {
+				$labels[ $type ] = $this->responder->say( 'contact_' . $type );
+			}
+			$items = array();
+			foreach ( (array) $contact['items'] as $item ) {
+				$items[] = array_merge( $item, array( 'label' => isset( $labels[ $item['type'] ] ) ? $labels[ $item['type'] ] : '' ) );
+			}
+			$reply['contact'] = array(
+				'title' => $this->responder->say( 'contact_title', array( 'site' => $this->context['site_name'] ) ),
+				'items' => $items,
+				'page'  => ! empty( $contact['page'] ) ? array( 'url' => $contact['page'], 'label' => $this->responder->say( 'contact_page' ) ) : null,
+			);
+		}
+		return $reply;
 	}
 
 	/**

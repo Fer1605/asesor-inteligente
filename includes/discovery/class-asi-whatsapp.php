@@ -23,7 +23,7 @@ class ASI_WhatsApp {
 	/**
 	 * El WhatsApp que usa el chat.
 	 *
-	 * @return array{value:string,source:string} value = "+50232699880" o un enlace; '' si no hay.
+	 * @return array{value:string,source:string} value = "+50255550123" o un enlace; '' si no hay.
 	 */
 	public static function get() {
 		$cached = get_transient( self::TRANSIENT );
@@ -119,7 +119,7 @@ class ASI_WhatsApp {
 	}
 
 	/**
-	 * "+502 3269-9880", "https://wa.me/+50232699880?text=…", "api.whatsapp.com/send?phone=502…" → "+50232699880".
+	 * "+502 5555-0123", "https://wa.me/+50255550123?text=…", "api.whatsapp.com/send?phone=502…" → "+50255550123".
 	 * Un enlace sin número (wa.me/message/…) o un valor sin 8 dígitos → ''.
 	 */
 	public static function number_from( $value ) {
@@ -139,7 +139,7 @@ class ASI_WhatsApp {
 		if ( preg_match( '#(wa\.me|whatsapp)#i', $value ) ) {
 			return '';
 		}
-		// Un número suelto solo si trae código de país (10+ dígitos): "3269-9880" no dice de qué país es.
+		// Un número suelto solo si trae código de país (10+ dígitos): "5555-0123" no dice de qué país es.
 		$digits = preg_replace( '/[^0-9]/', '', $value );
 		return strlen( $digits ) >= 10 && strlen( $digits ) <= 15 && preg_match( '/^\+?[0-9\s\-().]+$/', $value ) ? '+' . $digits : '';
 	}

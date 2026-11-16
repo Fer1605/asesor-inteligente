@@ -389,16 +389,16 @@ check( 'lugares: "la capital" no se corrige a "capota"', false, false !== stripo
 check( 'lugares: "la capital" = las sedes por zona', array( 'https://x.test/z10/' ), array_values( array_filter( array_column( isset( $r['places'] ) ? $r['places'] : $r['links'], 'url' ), function ( $u ) { return false !== strpos( $u, 'x.test/z' ) || false !== strpos( $u, 'coban' ); } ) ) );
 
 // WhatsApp: se saca del sitio.
-check( 'wa: enlace con texto', '+50232699880', ASI_WhatsApp::number_from( 'https://wa.me/+50232699880?text=Hola' ) );
+check( 'wa: enlace con texto', '+50255550123', ASI_WhatsApp::number_from( 'https://wa.me/+50255550123?text=Hola' ) );
 check( 'wa: api.whatsapp.com', '+50240461378', ASI_WhatsApp::number_from( 'https://api.whatsapp.com/send?phone=50240461378&text=x' ) );
-check( 'wa: número escrito con código', '+50232699880', ASI_WhatsApp::number_from( '+502 3269-9880' ) );
-check( 'wa: sin código de país no se adivina', '', ASI_WhatsApp::number_from( '3269-9880' ) );
+check( 'wa: número escrito con código', '+50255550123', ASI_WhatsApp::number_from( '+502 5555-0123' ) );
+check( 'wa: sin código de país no se adivina', '', ASI_WhatsApp::number_from( '5555-0123' ) );
 check( 'wa: enlace sin número', '', ASI_WhatsApp::number_from( 'https://wa.me/message/E2SWHJRS4AQXK1' ) );
 $tree = array(
 	array( 'elements' => array(
 		array( 'settings' => array( 'link' => array( 'url' => 'https://wa.me/50240461378' ) ) ),
 		array( 'settings' => array( 'link' => array( 'url' => 'https://wa.me/50240461378' ) ) ),
-		array( 'settings' => array( '_position' => 'fixed', 'link' => array( 'url' => 'http://wa.me/+50232699880' ) ) ),
+		array( 'settings' => array( '_position' => 'fixed', 'link' => array( 'url' => 'http://wa.me/+50255550123' ) ) ),
 	) ),
 );
 $links  = ASI_WhatsApp::links_in_elementor( $tree );
@@ -406,7 +406,7 @@ $scores = array();
 foreach ( $links as $l ) {
 	$scores[ $l['number'] ] = ( isset( $scores[ $l['number'] ] ) ? $scores[ $l['number'] ] : 0 ) + ( $l['fixed'] ? 100 : 1 );
 }
-check( 'wa: el botón flotante gana aunque otro se repita', '+50232699880', ASI_WhatsApp::best( $scores ) );
+check( 'wa: el botón flotante gana aunque otro se repita', '+50255550123', ASI_WhatsApp::best( $scores ) );
 
 // Lo que el sitio no tiene, y lo que está en otros sitios del negocio (menú).
 $shop = new ASI_Test_Repository();
@@ -536,3 +536,14 @@ $tt = array();
 check( 'diminutivo: carrito = carro', 'un carro pequeño', $an->fix_typos( 'un carrito pequeño', $tt ) );
 $tt = array();
 check( 'no "carreton": dos cambios en palabra corta no se corrigen', false, false !== strpos( $an->fix_typos( 'un carrito', $tt ), 'carreton' ) );
+
+// Al despedirse deja los datos de contacto del panel.
+$contact_bot = new ASI_Dialogue( $yard, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'money' => array( 'base' => 'GTQ' ), 'packs' => array( $adv ), 'contact' => array( 'on_closing' => true, 'items' => array( array( 'type' => 'phone', 'value' => '+502 2222-0100', 'url' => 'tel:+50222220100' ), array( 'type' => 'hours', 'value' => 'Lunes a viernes 8:00 a 18:30', 'url' => '' ) ), 'page' => 'https://ejemplo.test/contactanos/' ) ), function () {
+	return 0;
+} );
+$r = $contact_bot->handle( 'muchas gracias', array() );
+check( 'contacto: al despedirse muestra los datos', array( 'smalltalk', 2, 'Teléfono', true ), array( $r['kind'], count( $r['contact']['items'] ?? array() ), $r['contact']['items'][0]['label'] ?? '', false !== strpos( $r['contact']['title'] ?? '', 'Agencia' ) ) );
+$off_bot = new ASI_Dialogue( $yard, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'money' => array( 'base' => 'GTQ' ), 'packs' => array( $adv ), 'contact' => array( 'on_closing' => false, 'items' => array( array( 'type' => 'phone', 'value' => '1', 'url' => 'tel:1' ) ) ) ), function () {
+	return 0;
+} );
+check( 'contacto: apagado no se muestra', false, isset( $off_bot->handle( 'gracias', array() )['contact'] ) );

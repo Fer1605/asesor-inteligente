@@ -928,3 +928,85 @@
 .asi-chat .asi-table .asi-table__info--last td {
 	border-bottom: 2px solid var(--asi-border);
 }
+
+/* Contacto (al despedirse) */
+.asi-chat .asi-contact {
+	max-width: 720px;
+	margin: 2px 0 12px;
+	padding: 14px;
+	border: 1px solid var(--asi-border);
+	border-radius: var(--asi-radius-sm);
+	background: var(--asi-background);
+	animation: asi-in 0.2s ease-out;
+}
+
+.asi-chat .asi-contact__title {
+	margin: 0 0 10px;
+	font-weight: 600;
+	font-size: 0.95em;
+}
+
+.asi-chat .asi-contact__list {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+	gap: 8px;
+}
+
+.asi-chat .asi-contact__item {
+	display: flex;
+	gap: 10px;
+	align-items: flex-start;
+	padding: 9px 10px;
+	border-radius: var(--asi-radius-sm);
+	background: var(--asi-surface);
+	color: inherit;
+	text-decoration: none;
+	transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.asi-chat a.asi-contact__item:hover,
+.asi-chat a.asi-contact__item:focus-visible {
+	transform: translateY(-1px);
+	box-shadow: 0 6px 14px color-mix(in srgb, var(--asi-text) 10%, transparent);
+}
+
+.asi-chat .asi-contact__icon {
+	flex: 0 0 32px;
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	display: grid;
+	place-items: center;
+	background: var(--asi-primary);
+	color: var(--asi-on-primary, #fff);
+}
+
+.asi-chat .asi-contact__item--whatsapp .asi-contact__icon {
+	background: #25d366;
+	color: #fff;
+}
+
+.asi-chat .asi-contact__copy {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.asi-chat .asi-contact__label {
+	font-size: 0.74em;
+	color: var(--asi-muted);
+}
+
+.asi-chat .asi-contact__value {
+	font-size: 0.88em;
+	font-weight: 600;
+	overflow-wrap: break-word;
+}
+
+.asi-chat .asi-contact__page {
+	display: inline-block;
+	margin-top: 10px;
+	font-size: 0.86em;
+	font-weight: 600;
+	color: var(--asi-accent);
+}

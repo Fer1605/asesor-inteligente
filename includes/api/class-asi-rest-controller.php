@@ -244,6 +244,11 @@ class ASI_REST_Controller {
 			'actions'        => new ASI_Actions(),
 			'card_flags'     => ASI_Settings::card_flags( $context->lang ),
 			'whatsapp'       => ASI_WhatsApp::get()['value'],
+			'contact'        => array(
+				'on_closing' => ! empty( $settings['contact']['on_closing'] ),
+				'items'      => ASI_Settings::contact_items( ASI_WhatsApp::get()['value'] ),
+				'page'       => esc_url_raw( (string) $settings['contact']['page'] ),
+			),
 			'site_links'     => ASI_Site_Links::all( $context->language ),
 		);
 	}

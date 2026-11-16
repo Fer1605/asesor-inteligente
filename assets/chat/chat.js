@@ -334,6 +334,49 @@
 		}
 	}
 
+	// Cómo contactar al negocio (al despedirse): WhatsApp, teléfono, correo, dirección y horario.
+	const CONTACT_ICONS = {
+		whatsapp: '<path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3z"/><path d="M8.5 9.5c.3 2.7 3.3 5.7 6 6l1.5-1.5-2-1-1 1c-1-.4-2.6-2-3-3l1-1-1-2z"/>',
+		phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>',
+		email: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+		address: '<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+		hours: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+	};
+	function contact( data ) {
+		if ( ! data || ! data.items || ! data.items.length ) {
+			return;
+		}
+		const box = el( 'div', 'asi-contact' );
+		if ( data.title ) {
+			box.appendChild( el( 'p', 'asi-contact__title', data.title ) );
+		}
+		const list = el( 'div', 'asi-contact__list' );
+		data.items.forEach( function ( item ) {
+			const row = el( item.url ? 'a' : 'div', 'asi-contact__item asi-contact__item--' + item.type );
+			if ( item.url ) {
+				row.href = safeUrl( item.url );
+				if ( /^https?:/.test( item.url ) ) {
+					row.target = '_blank';
+					row.rel = 'noopener';
+				}
+			}
+			const icon = el( 'span', 'asi-contact__icon' );
+			icon.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ( CONTACT_ICONS[ item.type ] || '' ) + '</svg>';
+			const copy = el( 'span', 'asi-contact__copy' );
+			copy.appendChild( el( 'span', 'asi-contact__label', item.label || '' ) );
+			copy.appendChild( el( 'span', 'asi-contact__value', item.value || '' ) );
+			row.append( icon, copy );
+			list.appendChild( row );
+		} );
+		box.appendChild( list );
+		if ( data.page && data.page.url ) {
+			const page = el( 'a', 'asi-contact__page', data.page.label || '' );
+			page.href = safeUrl( data.page.url );
+			box.appendChild( page );
+		}
+		log.appendChild( box );
+	}
+
 	function renderBot( data ) {
 		if ( data.text && ! ( data.notice && data.notice.replace ) ) {
 			bubble( 'bot', data.text );
@@ -365,6 +408,7 @@
 			tagQuery( similar, data );
 			log.appendChild( similar );
 		}
+		contact( data.contact );
 		if ( data.followup ) {
 			bubble( 'bot', data.followup );
 		}
