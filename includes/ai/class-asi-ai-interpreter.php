@@ -307,11 +307,15 @@ class ASI_AI_Interpreter {
 		$active  = false;
 		// "cienmil" pegado se lee como "cien mil".
 		$message = preg_replace( '/\b(' . implode( '|', array_keys( ASI_Money::NUMBER_WORDS ) ) . ')(mil|millones|millon)\b/', '$1 $2', ASI_Normalizer::normalize( (string) $message ) );
+		$prev = '';
 		foreach ( preg_split( '/\s+/', $message ) as $word ) {
+			$last = $prev;
+			$prev = $word;
 			if ( isset( $units[ $word ] ) ) {
 				$current += $units[ $word ];
 				$active   = true;
-			} elseif ( $active && in_array( $word, array( 'y', 'and' ), true ) ) {
+			} elseif ( $active && in_array( $word, array( 'y', 'and' ), true ) && in_array( $last, array( 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa', 'hundred' ), true ) ) {
+				// "treinta y cinco", "two hundred and fifty"; "entre cien y doscientos mil" son dos montos.
 				continue;
 			} elseif ( $active && in_array( $word, array( 'hundred' ), true ) ) {
 				$current *= 100;

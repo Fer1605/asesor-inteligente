@@ -210,3 +210,7 @@ foreach ( array( 'que no pase de 200 mil', 'maximo 200 mil', 'hasta 200 mil', 'n
 foreach ( array( 'de mas de 200 mil', 'desde 200 mil', 'arriba de 200 mil' ) as $m ) {
 	check( "IA: no es tope \"$m\"", false, ASI_AI_Interpreter::says_cap( $m ) );
 }
+
+// La revisión de montos de la IA ve los montos en letras: pegados y con dos montos.
+check( 'IA: "menos de cienmil" trae 100000 para revisar', true, in_array( 100000.0, ASI_AI_Interpreter::numbers_in( 'queiro un carro en menos de cienmil' ), true ) );
+check( 'IA: "entre cien y doscientos mil" son dos montos', array( 100.0, 200000.0 ), ASI_AI_Interpreter::numbers_in( 'entre cien y doscientos mil' ) );
