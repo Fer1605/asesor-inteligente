@@ -245,13 +245,21 @@ return array(
 		'material' => array( 'material', 'composicion' ), 'hecho' => array( 'material', 'composicion' ), 'fabricado' => array( 'material' ),
 		'garantia' => array( 'garantia' ), 'capacidad' => array( 'capacidad', 'carga' ), 'carga' => array( 'capacidad', 'carga' ),
 		'potencia' => array( 'potencia', 'hp', 'fuerza', 'caballo' ), 'caballos' => array( 'potencia', 'hp', 'caballo' ), 'hp' => array( 'potencia', 'hp' ),
-		'motor' => array( 'motor' ), 'consumo' => array( 'consumo', 'rendimiento' ), 'consume' => array( 'consumo' ), 'rendimiento' => array( 'rendimiento', 'consumo' ),
+		'motor' => array( 'motor', 'cc', 'cilindrada', 'cilindro', 'potencia', 'hp', 'torque', 'combustible' ), 'fuerza' => array( 'potencia', 'hp' ),
+		'cilindrada' => array( 'cc', 'cilindrada', 'cilindro' ), 'cilindros' => array( 'cilindro' ), 'torque' => array( 'torque' ), 'puertas' => array( 'puerta' ),
+		'pasajeros' => array( 'pasajero', 'asiento' ), 'asientos' => array( 'asiento', 'pasajero' ), 'traccion' => array( 'traccion' ), 'kilometraje' => array( 'kilometraje', 'km' ), 'kilometros' => array( 'kilometraje', 'km' ),
+		'frenos' => array( 'freno' ), 'llantas' => array( 'llanta', 'aro', 'rin' ), 'aros' => array( 'aro', 'rin', 'llanta' ), 'bolsas' => array( 'bolsa', 'airbag' ), 'airbags' => array( 'bolsa', 'airbag' ),
+		'consumo' => array( 'consumo', 'rendimiento' ), 'consume' => array( 'consumo' ), 'rendimiento' => array( 'rendimiento', 'consumo' ),
 		'bateria' => array( 'bateria', 'autonomia' ), 'dura' => array( 'duracion', 'autonomia', 'garantia' ), 'duracion' => array( 'duracion', 'autonomia' ),
 		'contenido' => array( 'contenido', 'presentacion', 'volumen' ), 'presentacion' => array( 'presentacion', 'contenido' ), 'ml' => array( 'contenido', 'volumen', 'presentacion' ),
 		'ingredientes' => array( 'ingrediente', 'composicion' ), 'aroma' => array( 'aroma', 'fragancia' ), 'fragancia' => array( 'fragancia', 'aroma' ),
 		'velocidad' => array( 'velocidad' ), 'voltaje' => array( 'voltaje', 'voltio' ), 'combustible' => array( 'combustible' ), 'transmision' => array( 'transmision' ),
 		'año' => array( 'ano', 'modelo' ), 'ano' => array( 'ano', 'modelo' ), 'origen' => array( 'origen', 'pais' ),
 	),
+	// Unidades: "295 HP" responde a la potencia aunque el campo se llame distinto (unidad => dato).
+	'fact_units' => array( 'hp' => 'potencia', 'cv' => 'potencia', 'kw' => 'potencia', 'cc' => 'cilindrada', 'nm' => 'torque' ),
+	// Botones tras responder un dato (ofrece la ficha por correo).
+	'fact_offer_chips' => array( 'Sí, envíamela' ),
 	// Verbos de pregunta de sí o no sobre un producto ya mostrado ("¿tiene garantía?", "¿trae cabina?").
 	'yes_no_verbs' => array( 'tiene', 'trae', 'incluye', 'viene con', 'cuenta con', 'lleva', 'usa', 'funciona con', 'sirve para', 'es de', 'es para', 'acepta' ),
 	// Palabras de pregunta que no son lo que se busca.
@@ -445,7 +453,7 @@ return array(
 		),
 		'advice_closing' => array(
 			'¿Te interesa alguna? Dime su número (por ejemplo, “cotízame la 1 y la 3”) y te preparo la cotización, te las comparo o te calculo las cuotas.',
-			'Si alguna te llama la atención, dime su número o su nombre y te la cotizo, te cuento más o te calculo las cuotas.',
+			'Si alguna te llama la atención, dime cuál (por ejemplo, «la 2») y te la cotizo, te cuento más o te calculo las cuotas.',
 		),
 		'ask_budget' => array(
 			'¿Cuánto tienes de presupuesto aproximado? Así te muestro lo que mejor te queda.',
@@ -509,7 +517,7 @@ return array(
 		'appt_cancelled'      => array( 'Listo, no envío la solicitud. ¿Te ayudo con algo más?' ),
 		'appt_off'            => array( 'Desde el chat no agendo citas, pero un asesor de {site} te puede atender directamente.' ),
 		'appt_contact_title'  => array( 'Para coordinar tu cita, aquí nos encuentras:' ),
-		'quote_which_results' => array( '¿Cuál de estas te cotizo? Dime su número o su nombre.', '¿De cuál te preparo la cotización? Dime su número o su nombre.' ),
+		'quote_which_results' => array( '¿Cuál de estas te cotizo? Dime cuál (por ejemplo, «la 2»).', '¿De cuál te preparo la cotización? Por ejemplo, «la 1».' ),
 		'action_which'       => array( '¿Cuál te interesa?', '¿De cuál te preparo la cotización?' ),
 		'action_cancelled'   => array( 'Listo, lo dejamos ahí. Si quieres retomarlo, solo dímelo.' ),
 		'action_done_quote'  => array( '¡Listo, {name}! Aquí tienes la cotización del {title}.', '¡Hecho, {name}! Esta es tu cotización del {title}.' ),
@@ -704,8 +712,8 @@ return array(
 			'Si me dices {hints}, afino la búsqueda.',
 		),
 		'action_offer' => array(
-			'Si alguno te interesa, puedo {actions}: dime su número o su nombre.',
-			'¿Te gusta alguno? Dime su número o su nombre y puedo {actions}.',
+			'Si alguno te interesa, puedo {actions}. Solo dime cuál (por ejemplo, «el 2»).',
+			'¿Te gusta alguno? Dime cuál (por ejemplo, «el 2») y puedo {actions}.',
 		),
 		'action_offer_one' => array(
 			'Si te interesa, puedo {actions}.',
@@ -717,12 +725,12 @@ return array(
 			'',
 		),
 		'clarify' => array(
-			'Tengo {n} de {label}. Para mostrarte lo justo, ¿buscas {facets}?',
+			'Tengo {n} de {label}. ¿Qué prefieres: {facets}?',
 			'Hay {n} de {label}. ¿Te interesa más {facets}?',
 			'Encontré {n} de {label} en varias líneas. ¿Cuál prefieres: {facets}?',
 		),
 		'clarify_any' => array(
-			'Tengo {n}. Para mostrarte lo justo, ¿buscas {facets}?',
+			'Tengo {n}. ¿Qué prefieres: {facets}?',
 			'Hay {n}. ¿Te interesa más {facets}?',
 		),
 		'clarify_brand_any' => array(
@@ -745,6 +753,14 @@ return array(
 		'fact_text' => array( 'Esto dice la ficha de {title} sobre eso:', 'En la descripción de {title} encontré esto:', 'Sobre eso, la ficha de {title} dice:' ),
 		'fact_missing' => array( 'No encontré ese dato en la ficha de {title}. Puedes revisarla completa o preguntarnos directamente:', 'La ficha de {title} no menciona eso; si nos escribes, te lo confirmamos:' ),
 		'fact_price_missing' => array( '{title} no tiene precio publicado; te lo damos en una cotización:', 'El precio de {title} te lo confirmamos con una cotización; puedes pedirla aquí:' ),
+		'fact_yes' => array( 'Sí, según su ficha {title} lo tiene:', 'Sí. Esto dice la ficha de {title}:' ),
+		'fact_list' => array( 'Esto dice la ficha de {title}:', 'Según su ficha, {title} tiene:' ),
+		'fact_many' => array( 'Esto dice la ficha de cada una:', 'Te lo resumo por opción:' ),
+		'fact_many_none' => array( 'Revisé sus fichas y no mencionan ese dato. Si nos escribes, te lo confirmamos.' ),
+		'fact_many_missing' => array( 'su ficha no lo menciona' ),
+		'fact_offer_sheet' => array( 'Si quieres más detalles, te envío a tu correo su ficha completa con la cotización. ¿Te la mando o seguimos viendo opciones?', '¿Te envío su ficha completa con la cotización a tu correo, o prefieres seguir viendo opciones?' ),
+		'fact_offer_sheet_many' => array( 'Si quieres la ficha completa de alguna, dime cuál y te la envío a tu correo con la cotización.' ),
+		'fact_followup_many' => array( '¿Quieres saber otro dato de estas opciones?', '¿Te ayudo con otro dato o las comparo?' ),
 		'fact_followup' => array( '¿Quieres saber algo más de este producto?', '¿Te ayudo con otro dato o lo comparamos con otra opción?', '' ),
 
 		// Descripción armada con los datos de la ficha.

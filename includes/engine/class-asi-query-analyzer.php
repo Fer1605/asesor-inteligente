@@ -597,6 +597,12 @@ class ASI_Query_Analyzer {
 		if ( $this->lexicon->synonyms( $word ) ) {
 			return $word;
 		}
+		// Una palabra con la que se pregunta por un dato ("motor", "frenos") no es un error de dedo:
+		// "motor" no es "moto".
+		$facts = (array) $this->lexicon->get_list( 'fact_words' );
+		if ( isset( $facts[ $word ] ) || isset( $facts[ ASI_Normalizer::singular( $word ) ] ) ) {
+			return $word;
+		}
 		// Singular o plural de una palabra conocida no es un error ("sede" / "sedes").
 		$base = ASI_Lexicon::normal_form( $word );
 		if ( $base !== $word && ( isset( $this->vocab['tokens'][ $base ] ) || isset( $this->pack_words[ $base ] ) ) ) {

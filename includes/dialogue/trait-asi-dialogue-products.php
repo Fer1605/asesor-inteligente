@@ -41,6 +41,7 @@ trait ASI_Dialogue_Products {
 			foreach ( explode( ' ', $label ) as $word ) {
 				if ( strlen( $word ) >= 4 && ! $this->lexicon->is_stopword( $word ) ) {
 					$label_words[ $word ] = true;
+					$label_words[ ASI_Normalizer::singular( $word ) ] = true; // "frenos" y "freno".
 				}
 			}
 		}
@@ -53,7 +54,7 @@ trait ASI_Dialogue_Products {
 				$asked[] = isset( $fact_map[ $token ] ) ? $token : $single;
 				continue;
 			}
-			if ( '' === $token || $this->lexicon->is_stopword( $token ) || $this->lexicon->is_filler( $token ) || isset( $questions[ $token ] ) || isset( $yes_no_words[ $token ] ) ) {
+			if ( '' === $token || $this->lexicon->is_stopword( $token ) || $this->lexicon->is_filler( $token ) || isset( $questions[ $token ] ) || isset( $questions[ $single ] ) || isset( $yes_no_words[ $token ] ) ) {
 				continue;
 			}
 			$rest[] = $token;
@@ -62,18 +63,35 @@ trait ASI_Dialogue_Products {
 			return null;
 		}
 
+		// "Tipo de motor de ambas opciones", "¿cuántas puertas tiene cada una?": el dato de cada una.
+		if ( $asked && count( $state['results'] ) >= 2 && $this->asks_group( $normalized ) ) {
+			$ids = $this->action_targets( $normalized, $normalized, $state, false );
+			$on  = array_values( array_intersect( $ids, array_map( 'intval', (array) $state['shown'] ) ) );
+			$ids = count( $on ) >= 2 ? $on : $ids; // Las que está viendo, si son varias.
+			if ( count( $ids ) >= 2 ) {
+				return $this->answer_fact_many( array_slice( $ids, 0, 4 ), $asked, $fact_map );
+			}
+		}
+
 		// ¿De qué producto? El que nombra, o el que se está conversando.
 		$focus  = $this->focus_row( $state );
 		$target = null;
 		$extra  = array();
 		if ( $rest ) {
 			$target = $this->resolve_product( implode( ' ', $rest ), $state );
+			// "¿Qué motor tiene la BT-50 3.0L?" y hay tres con ese nombre: el dato de cada una.
+			if ( ! $target && $asked ) {
+				$same = $this->same_name_products( implode( ' ', $rest ) );
+				if ( count( $same ) >= 2 ) {
+					return $this->answer_fact_many( $same, $asked, $fact_map );
+				}
+			}
 			if ( $target ) {
 				// "¿Trae cabina el 6110J?": lo que no es el nombre del producto es lo que pregunta.
 				$extra = '' !== $yes_no ? $this->words_outside( $rest, $target ) : array();
 			} elseif ( $focus && ! $this->words_outside( $rest, $focus ) ) {
 				$target = $focus; // "¿Cuánto pesa el tractor?" hablando del tractor 5075E.
-			} elseif ( $focus && '' !== $yes_no && ! $this->names_products( implode( ' ', $rest ) ) ) {
+			} elseif ( $focus && '' !== $yes_no && ( $this->row_mentions( $focus, $rest ) || ! $this->names_products( implode( ' ', $rest ) ) ) ) {
 				// "¿Trae cabina?" sobre el producto del que se habla. Pero "¿tiene tractores?" nombra
 				// productos del sitio: es una búsqueda, no una pregunta sobre este.
 				$target = $focus;
@@ -86,16 +104,109 @@ trait ASI_Dialogue_Products {
 		if ( ! $target || ! $asked ) {
 			return null;
 		}
-		return $this->answer_fact( $target, $asked, $fact_map );
+		return $this->answer_fact( $target, $asked, $fact_map, $state );
+	}
+
+	/** ¿El mensaje pregunta por un dato de la ficha ("puertas", "motor", "caballos")? */
+	private function asks_fact_word( $normalized ) {
+		$map = $this->fact_word_map();
+		foreach ( explode( ' ', $normalized ) as $token ) {
+			if ( isset( $map[ $token ] ) || isset( $map[ ASI_Normalizer::singular( $token ) ] ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** ¿El valor del dato dice todas estas palabras? */
+	private function value_has( $value, array $words ) {
+		$tokens = array_flip( explode( ' ', ASI_Lexicon::normal_form( (string) $value ) ) );
+		foreach ( $words as $word ) {
+			if ( ! isset( $tokens[ ASI_Lexicon::normal_form( $word ) ] ) ) {
+				return false;
+			}
+		}
+		return (bool) $words;
+	}
+
+	/** ¿La ficha del producto menciona todas estas palabras? ("¿tiene cámara de retroceso?" sobre el que ve). */
+	private function row_mentions( array $row, array $words ) {
+		$details = $this->details_of( (int) $row['post_id'] );
+		$text    = (string) $details['text'] . ' ' . ( isset( $row['card']['summary'] ) ? (string) $row['card']['summary'] : '' );
+		foreach ( $this->facts_of( $row ) as $fact ) {
+			$text .= ' ' . $fact[1];
+		}
+		$tokens = array_flip( explode( ' ', ASI_Lexicon::normal_form( $text ) ) );
+		foreach ( $words as $word ) {
+			$word = ASI_Lexicon::normal_form( $word );
+			if ( '' !== $word && ! isset( $tokens[ $word ] ) ) {
+				return false;
+			}
+		}
+		return (bool) $words;
+	}
+
+	/** ¿Pregunta por varias de las opciones a la vista? ("ambas", "las dos", "cada una", "todas"). */
+	private function asks_group( $normalized ) {
+		return $this->means_all_visible( $normalized ) || (bool) preg_match( '/(^|\s)(ambos|ambas|los dos|las dos|todos|todas|both|all of them)(\s|$)/', $normalized );
+	}
+
+	/**
+	 * El mismo dato de varias opciones, una línea por cada una.
+	 */
+	private function answer_fact_many( array $ids, array $asked, array $fact_map ) {
+		$by_id = array();
+		foreach ( $this->repository->rows( $this->context['lang'], $ids ) as $row ) {
+			$by_id[ (int) $row['post_id'] ] = $row;
+		}
+		$rows   = array();
+		$lines  = array();
+		$found  = false;
+		$titles = array_count_values( array_map( function ( $row ) { return (string) $row['card']['title']; }, $by_id ) );
+		foreach ( $ids as $id ) {
+			if ( ! isset( $by_id[ $id ] ) ) {
+				continue;
+			}
+			$row   = $by_id[ $id ];
+			$bits  = array();
+			foreach ( $this->match_facts( $asked, $this->facts_of( $row, true ), $fact_map ) as $fact ) {
+				$bits[] = $this->format_fact( $fact[1], $fact[2] );
+			}
+			$found   = $found || (bool) $bits;
+			$rows[]  = $row;
+			// Varias con el mismo nombre: se distinguen por su precio, como en sus tarjetas.
+			$name = (string) $row['card']['title'];
+			if ( $titles[ $name ] > 1 && ! empty( $row['card']['price'] ) ) {
+				$shown = $this->money_card( (array) $row['card'] );
+				$name .= ' (' . ( '' !== (string) $shown['price'] ? $shown['price'] : $row['card']['price'] ) . ')';
+			}
+			$lines[] = $name . ': ' . ( $bits ? $this->responder->join_list( $bits ) : $this->responder->say( 'fact_many_missing' ) ) . '.';
+		}
+		if ( count( $rows ) < 2 ) {
+			return null;
+		}
+		$offer = $found && $this->runner() && isset( $this->runner()->available()['quote'] );
+		return array(
+			'kind'        => 'fact',
+			'text'        => $this->responder->say( $found ? 'fact_many' : 'fact_many_none' ),
+			'quote'       => $lines,
+			'followup'    => $this->responder->say( $offer ? 'fact_offer_sheet_many' : 'fact_followup_many' ),
+			'cards'       => $this->cards( $rows ),
+			'links'       => array(),
+			'suggestions' => array(),
+			'more'        => false,
+			'learn'       => $found ? '' : 'weak',
+			'state'       => array( 'focus' => 0 ),
+		);
 	}
 
 	/**
 	 * Responde el dato pedido de un producto.
 	 */
-	private function answer_fact( array $row, array $asked, array $fact_map ) {
+	private function answer_fact( array $row, array $asked, array $fact_map, array $state = array() ) {
 		$card    = $row['card'];
 		$id      = (int) $row['post_id'];
-		$facts   = $this->facts_of( $row );
+		$facts   = $this->facts_of( $row, true );
 		$matched = $this->match_facts( $asked, $facts, $fact_map );
 		$title   = $card['title'];
 
@@ -103,16 +214,40 @@ trait ASI_Dialogue_Products {
 		$links    = array();
 		$quote    = array();
 		$learn    = '';
+		// "¿Tiene cámara de retroceso?": si ningún dato se llama así, se busca en lo que dicen los datos.
+		$plain = array_values( array_filter( $asked, function ( $word ) use ( $fact_map ) { return ! isset( $fact_map[ $word ] ); } ) );
+		if ( $plain && ! $matched ) {
+			foreach ( $facts as $fact ) {
+				if ( '~' !== substr( (string) $fact[2], 0, 1 ) && ! in_array( $fact[2], self::$card_facts, true ) && $this->value_has( $fact[1], $plain ) ) {
+					$parts[] = $this->responder->say( 'fact_yes', array( 'title' => $title ) );
+					$quote[] = $this->upper_first( $this->lower_label( $fact[0] ) ) . ': ' . $this->clean_value( $fact[1] );
+					break;
+				}
+			}
+		}
+		$found    = (bool) $matched || (bool) $quote;
 		$generic  = array();
 		foreach ( $matched as $fact ) {
 			list( $key, $label, $value ) = $fact;
 			if ( in_array( $key, self::$card_facts, true ) ) {
+				if ( 'price' === $key ) {
+					$shown = $this->money_card( $card ); // Como en la tarjeta: "Q 269,900".
+					$value = '' !== (string) $shown['price'] ? $shown['price'] : $value;
+				}
 				$parts[] = $this->responder->say( 'fact_' . $key, array( 'title' => $title, 'value' => $value ) );
 			} else {
 				$generic[] = $this->format_fact( $label, $value );
 			}
 		}
-		if ( $generic ) {
+		if ( count( $generic ) >= 3 ) {
+			// Varios datos ("¿qué motor tiene?"): uno por línea, se leen mejor que en una sola frase.
+			$parts[] = $this->responder->say( 'fact_list', array( 'title' => $title ) );
+			foreach ( $matched as $fact ) {
+				if ( ! in_array( $fact[0], self::$card_facts, true ) ) {
+					$quote[] = $this->upper_first( $this->lower_label( $fact[1] ) ) . ': ' . $this->clean_value( $fact[2] );
+				}
+			}
+		} elseif ( $generic ) {
 			$parts[] = $this->responder->say( 'fact', array( 'title' => $title, 'facts' => $this->responder->join_list( $generic ) ) );
 		}
 
@@ -149,17 +284,29 @@ trait ASI_Dialogue_Products {
 			}
 		}
 
+		// Respondió: le ofrece la ficha completa (la cotización en PDF) por correo, una vez por
+		// conversación; si prefiere seguir preguntando o ver otras, sigue como si nada.
+		$followup = $links ? '' : $this->responder->say( 'fact_followup' );
+		$offer    = array();
+		$chips    = array();
+		$offered  = preg_grep( '/^fact_offer_sheet\./', isset( $state['recent'] ) ? (array) $state['recent'] : array() );
+		if ( '' === $learn && ! $links && ! $offered && ( $found || $quote ) && $this->runner() && isset( $this->runner()->available()['quote'] ) ) {
+			$followup = $this->responder->say( 'fact_offer_sheet' );
+			$offer    = array( 'action' => 'quote', 'ids' => array( $id ) );
+			$chips    = (array) $this->lexicon->get_list( 'fact_offer_chips' );
+		}
+
 		return array(
 			'kind'        => 'fact',
 			'text'        => $this->sentences( $parts ),
 			'quote'       => $quote,
-			'followup'    => $links ? '' : $this->responder->say( 'fact_followup' ),
+			'followup'    => $followup,
 			'cards'       => $this->cards( array( $row ) ),
 			'links'       => $links,
-			'suggestions' => array(),
+			'suggestions' => $chips,
 			'more'        => false,
 			'learn'       => $learn,
-			'state'       => array( 'focus' => $id ),
+			'state'       => array( 'focus' => $id, 'offer' => $offer ),
 		);
 	}
 
@@ -316,8 +463,8 @@ trait ASI_Dialogue_Products {
 	 * Tabla lado a lado de dos productos y lo que más los diferencia.
 	 */
 	private function answer_compare( array $a, array $b ) {
-		$facts_a = $this->facts_by_key( $this->facts_of( $a ), false );
-		$facts_b = $this->facts_by_key( $this->facts_of( $b ), false );
+		$facts_a = $this->facts_by_key( $this->facts_of( $a, false, true ), false ); // En la tabla, un 0 también compara.
+		$facts_b = $this->facts_by_key( $this->facts_of( $b, false, true ), false );
 		// El precio como en las tarjetas: con su moneda ("Q 249,900", "$ 47,900").
 		foreach ( array( array( &$facts_a, $a ), array( &$facts_b, $b ) ) as $pair ) {
 			if ( isset( $pair[0]['price'] ) ) {
@@ -586,6 +733,34 @@ trait ASI_Dialogue_Products {
 	}
 
 	/**
+	 * Los productos que se llaman como el texto cuando son pocos (de 2 a 4, todos con ese nombre).
+	 *
+	 * @return int[]
+	 */
+	private function same_name_products( $text ) {
+		// El texto llega normalizado ("bt 50"): con guion se reconoce el código del modelo ("bt-50").
+		$query = $this->analyzer->analyze( preg_replace( '/(^|\s)([a-z]{1,4}) ([0-9]{1,4})(?=\s|$)/', '$1$2-$3', $text ) );
+		$name  = ' ' . ASI_Lexicon::normal_form( $text ) . ' ';
+		if ( ! $query['groups'] || '  ' === $name ) {
+			return array();
+		}
+		// Solo lo que nombra el producto (marca, modelo, código); el título decide lo demás ("3.0L").
+		$named = array_values( array_filter( $query['groups'], function ( $group ) { return ! empty( $group['critical'] ); } ) );
+		if ( $named ) {
+			$query['groups'] = $named;
+		}
+		$result = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'catalog' ), 'limit' => 12 ) );
+		$ids    = array();
+		foreach ( $result['items'] as $item ) {
+			// Todo lo que escribió está en el título, en orden: "bt 50 3 0l" en "BT-50 3.0L".
+			if ( false !== strpos( ' ' . ASI_Lexicon::normal_form( $item['card']['title'] ) . ' ', $name ) ) {
+				$ids[] = (int) $item['post_id'];
+			}
+		}
+		return count( $ids ) >= 2 && count( $ids ) <= 4 ? $ids : array();
+	}
+
+	/**
 	 * ¿El texto nombra varios productos del sitio (en su nombre o sus términos, no solo en el texto)?
 	 */
 	private function names_products( $text ) {
@@ -634,7 +809,7 @@ trait ASI_Dialogue_Products {
 	 * @param array $row Fila.
 	 * @return array[] [etiqueta, valor, clave] (clave: price/brand/category/code o el nombre en forma normal)
 	 */
-	private function facts_of( array $row ) {
+	private function facts_of( array $row, $by_unit = false, $keep_empty = false ) {
 		$details = $this->details_of( (int) $row['post_id'] );
 		$facts   = array();
 		$seen    = array();
@@ -649,7 +824,15 @@ trait ASI_Dialogue_Products {
 				continue;
 			}
 			$key = ASI_Lexicon::normal_form( $fact[0] );
+			if ( self::internal_fact( $key, (string) $fact[1] ) || ( ! $keep_empty && ! $by_unit && preg_match( '/^\s*(0|false|null|no aplica|n\/a)?\s*$/i', (string) $fact[1] ) ) ) {
+				continue; // Del sistema, o vacío ("tonelaje: 0"): no le dice nada al cliente.
+			}
 			if ( isset( $seen[ $key ] ) ) {
+				// Mismo nombre, otro valor ("295 HP" guardado como línea): solo sirve por su unidad.
+				if ( $by_unit && ! isset( $seen[ '~' . $key ] ) && preg_match( '/[0-9]/', (string) $fact[1] ) ) {
+					$seen[ '~' . $key ] = true;
+					$facts[]            = array( (string) $fact[0], (string) $fact[1], '~' . $key );
+				}
 				continue;
 			}
 			$seen[ $key ] = true;
@@ -691,10 +874,17 @@ trait ASI_Dialogue_Products {
 	private function match_facts( array $asked, array $facts, array $fact_map ) {
 		$by_key  = $this->facts_by_key( $facts );
 		$matched = array();
+		$units   = (array) $this->lexicon->get_list( 'fact_units' );
+		$wanted  = array();
 		foreach ( $asked as $word ) {
 			$targets = isset( $fact_map[ $word ] ) ? $fact_map[ $word ] : array( $word );
+			foreach ( $targets as $target ) {
+				if ( isset( $units[ $target ] ) ) {
+					$wanted[ $target ] = $units[ $target ];
+				}
+			}
 			foreach ( $by_key as $key => $fact ) {
-				if ( isset( $matched[ $key ] ) ) {
+				if ( isset( $matched[ $key ] ) || '~' === substr( (string) $key, 0, 1 ) ) {
 					continue;
 				}
 				if ( in_array( $key, self::$card_facts, true ) ? in_array( $key, $targets, true ) : $this->label_matches( $key, $targets ) ) {
@@ -702,16 +892,46 @@ trait ASI_Dialogue_Products {
 				}
 			}
 		}
-		return array_slice( array_values( $matched ), 0, 3 );
+		// El dato puede estar en otro campo con su unidad: "295 HP" en la línea del vehículo responde a
+		// "¿cuántos caballos?". Solo si ningún campo con ese nombre ya lo respondió.
+		foreach ( $wanted as $unit => $label ) {
+			$covered = false;
+			foreach ( $matched as $fact ) {
+				$covered = $covered || $this->label_matches( ASI_Lexicon::normal_form( $fact[1] ), array( ASI_Lexicon::normal_form( $label ), $unit ) );
+			}
+			if ( $covered ) {
+				continue;
+			}
+			foreach ( $by_key as $key => $fact ) {
+				if ( ! isset( $matched[ $key ] ) && 'price' !== $key && preg_match( '/(^|\s)[0-9][0-9.,]*\s*' . preg_quote( $unit, '/' ) . '(\s|$)/', ASI_Lexicon::normal_form( $fact[1] ) ) ) {
+					$matched[ 'unit:' . $key ] = array( 'unit:' . $key, $label, $fact[1] );
+					break;
+				}
+			}
+		}
+		return array_slice( array_values( $matched ), 0, 5 );
+	}
+
+	/**
+	 * Datos que son del sistema o internos (IDs, placa, vendedor, fechas de carga, notas internas):
+	 * nunca se le dicen al cliente.
+	 */
+	private static function internal_fact( $key, $value ) {
+		return preg_match( '/(^|\s)(id|ids|uuid|guid|request|source|token|hash|vendedor|seller|placa|plate|vin|chasis|chassis|creacion|created|updated|actualizacion|modificacion|ingreso|interna|interno|internal|recepcion)(\s|$)/', (string) $key )
+			|| preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-|^[0-9]{4}-[0-9]{2}-[0-9]{2}t[0-9]{2}:/i', trim( (string) $value ) );
 	}
 
 	/**
 	 * ¿El nombre del dato ("peso neto", "potencia hp") corresponde a lo que pregunta?
 	 */
 	private function label_matches( $label, array $targets ) {
+		if ( in_array( str_replace( ' ', '', $label ), $targets, true ) ) {
+			return true; // "C.C." es "cc".
+		}
 		foreach ( explode( ' ', $label ) as $word ) {
 			foreach ( $targets as $target ) {
-				if ( $word === $target || ( strlen( $word ) >= 5 && strlen( $target ) >= 5 && substr( $word, 0, 5 ) === substr( $target, 0, 5 ) ) ) {
+				// Misma raíz de 6 letras ("cilindrada" y "cilindros"); con 5, "retroceso" sería "retrovisores".
+				if ( $word === $target || ( strlen( $word ) >= 6 && strlen( $target ) >= 6 && substr( $word, 0, 6 ) === substr( $target, 0, 6 ) ) ) {
 					return true;
 				}
 			}
@@ -739,7 +959,13 @@ trait ASI_Dialogue_Products {
 	 */
 	private function format_fact( $label, $value ) {
 		$label = $this->lower_label( $label );
-		return preg_match( '/^[0-9]/', $value ) ? $label . ' ' . $this->lexicon->word( 'fact_of' ) . ' ' . $value : $label . ' ' . $value;
+		$value = $this->clean_value( $value );
+		// Una cantidad con nombre en plural se dice al revés: "5 pasajeros", "7 bolsas de aire".
+		if ( preg_match( '/^[0-9]{1,3}$/', $value ) && preg_match( '/^\p{L}+s(\s|$)/u', $label ) && (int) $value > 1 ) {
+			return $value . ' ' . $label;
+		}
+		// "Potencia de 295 HP", "C.C. de 3600"; pero "tracción 4x4".
+		return preg_match( '/^[0-9][0-9.,]*(\s*[a-z%]{1,4}\.?)?$/iu', $value ) ? $label . ' ' . $this->lexicon->word( 'fact_of' ) . ' ' . $value : $label . ' ' . $value;
 	}
 
 	/**
@@ -747,10 +973,19 @@ trait ASI_Dialogue_Products {
 	 */
 	private function lower_label( $label ) {
 		$label = trim( (string) $label );
-		if ( preg_match( '/^[A-Z0-9]{2,3}$/', $label ) ) {
+		if ( preg_match( '/^[A-Z0-9]{2,3}$|^([A-Z]\.){2,4}$/', $label ) ) {
 			return $label;
 		}
 		return function_exists( 'mb_strtolower' ) ? mb_strtolower( $label, 'UTF-8' ) : strtolower( $label );
+	}
+
+	/** "Doble Árbol de Levas DOHC,Gasolina" → "Doble Árbol de Levas DOHC, Gasolina". */
+	private function clean_value( $value ) {
+		return rtrim( trim( preg_replace( '/\s*,\s*(?=\D)/u', ', ', (string) $value ) ), '.' );
+	}
+
+	private function upper_first( $text ) {
+		return function_exists( 'mb_strtoupper' ) ? mb_strtoupper( mb_substr( $text, 0, 1 ) ) . mb_substr( $text, 1 ) : ucfirst( $text );
 	}
 
 	/**

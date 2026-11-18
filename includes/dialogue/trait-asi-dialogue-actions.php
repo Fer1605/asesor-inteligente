@@ -1001,6 +1001,10 @@ trait ASI_Dialogue_Actions {
 		}
 		$wants_finance = $this->words_in( $normalized, 'finance_words' );
 		$wants_quote   = $this->words_in( $normalized, 'quote_words' );
+		// "¿Y cuántas puertas tiene la otra?" pregunta un dato, no las cuotas.
+		if ( ! $wants_finance && ! $wants_quote && $this->asks_fact_word( $normalized ) ) {
+			return null;
+		}
 		$last          = '' !== $state['last'] ? $state['last'] : 'finance';
 		if ( $wants_quote || ( ! $wants_finance && 'quote' === $last && array_diff( $picked, $state['quoted'] ) ) ) {
 			return $this->start_action( 'quote', $picked, $state );
@@ -1021,6 +1025,9 @@ trait ASI_Dialogue_Actions {
 			return null;
 		}
 		$wants_finance = $this->words_in( $normalized, 'finance_words' );
+		if ( ! $wants_finance && ! $this->words_in( $normalized, 'quote_words' ) && $this->asks_fact_word( $normalized ) ) {
+			return null; // "¿Y qué motor tiene la 2?" después de las cuotas: es un dato.
+		}
 		if ( $this->words_in( $normalized, 'quote_words' ) || ( ! $wants_finance && 'quote' === $state['last'] && array_diff( $picked, $state['quoted'] ) ) ) {
 			return $this->start_action( 'quote', $picked, $state );
 		}

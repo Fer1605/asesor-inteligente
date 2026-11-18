@@ -47,6 +47,26 @@ $search = $bot->handle( 'tractores' );
 $r      = $bot->handle( '¿cuánto pesa el segundo?', $search['state'] );
 check( 'dato por posición en la lista', true, 'fact' === $r['kind'] && 1 === count( $r['cards'] ) );
 
+// --- Fichas con datos de sistema, unidades y JSON pegado ---
+check( 'código: JSON pegado no se cita', true, ASI_Extractor::looks_like_code( 'LIMITED 4X4",n "color": "AZUL D",n "colorInterior": "NEGRO"' ) );
+check( 'código: un horario no es código', false, ASI_Extractor::looks_like_code( 'Horario: lunes a viernes de 8:00 a 17:00' ) );
+$repo2 = asi_test_delta_repository();
+$repo2->set_details( 3, array( array( 'Motor', 'Diésel,Turbo' ), array( 'C.C.', '2900' ), array( 'Cilindros', '4' ), array( 'Placa', 'P000AAA' ), array( 'vehicle_id', 'ceb377f8-9f09-4837-8baa-0eb8f2735196' ), array( 'Nombre Vendedor', '38V' ), array( 'Línea', '75 HP' ) ), "Tractor 5075E\n{ \"detalle\": { \"color\": \"AZUL\", \"placa\": \"P000AAA\", \"notaInterna\": \"PAGADO\" } }" );
+$repo2->set_details( 4, array( array( 'Motor', 'Diésel' ), array( 'Potencia', '110 HP' ) ), 'Tractor de 110 HP con cabina.' );
+$bot2 = asi_test_dialogue( $repo2 );
+$m    = $bot2->handle( '¿qué motor tiene el tractor 5075E?' );
+$all  = implode( ' | ', (array) $m['quote'] );
+check( 'motor: responde motor, cilindrada, cilindros y potencia', true, 'fact' === $m['kind'] && false !== mb_strpos( $all, 'Motor: Diésel, Turbo' ) && false !== mb_strpos( $all, '2900' ) && false !== mb_strpos( $all, 'Cilindros: 4' ) && false !== mb_strpos( $all, '75 HP' ) );
+$h = $bot2->handle( '¿cuántos caballos de fuerza tiene?', $m['state'] );
+check( 'caballos: el dato con su unidad en otro campo', true, 'fact' === $h['kind'] && false !== mb_strpos( $h['text'], '75 HP' ) );
+$p = $bot2->handle( '¿qué placa tiene?', $m['state'] );
+check( 'datos internos: nunca la placa', false, false !== mb_strpos( $p['text'] . implode( ' ', (array) ( isset( $p['quote'] ) ? $p['quote'] : array() ) ), 'P000AAA' ) );
+$c = $bot2->handle( '¿de qué color es?', $m['state'] );
+check( 'JSON en la descripción: no se cita', false, false !== mb_strpos( implode( ' ', (array) ( $c['quote'] ?? array() ) ), '"' ) );
+$list = $bot2->handle( 'tractores' );
+$both = $bot2->handle( 'potencia de ambas opciones', $list['state'] );
+check( 'dato de ambas: una línea por opción', true, 'fact' === $both['kind'] && 2 === count( (array) $both['quote'] ) && 2 === count( $both['cards'] ) );
+
 // --- Comparar ---
 $r = $bot->handle( 'diferencia entre el 5075E y el 6110J' );
 check( 'comparar: tabla', 'compare', $r['kind'] );

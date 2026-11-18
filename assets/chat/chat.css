@@ -637,8 +637,7 @@
 	margin: 0 0 14px;
 	max-width: min(78%, 620px);
 	padding: 10px 14px;
-	border: 0;
-	border-left: 3px solid var(--asi-primary);
+	border: 1px solid var(--asi-border);
 	border-radius: var(--asi-radius-sm);
 	background: var(--asi-surface);
 	color: var(--asi-text);

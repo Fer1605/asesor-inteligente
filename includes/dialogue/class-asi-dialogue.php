@@ -183,9 +183,14 @@ class ASI_Dialogue {
 		}
 		$fixes  = array();
 		$tokens = explode( ' ', $normalized );
+		// Palabras de pregunta y de datos no son errores de dedo: "cuántas puertas" no es "cuotas puertas".
+		$keep = array();
+		foreach ( array_merge( (array) $this->lexicon->get_list( 'question_words' ), array_keys( (array) $this->lexicon->get_list( 'fact_words' ) ) ) as $word ) {
+			$keep[ ASI_Normalizer::normalize( (string) $word ) ] = true;
+		}
 		foreach ( $tokens as $i => $token ) {
 			$length = strlen( $token );
-			if ( $length < 4 || ctype_digit( $token ) || in_array( $token, $vocab, true ) || isset( $this->vocab['tokens'][ $token ] ) || $this->lexicon->is_stopword( $token ) || $this->lexicon->synonyms( $token ) ) {
+			if ( $length < 4 || ctype_digit( $token ) || in_array( $token, $vocab, true ) || isset( $keep[ $token ] ) || isset( $this->vocab['tokens'][ $token ] ) || $this->lexicon->is_stopword( $token ) || $this->lexicon->synonyms( $token ) ) {
 				continue;
 			}
 			$max  = $length <= 6 ? 1 : 2;

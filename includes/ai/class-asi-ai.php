@@ -533,7 +533,7 @@ class ASI_AI {
 		}
 		// Ninguno disponible: todos agotados, en pausa o fallando.
 		$until = self::next_unblock();
-		self::is_down() || self::notify( 'noai|' . time(), 'stop', 'El chat ahora funciona sin IA: los modelos conectados están agotados o fallando.' . ( $until ? ' Se vuelven a probar solos a las ' . wp_date( 'H:i', $until ) . '.' : '' ) );
+		self::is_down() || self::notify( 'noai|' . time(), 'stop', 'El chat funciona sin IA por ahora: todos los modelos conectados están en pausa (agotados, sin saldo o fallando).' . ( $until ? ' Se vuelve a probar a las ' . wp_date( 'H:i', $until ) . ', con el primer mensaje que llegue; cuando responda, te avisamos aquí.' : '' ) );
 		self::went_down();
 		return null;
 	}
@@ -618,35 +618,83 @@ class ASI_AI {
 		}
 
 		$detail = isset( $data['error']['message'] ) ? (string) $data['error']['message'] : 'HTTP ' . $code;
-		$broke  = preg_match( '/credit balance|insufficient[_ ]quota|billing|payment required|saldo/i', $detail ) || 402 === $code;
-		if ( $broke ) {
+		$kind   = self::failure( $code, $detail, isset( $data['error']['code'] ) ? (string) $data['error']['code'] : '' );
+		if ( 'broke' === $kind ) {
 			// Sin saldo en la cuenta: se pausa la IA completa de ese proveedor.
 			self::block( $provider, '', HOUR_IN_SECONDS );
 			self::note_error( $provider, 'Sin saldo (' . $code . '). ' . $detail );
-			self::notify( 'broke|' . $provider, 'warn', 'La cuenta de ' . $label . ' se quedó sin saldo. Carga saldo en su panel; mientras tanto se usa la siguiente IA conectada, si hay.', 6 * HOUR_IN_SECONDS );
-		} elseif ( 429 === $code ) {
+			self::notify( 'broke|' . $provider, 'warn', 'La cuenta de ' . $label . ' se quedó sin saldo. Carga saldo en su panel. ' . self::next_text(), 6 * HOUR_IN_SECONDS );
+		} elseif ( 'limit' === $kind ) {
 			// Límite del plan (por minuto o del día): esperar lo que diga el servicio (de 1 minuto a 6 horas).
 			$wait  = (int) wp_remote_retrieve_header( $response, 'retry-after' );
 			$pause = max( 60, min( 6 * HOUR_IN_SECONDS, $wait ? $wait : 300 ) );
 			self::block( $provider, $model, $pause );
-			self::note_error( $provider . ':' . $model, 'Límite alcanzado (429). ' . $detail );
+			$daily = $pause >= 10 * MINUTE_IN_SECONDS || preg_match( '/per day|daily|\bTPD\b|\bRPD\b/i', $detail );
+			self::note_error( $provider . ':' . $model, ( $daily ? 'Límite del día (429). ' : 'Límite por minuto (429), pausa de ' . (int) ceil( $pause / 60 ) . ' min. ' ) . $detail );
 			// Solo se avisa cuando es el límite del día (los de por minuto se pasan solos).
-			if ( $pause >= 10 * MINUTE_IN_SECONDS || preg_match( '/per day|daily|\bTPD\b|\bRPD\b|quota/i', $detail ) ) {
-				self::notify( 'quota|' . $provider . ':' . $model, 'warn', 'Se agotó por hoy el modelo ' . $model . ' de ' . $label . '. El chat sigue con el siguiente de la lista.', 3 * HOUR_IN_SECONDS );
+			if ( $daily ) {
+				self::notify( 'quota|' . $provider . ':' . $model, 'warn', 'Se agotó por hoy el modelo ' . $model . ' de ' . $label . '. ' . self::next_text(), 3 * HOUR_IN_SECONDS );
 			}
-		} elseif ( in_array( $code, array( 401, 403 ), true ) ) {
+		} elseif ( 'key' === $kind ) {
 			self::block( $provider, '', HOUR_IN_SECONDS );
 			self::note_error( $provider, 'Clave rechazada (' . $code . '). ' . $detail );
-			self::notify( 'key|' . $provider, 'warn', $label . ' rechazó la clave. Revisa que esté bien copiada o crea una nueva y pégala en la pestaña IA.', 6 * HOUR_IN_SECONDS );
-		} elseif ( in_array( $code, array( 400, 404 ), true ) ) {
+			self::notify( 'key|' . $provider, 'warn', $label . ' rechazó la clave. Revisa que esté bien copiada o crea una nueva y pégala en la pestaña IA. ' . self::next_text(), 6 * HOUR_IN_SECONDS );
+		} elseif ( 'model' === $kind ) {
 			self::block( $provider, $model, DAY_IN_SECONDS );
 			self::note_error( $provider . ':' . $model, 'Modelo no disponible (' . $code . '). ' . $detail );
-			self::notify( 'model|' . $provider . ':' . $model, 'warn', $label . ' no aceptó el modelo ' . $model . ' (no existe en la cuenta o cambió de nombre). Se salta por hoy; revisa la lista de modelos.', DAY_IN_SECONDS );
+			self::notify( 'model|' . $provider . ':' . $model, 'warn', $label . ' no aceptó el modelo ' . $model . ' (no existe en la cuenta o cambió de nombre). Se salta por hoy; revisa la lista de modelos. ' . self::next_text(), DAY_IN_SECONDS );
 		} else {
 			self::block( $provider, $model, 120 );
 			self::note_error( $provider . ':' . $model, 'Error ' . $code . '. ' . $detail );
 		}
 		return null;
+	}
+
+	/**
+	 * Qué clase de falla es: broke (sin saldo), limit (límite del plan), key, model u other.
+	 * "Sin saldo" solo con señales claras: el 429 de Groq por minuto trae un enlace a su página de
+	 * "billing" y no es falta de saldo.
+	 */
+	public static function failure( $code, $detail, $error_code = '' ) {
+		if ( 402 === $code || 'insufficient_quota' === $error_code || preg_match( '/credit balance|insufficient[_ ]quota|payment required|exceeded your current quota/i', $detail ) ) {
+			return 'broke';
+		}
+		if ( 429 === $code ) {
+			return 'limit';
+		}
+		if ( in_array( $code, array( 401, 403 ), true ) ) {
+			return 'key';
+		}
+		return in_array( $code, array( 400, 404 ), true ) ? 'model' : 'other';
+	}
+
+	/**
+	 * El siguiente modelo que responderá (el primero de la cadena sin pausa), o null.
+	 *
+	 * @return array|null { provider, model }
+	 */
+	public static function next_up() {
+		foreach ( self::settings()['order'] as $provider ) {
+			if ( ! self::ready( $provider ) || get_transient( self::block_key( $provider, '' ) ) ) {
+				continue;
+			}
+			foreach ( self::models_for( $provider ) as $model ) {
+				if ( ! get_transient( self::block_key( $provider, $model ) ) ) {
+					return array( 'provider' => $provider, 'model' => $model );
+				}
+			}
+		}
+		return null;
+	}
+
+	/** "Ahora responde X de Y." o "No queda otra IA: el chat sigue sin IA hasta las HH:MM." */
+	private static function next_text() {
+		$next = self::next_up();
+		if ( $next ) {
+			return 'Ahora responde ' . $next['model'] . ' de ' . self::label( $next['provider'] ) . '.';
+		}
+		$until = self::next_unblock();
+		return 'No queda otra IA conectada: el chat sigue sin IA' . ( $until ? ' y la vuelve a probar a las ' . wp_date( 'H:i', $until ) . ', con el primer mensaje que llegue' : '' ) . '.';
 	}
 
 	/**
@@ -787,9 +835,10 @@ class ASI_AI {
 	}
 
 	private static function came_back( $provider, $model ) {
-		if ( get_option( self::DOWN_OPTION ) ) {
+		$since = (int) get_option( self::DOWN_OPTION );
+		if ( $since ) {
 			delete_option( self::DOWN_OPTION );
-			self::notify( 'back|' . time(), 'ok', 'La IA volvió a funcionar con ' . $model . ' de ' . self::label( $provider ) . '.', 0 );
+			self::notify( 'back|' . time(), 'ok', 'La IA volvió a funcionar: ahora responde ' . $model . ' de ' . self::label( $provider ) . '. Estuvo sin IA desde las ' . wp_date( 'H:i', $since ) . ' hasta este mensaje.', 0 );
 		}
 	}
 

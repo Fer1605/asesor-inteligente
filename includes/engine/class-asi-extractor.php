@@ -66,6 +66,15 @@ class ASI_Extractor {
 	 * @param int      $max      Cuántas frases.
 	 * @return string[]
 	 */
+	/**
+	 * ¿Es código o datos crudos ("\"color\": \"AZUL\"", llaves, etiquetas)? Eso no se le muestra al cliente.
+	 */
+	public static function looks_like_code( $text ) {
+		$text = (string) $text;
+		return preg_match_all( '/"[^"\n]{1,60}"\s*:/', $text ) >= 2
+			|| preg_match( '/[{}]|<\/?[a-z][^>]*>|\[\s*"|":\s*(?:null|true|false)\b/i', $text );
+	}
+
 	public static function best( $text, array $words, array $evidence = array(), $max = 1 ) {
 		$words    = array_flip( array_filter( array_map( array( 'ASI_Lexicon', 'normal_form' ), $words ) ) );
 		$evidence = array_flip( array_filter( array_map( array( 'ASI_Lexicon', 'normal_form' ), $evidence ) ) );
@@ -73,6 +82,9 @@ class ASI_Extractor {
 		$all      = array();
 
 		foreach ( self::sentences( $text ) as $position => $sentence ) {
+			if ( self::looks_like_code( $sentence ) ) {
+				continue; // Datos crudos pegados en la descripción (JSON de un inventario): nunca se citan.
+			}
 			$tokens = array_flip( explode( ' ', ASI_Lexicon::normal_form( $sentence ) ) );
 			$count  = count( $tokens );
 			if ( $count < self::MIN_WORDS && ! preg_match( '/[0-9@]/', $sentence ) ) {
