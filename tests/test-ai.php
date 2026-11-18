@@ -214,3 +214,12 @@ foreach ( array( 'de mas de 200 mil', 'desde 200 mil', 'arriba de 200 mil' ) as 
 // La revisión de montos de la IA ve los montos en letras: pegados y con dos montos.
 check( 'IA: "menos de cienmil" trae 100000 para revisar', true, in_array( 100000.0, ASI_AI_Interpreter::numbers_in( 'queiro un carro en menos de cienmil' ), true ) );
 check( 'IA: "entre cien y doscientos mil" son dos montos', array( 100.0, 200000.0 ), ASI_AI_Interpreter::numbers_in( 'entre cien y doscientos mil' ) );
+
+// "Quiero cotizar la BT-50 1.9L": la IA no cambia un modelo del catálogo por "pickup isuzu".
+$bt = new ASI_Test_Repository();
+$bt->add( 1, 'es', 'catalog', 'BT-50 1.9L', array( 'category' => array( 'Pick up' ) ), 'Pickup.', array( 'BT-50' ) );
+$bt->add( 2, 'es', 'catalog', 'ISUZU D-MAX DC 1.9', array( 'category' => array( 'Pick up' ) ), 'Pickup.' );
+$bt_an = new ASI_Query_Analyzer( ASI_Lexicon::get( 'es' ), $bt->vocabulary( 'es' ) );
+check( 'ia: deja fuera el modelo que nombró', true, ASI_AI_Interpreter::drops_code( $bt_an, 'quiero cotizar la BT-50 1.9L', 'pickup isuzu' ) );
+check( 'ia: si lo conserva, sí vale', false, ASI_AI_Interpreter::drops_code( $bt_an, 'quiero cotizar la BT-50 1.9L', 'pickup bt-50 1.9l' ) );
+check( 'ia: sin modelo nombrado no aplica', false, ASI_AI_Interpreter::drops_code( $bt_an, 'una pickup economica', 'pickup isuzu' ) );

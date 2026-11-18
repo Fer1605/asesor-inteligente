@@ -30,6 +30,7 @@ class ASI_Dialogue {
 	use ASI_Dialogue_Advice;
 	use ASI_Dialogue_Similar;
 	use ASI_Dialogue_Actions;
+	use ASI_Dialogue_Appointments;
 
 	const MAX_MESSAGE = 1000; // Un mensaje largo (una lista de lo que no quiere) se lee entero.
 
@@ -136,6 +137,7 @@ class ASI_Dialogue {
 		// Errores de dedo en las palabras de acción ("cuoa", "cotisacion"), antes de buscar.
 		list( $message, $normalized ) = $this->fix_action_typos( $message, $normalized );
 		$response   = $this->route( $message, $normalized, $state );
+		$response   = $this->quote_after_search( $normalized, $state, $response );
 		if ( $this->fin_unread && isset( $response['kind'] ) && in_array( $response['kind'], array( 'finance', 'file' ), true ) ) {
 			$response['fin_unread'] = true; // Lo usa el endpoint (IA); no se envía al navegador.
 		}
@@ -258,6 +260,12 @@ class ASI_Dialogue {
 			$help          = $this->smalltalk( 'help' );
 			$help['state'] = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'offer' => array() );
 			return $help;
+		}
+
+		// "Quiero agendar una cita": solicitud sin calendario (o los datos de contacto).
+		$appointment = $this->appointment_flow( $message, $normalized, $state );
+		if ( $appointment ) {
+			return $appointment;
 		}
 
 		// Cerrar la venta: datos del cliente, "sí", cuotas, cotización, comparación en PDF.
@@ -1746,22 +1754,37 @@ class ASI_Dialogue {
 		);
 		// Al despedirse deja a la mano cómo contactar al negocio (se configura en el panel, pestaña Contacto).
 		$contact = isset( $this->context['contact'] ) ? (array) $this->context['contact'] : array();
-		if ( ! empty( $contact['on_closing'] ) && ! empty( $contact['items'] ) ) {
-			$labels = array();
-			foreach ( array( 'whatsapp', 'phone', 'email', 'address', 'hours' ) as $type ) {
-				$labels[ $type ] = $this->responder->say( 'contact_' . $type );
+		if ( ! empty( $contact['on_closing'] ) ) {
+			$block = $this->contact_block();
+			if ( $block ) {
+				$reply['contact'] = $block;
 			}
-			$items = array();
-			foreach ( (array) $contact['items'] as $item ) {
-				$items[] = array_merge( $item, array( 'label' => isset( $labels[ $item['type'] ] ) ? $labels[ $item['type'] ] : '' ) );
-			}
-			$reply['contact'] = array(
-				'title' => $this->responder->say( 'contact_title', array( 'site' => $this->context['site_name'] ) ),
-				'items' => $items,
-				'page'  => ! empty( $contact['page'] ) ? array( 'url' => $contact['page'], 'label' => $this->responder->say( 'contact_page' ) ) : null,
-			);
 		}
 		return $reply;
+	}
+
+	/**
+	 * Los datos de contacto del negocio (pestaña Contacto del panel), listos para el chat.
+	 * null si no hay ninguno.
+	 */
+	private function contact_block( $title_key = 'contact_title' ) {
+		$contact = isset( $this->context['contact'] ) ? (array) $this->context['contact'] : array();
+		if ( empty( $contact['items'] ) ) {
+			return null;
+		}
+		$labels = array();
+		foreach ( array( 'whatsapp', 'phone', 'email', 'address', 'hours' ) as $type ) {
+			$labels[ $type ] = $this->responder->say( 'contact_' . $type );
+		}
+		$items = array();
+		foreach ( (array) $contact['items'] as $item ) {
+			$items[] = array_merge( $item, array( 'label' => isset( $labels[ $item['type'] ] ) ? $labels[ $item['type'] ] : '' ) );
+		}
+		return array(
+			'title' => $this->responder->say( $title_key, array( 'site' => $this->context['site_name'] ) ),
+			'items' => $items,
+			'page'  => ! empty( $contact['page'] ) ? array( 'url' => $contact['page'], 'label' => $this->responder->say( 'contact_page' ) ) : null,
+		);
 	}
 
 	/**
@@ -2315,10 +2338,12 @@ class ASI_Dialogue {
 			// La búsqueda armada con la IA y el texto buscado cuando se armó (si cambió, ya no vale).
 			'spec'      => ! empty( $state['spec'] ) && class_exists( 'ASI_AI_Interpreter' ) ? ASI_AI_Interpreter::clean_spec( $state['spec'] ) : array(),
 			'spec_q'    => isset( $state['spec_q'] ) && is_string( $state['spec_q'] ) ? $this->short( $state['spec_q'], self::MAX_MESSAGE ) : '',
+			// Cuándo le gustaría la cita (mientras el chat junta los datos de la solicitud).
+			'appt'      => isset( $state['appt'] ) && is_string( $state['appt'] ) ? $this->short( strip_tags( $state['appt'] ), 80 ) : '',
 		);
 		// Otra página de idioma o país: la conversación empieza de cero.
 		if ( '' !== $clean['lang'] && $clean['lang'] !== $this->context['lang'] ) {
-			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'], 'selected' => array(), 'quoted' => array(), 'last' => '', 'awaiting' => '', 'previewed' => array(), 'fin' => array(), 'fin_ids' => array(), 'set' => array(), 'spec' => array(), 'spec_q' => '' );
+			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'], 'selected' => array(), 'quoted' => array(), 'last' => '', 'awaiting' => '', 'previewed' => array(), 'fin' => array(), 'fin_ids' => array(), 'set' => array(), 'spec' => array(), 'spec_q' => '', 'appt' => '' );
 		}
 		return $clean;
 	}

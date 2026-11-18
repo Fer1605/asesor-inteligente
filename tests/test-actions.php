@@ -188,6 +188,26 @@ $say( 'pick up 4x4', $s12 );
 $say( 'me interesa el primero', $s12 );
 $say( 'Ana López', $s12 );
 check( 'nombre: un nombre de verdad sí', 'Ana López', $s12['customer']['name'] );
+// Frase real: nombre con "de", una coma y el correo en el mismo mensaje.
+$s13 = array();
+$say( 'pick up 4x4', $s13 );
+$say( 'me interesa el primero', $s13 );
+$say( 'Luis de leon, luis.prueba@example.com', $s13 );
+check( 'nombre: con "de" y coma, toma nombre y correo', array( 'Luis de Leon', 'luis.prueba@example.com' ), array( $s13['customer']['name'], $s13['customer']['email'] ) );
+check( 'nombre: y ya no vuelve a pedirlo', array(), $s13['pending'] );
+// Si solo dio el correo, el nombre con "de la" que manda después sí cuenta.
+$s14 = array();
+$say( 'pick up 4x4', $s14 );
+$say( 'me interesa el primero', $s14 );
+$r = $say( 'luis.prueba@example.com', $s14 );
+$r = $say( 'Luis de la Cruz', $s14 );
+check( 'nombre: "de la" en medio del nombre', 'Luis de la Cruz', $s14['customer']['name'] );
+check( 'nombre: con eso cotiza', array(), $s14['pending'] );
+$s15 = array();
+$say( 'pick up 4x4', $s15 );
+$say( 'me interesa el primero', $s15 );
+$say( 'aquí van mis datos: Ana López y mi correo es ana@example.com', $s15 );
+check( 'nombre: "aquí van" y "y mi correo" no son parte del nombre', 'Ana López', $s15['customer']['name'] );
 // La frase real: nombres cortos con "la suv / el pickup", "cotizarme" y "gmw" por GWM.
 $runner->calls = array();
 $shop3->add( 20, 'es', 'catalog', 'MITSUBISHI OUTLANDER GLX 2023', array( 'category' => array( 'SUV' ) ), 'SUV.', array(), array( 'price' => '169900', 'currency_raw' => '2', 'attrs' => array( 'body' => 'suv', 'year' => 2023 ) ) );
@@ -612,3 +632,39 @@ check( 'tras "¿cuáles comparo?", "cotízame esas" no compara (pregunta cuál c
 $s20 = array( 'results' => array( 21, 20, 22, 23 ), 'shown' => array( 21, 20, 22, 23 ), 'awaiting' => 'compare' );
 $r   = $say( 'la 1, 2, 3 y 4', $s20 );
 check( 'tras "¿cuáles comparo?", "la 1, 2, 3 y 4" compara las cuatro', array( 'compare', array( 21, 20, 22, 23 ) ), array( $r['kind'], end( $runner->previews )[1] ) );
+
+// "Quiero cotizar la …" sin nada a la vista: busca y pregunta cuál; "la primera" ya cotiza y el
+// nombre con el correo que manda después completan la cotización.
+$s16 = array();
+$runner->calls = array();
+$r = $say( 'cotizame una camioneta', $s16 );
+check( 'cotizar sin nada a la vista: muestra opciones', true, count( $r['cards'] ) > 1 );
+check( 'cotizar sin nada a la vista: pregunta cuál', true, false !== strpos( $r['followup'], 'cotiz' ) );
+$first16 = $s16['results'][0];
+$r = $say( 'la primera', $s16 );
+check( 'cotizar sin nada a la vista: "la primera" pide los datos', true, false !== strpos( $r['text'], 'nombre' ) );
+$r = $say( 'Luis de leon, luis.prueba@example.com', $s16 );
+check( 'cotizar sin nada a la vista: cotiza la elegida con su nombre', array( 'quote', array( $first16 ), 'Luis de Leon' ), array( $runner->calls[0][0], $runner->calls[0][1], $runner->calls[0][2]['name'] ) );
+// Manda nombre y correo sin que se los pidieran, justo después de ver la ficha: cotiza esa.
+$s17 = array();
+$runner->calls = array();
+$say( 'pick up 4x4', $s17 );
+$say( 'cuentame del primero', $s17 );
+$focus17 = (int) $s17['focus'];
+$r = $say( 'Luis de leon, luis.prueba@example.com', $s17 );
+check( 'correo sin pedirlo: cotiza el que estaba viendo', array( 'quote', array( $focus17 ), 'Luis de Leon' ), $runner->calls ? array( $runner->calls[0][0], $runner->calls[0][1], $runner->calls[0][2]['name'] ) : array() );
+// Con varias a la vista y sin una en foco: guarda los datos y pregunta cuál.
+$s18 = array();
+$runner->calls = array();
+$say( 'una camioneta', $s18 );
+$r = $say( 'ana@example.com', $s18 );
+check( 'correo sin pedirlo y varias a la vista: pregunta cuál', array( 'ana@example.com', 'quote' ), array( $s18['customer']['email'], $s18['offer']['action'] ) );
+$r = $say( 'la segunda', $s18 );
+check( 'correo sin pedirlo: ya no vuelve a pedir el correo, solo el nombre', true, false !== strpos( $r['text'], 'nombre' ) && false === strpos( $r['text'], 'correo' ) );
+// Tras "¿cuál te cotizo?", "cuéntame de la 2" abre la ficha; "la 2" sí cotiza.
+$s19 = array();
+$runner->calls = array();
+$say( 'cotizame una camioneta', $s19 );
+$r = $say( 'cuentame de la 2', $s19 );
+check( '"cuéntame de la 2" no pide datos', true, false === strpos( $r['text'], 'correo' ) );
+check( '"cuéntame de la 2" abre la ficha de esa', (int) $s19['results'][1], (int) $s19['focus'] );

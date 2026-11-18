@@ -68,6 +68,8 @@ class ASI_Settings {
 				'maps'       => '', // Enlace de Google Maps; vacío = se busca la dirección.
 				'hours'      => '',
 				'page'       => '', // Página de contacto (URL).
+				'appointments'        => 'off', // "Quiero una cita": off = responde con estos datos; request = toma la solicitud (sin calendario).
+				'appointments_notify' => '',    // Quién recibe las solicitudes; vacío = el correo de contacto.
 			),
 			'actions_mode'        => 'test',  // Cotizar/comparar desde el chat: off, test (aviso a ventas solo al correo de prueba), live.
 			'test_email'          => '',

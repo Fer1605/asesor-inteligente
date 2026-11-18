@@ -242,6 +242,7 @@ class ASI_REST_Controller {
 			'money'          => ASI_Settings::money( $context->country ),
 			'packs'          => array_values( ASI_Extensions::active_packs() ),
 			'actions'        => new ASI_Actions(),
+			'appointments'   => new ASI_Appointments(),
 			'card_flags'     => ASI_Settings::card_flags( $context->lang ),
 			'whatsapp'       => ASI_WhatsApp::get()['value'],
 			'contact'        => array(

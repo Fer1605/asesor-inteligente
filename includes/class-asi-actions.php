@@ -319,7 +319,7 @@ final class ASI_Actions implements ASI_Action_Runner {
 		);
 	}
 
-	private static function within_limit( $kind = 'action', $max = self::LIMIT_PER_HR ) {
+	public static function within_limit( $kind = 'action', $max = self::LIMIT_PER_HR ) {
 		$ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'cli';
 		$key = 'asi_' . ( 'action' === $kind ? 'act' : substr( $kind, 0, 4 ) ) . '_' . md5( $ip );
 		$n   = (int) get_transient( $key );

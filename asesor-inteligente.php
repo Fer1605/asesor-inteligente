@@ -3,7 +3,7 @@
  * Plugin Name:       Asesor Inteligente
  * Plugin URI:        https://github.com/Fer1605/asesor-inteligente
  * Description:       Asesor de ventas conversacional para WordPress, sin servicios externos de IA por defecto (interpretación con IA gratuita opcional, apagada). Descubre solo el contenido, los campos, los idiomas y los países (Polylang, WPML, ACF, WooCommerce, Elementor), recomienda según lo que necesita el cliente y se conecta con las acciones del sitio (cotizar, comparar).
- * Version:           0.3.0-dev.53
+ * Version:           0.3.0-dev.54
  * Requires at least: 5.9
  * Requires PHP:      7.4
  * Author:            Fer Santizo
@@ -17,7 +17,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ASI_VERSION', '0.3.0-dev.53' );
+define( 'ASI_VERSION', '0.3.0-dev.54' );
 define( 'ASI_FILE', __FILE__ );
 define( 'ASI_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ASI_URL', plugin_dir_url( __FILE__ ) );
@@ -53,6 +53,7 @@ require_once ASI_DIR . 'includes/dialogue/trait-asi-dialogue-products.php';
 require_once ASI_DIR . 'includes/dialogue/trait-asi-dialogue-advice.php';
 require_once ASI_DIR . 'includes/dialogue/trait-asi-dialogue-similar.php';
 require_once ASI_DIR . 'includes/dialogue/trait-asi-dialogue-actions.php';
+require_once ASI_DIR . 'includes/dialogue/trait-asi-dialogue-appointments.php';
 require_once ASI_DIR . 'includes/dialogue/class-asi-dialogue.php';
 require_once ASI_DIR . 'includes/ai/class-asi-ai-interpreter.php';
 require_once ASI_DIR . 'includes/ai/class-asi-ai.php';
@@ -71,6 +72,7 @@ require_once ASI_DIR . 'includes/extend/interface-asi-similarity.php';
 require_once ASI_DIR . 'includes/extend/interface-asi-action-runner.php';
 require_once ASI_DIR . 'includes/class-asi-mailer.php';
 require_once ASI_DIR . 'includes/class-asi-actions.php';
+require_once ASI_DIR . 'includes/class-asi-appointments.php';
 require_once ASI_DIR . 'includes/extend/class-asi-extensions.php';
 
 /**

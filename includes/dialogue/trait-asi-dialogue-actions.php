@@ -71,6 +71,28 @@ trait ASI_Dialogue_Actions {
 			return $this->continue_action( $state['pending']['action'], $state['pending']['ids'], $customer, $state );
 		}
 
+		// 1a. Manda su correo sin que el chat se lo pidiera ("Luis de León, luis@…" justo después de
+		// ver un vehículo): quiere que lo contacten por ese vehículo. Se cotiza el que está viendo; si
+		// está viendo varios, se guardan sus datos y se pregunta cuál.
+		if ( isset( $available['quote'] ) ) {
+			$given = array_filter( $this->parse_customer( $message, true ) );
+			if ( ! empty( $given['email'] ) && ! $this->words_in( $normalized, 'not_data_words' ) && str_word_count( preg_replace( '/\S+@\S+/', ' ', $normalized ) ) <= 8 ) {
+				$state['customer'] = array_merge( $state['customer'], $given );
+				$target            = (int) $state['focus'];
+				if ( ! $target && 1 === count( $state['results'] ) ) {
+					$target = (int) $state['results'][0];
+				}
+				if ( $target ) {
+					return $this->start_action( 'quote', array( $target ), $state );
+				}
+				if ( count( $state['results'] ) > 1 ) {
+					$reply                      = $this->ask_which( 'quote', $state );
+					$reply['state']['customer'] = $state['customer'];
+					return $reply;
+				}
+			}
+		}
+
 		// 1b. El chat preguntó "¿cuáles comparo?": esta es la respuesta ("la 1 y la 3", "la tank y la
 		// d-max", "los que me acabas de cotizar").
 		// "Cotízame esas" o "las cuotas de la 2" no responden esa pregunta: son otro pedido.
@@ -115,7 +137,9 @@ trait ASI_Dialogue_Actions {
 			$financing = $this->words_in( $normalized, 'finance_words' ) && ! $this->words_in( $normalized, 'quote_words' );
 			// Justo después de una tabla de cuotas, "¿y la 6?" sigue con las cuotas: no es elegir cuál cotizar.
 			$after_finance = 'finance' === $state['last'] && ! $this->words_in( $normalized, 'quote_words' );
-			if ( ! $comparing && ! $financing && ! $after_finance && 'quote' === $state['offer']['action'] && count( $state['offer']['ids'] ) > 1 && ( str_word_count( $normalized ) <= 8 || $this->words_in( $normalized, 'quote_words' ) ) && ! $this->words_in( $normalized, 'not_data_words' ) ) {
+			// "Cuéntame de la 2", "detalles de la 3": quiere ver la ficha, no la cotización.
+			$details = $this->words_in( $normalized, 'details_words' ) && ! $this->words_in( $normalized, 'quote_words' );
+			if ( ! $comparing && ! $financing && ! $after_finance && ! $details && 'quote' === $state['offer']['action'] && count( $state['offer']['ids'] ) > 1 && ( str_word_count( $normalized ) <= 8 || $this->words_in( $normalized, 'quote_words' ) ) && ! $this->words_in( $normalized, 'not_data_words' ) ) {
 				// Solo lo que nombra de verdad (nombre, número, grupo), nunca "el que está en foco".
 				$picked = $this->action_targets( $message, $normalized, $state, false );
 				if ( $picked ) {
@@ -204,6 +228,41 @@ trait ASI_Dialogue_Actions {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * "Quiero cotizar la BT-50" sin nada a la vista: primero se busca y, con lo que salió, se sigue
+	 * cotizando. Una opción: pide los datos. Varias: "¿cuál te cotizo?" y el siguiente "la primera"
+	 * ya cotiza (no abre la ficha), para que el nombre y el correo que mande después no se pierdan.
+	 */
+	/** Para la IA: cuando su lectura reemplaza la respuesta, sigue la cotización que pidió. */
+	public function follow_quote( $message, array $state, array $response ) {
+		return $this->quote_after_search( ASI_Normalizer::normalize( (string) $message ), $this->clean_state( $state ), $response );
+	}
+
+	private function quote_after_search( $normalized, array $state, array $response ) {
+		$runner    = $this->runner();
+		$available = $runner ? $runner->available() : array();
+		if ( ! isset( $available['quote'] ) || ! $this->words_in( $normalized, 'quote_words' ) || empty( $response['cards'] ) || 'results' !== ( isset( $response['kind'] ) ? $response['kind'] : '' ) ) {
+			return $response;
+		}
+		$after = isset( $response['state'] ) ? $response['state'] : array();
+		if ( ! empty( $after['pending']['action'] ) || ! empty( $after['offer']['action'] ) || empty( $after['results'] ) ) {
+			return $response;
+		}
+		$ids = array_map( 'intval', (array) $after['results'] );
+		if ( 1 === count( $ids ) ) {
+			$reply          = $this->start_action( 'quote', $ids, array_merge( $state, $after ) );
+			$reply['state'] = array_merge( $after, isset( $reply['state'] ) ? $reply['state'] : array() );
+			if ( empty( $reply['cards'] ) ) {
+				$reply['cards'] = $response['cards'];
+			}
+			return $reply;
+		}
+		$response['followup']    = $this->responder->say( 'quote_which_results' );
+		$response['suggestions'] = (array) $this->lexicon->get_list( 'which_chips' );
+		$response['state']       = array_merge( $after, array( 'offer' => array( 'action' => 'quote', 'ids' => array_slice( $ids, 0, 4 ) ), 'awaiting' => 'which' ) );
+		return $response;
 	}
 
 	/**
@@ -1025,15 +1084,24 @@ trait ASI_Dialogue_Actions {
 		if ( preg_match( '/(?:me llamo|mi nombre es|soy|a nombre de|my name is|i am|i\'m)\s+(' . $letters . '(?:\s+' . $letters . '){0,3})/iu', $text, $m ) ) {
 			$out['name'] = $m[1];
 		} elseif ( $waiting_data ) {
-			$rest  = preg_replace( '/\b(mi|mis|correo|email|e-mail|mail|es|son|telefono|teléfono|tel|cel|celular|numero|número|whatsapp|nombre|y|datos|aqui|aquí|van|estan|están|los|el|la|phone|and|is|name)\b/iu', ' ', $text );
+			$rest  = preg_replace( '/\b(mi|mis|correo|email|e-mail|mail|es|son|telefono|teléfono|tel|cel|celular|numero|número|whatsapp|nombre|datos|aqui|aquí|estan|están|phone|is|name)\b/iu', ' ', $text );
 			$rest  = trim( preg_replace( '/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+/u', ' ', $rest ) );
-			$words = array_values( array_filter( explode( ' ', $rest ), 'strlen' ) );
-			if ( $words && count( $words ) <= 4 && false === strpos( $text, '?' ) && $this->looks_like_name( $words ) ) {
+			$words = $this->trim_particles( array_values( array_filter( explode( ' ', $rest ), 'strlen' ) ) );
+			if ( $words && count( $this->without_particles( $words ) ) <= 4 && false === strpos( $text, '?' ) && $this->looks_like_name( $words ) ) {
 				$out['name'] = implode( ' ', $words );
 			}
 		}
 		if ( '' !== $out['name'] ) {
 			$out['name'] = function_exists( 'mb_convert_case' ) ? mb_convert_case( trim( $out['name'] ), MB_CASE_TITLE, 'UTF-8' ) : ucwords( trim( $out['name'] ) );
+			// "Luis de León", no "Luis De León".
+			$parts     = explode( ' ', $out['name'] );
+			$particles = $this->name_particles();
+			foreach ( $parts as $i => $part ) {
+				if ( $i > 0 && in_array( ASI_Normalizer::normalize( $part ), $particles, true ) ) {
+					$parts[ $i ] = function_exists( 'mb_strtolower' ) ? mb_strtolower( $part, 'UTF-8' ) : strtolower( $part );
+				}
+			}
+			$out['name'] = implode( ' ', $parts );
 		}
 		return $out;
 	}
@@ -1107,8 +1175,43 @@ trait ASI_Dialogue_Actions {
 	 * ¿Estas palabras son un nombre? No si alguna es una palabra común del idioma, del sitio
 	 * ("vehículos", "SUV") o de pedido ("sugiéreme", "quiero").
 	 */
+	/**
+	 * Las partículas de un apellido ("de", "del", "de la", "van"): van en medio del nombre ("Luis
+	 * de León"), no al principio ni al final ("y", "los" sobran en "y mi correo…", "los datos: Ana").
+	 */
+	private function name_particles() {
+		return array_map( array( 'ASI_Normalizer', 'normalize' ), (array) $this->lexicon->get_list( 'name_particles' ) );
+	}
+
+	private function trim_particles( array $words ) {
+		$particles = $this->name_particles();
+		while ( $words && in_array( ASI_Normalizer::normalize( $words[0] ), $particles, true ) ) {
+			array_shift( $words );
+		}
+		while ( $words && in_array( ASI_Normalizer::normalize( end( $words ) ), $particles, true ) ) {
+			array_pop( $words );
+		}
+		return array_values( $words );
+	}
+
+	private function without_particles( array $words ) {
+		$particles = $this->name_particles();
+		return array_values(
+			array_filter(
+				$words,
+				static function ( $word ) use ( $particles ) {
+					return ! in_array( ASI_Normalizer::normalize( $word ), $particles, true );
+				}
+			)
+		);
+	}
+
 	private function looks_like_name( array $words ) {
-		$not = array_map( array( 'ASI_Normalizer', 'normalize' ), array_merge( (array) $this->lexicon->get_list( 'yes_words' ), (array) $this->lexicon->get_list( 'not_name_words' ) ) );
+		$not   = array_map( array( 'ASI_Normalizer', 'normalize' ), array_merge( (array) $this->lexicon->get_list( 'yes_words' ), (array) $this->lexicon->get_list( 'not_name_words' ) ) );
+		$words = $this->without_particles( $words );
+		if ( ! $words ) {
+			return false;
+		}
 		foreach ( $words as $word ) {
 			$normal = ASI_Normalizer::normalize( $word );
 			if ( strlen( $normal ) < 2 || $this->lexicon->is_stopword( $normal ) || in_array( $normal, $not, true ) || isset( $this->vocab['tokens'][ ASI_Lexicon::normal_form( $normal ) ] ) ) {

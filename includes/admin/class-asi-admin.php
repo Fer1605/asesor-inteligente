@@ -308,6 +308,8 @@ class ASI_Admin {
 							'maps'       => esc_url_raw( $text( 'maps' ) ),
 							'hours'      => $text( 'hours' ),
 							'page'       => esc_url_raw( $text( 'page' ) ),
+							'appointments'        => isset( $in['appointments'] ) && in_array( $in['appointments'], ASI_Appointments::MODES, true ) ? $in['appointments'] : 'off',
+							'appointments_notify' => implode( ', ', array_filter( array_map( 'sanitize_email', explode( ',', $text( 'appointments_notify' ) ) ) ) ),
 						),
 					)
 				);
@@ -943,6 +945,18 @@ class ASI_Admin {
 							<?php endforeach; ?>
 						</div>
 						<p class="asi-actions"><?php submit_button( 'Guardar contacto', 'primary', 'submit', false ); ?></p>
+					<?php $this->card_close(); ?>
+					<?php $this->card_open( 'Citas', 'dashicons-calendar-alt', 'green' ); ?>
+						<p class="asi-muted">Cuando alguien escribe “quiero agendar una cita”. El chat nunca da fecha ni hora.</p>
+						<p class="asi-field">
+							<label><input type="radio" name="contact[appointments]" value="off" <?php checked( 'request' !== $c['appointments'] ); ?>> <strong>Apagado</strong> <span class="asi-muted">Responde con los datos de contacto de arriba.</span></label><br>
+							<label><input type="radio" name="contact[appointments]" value="request" <?php checked( 'request', $c['appointments'] ); ?>> <strong>Solicitud de cita</strong> <span class="asi-muted">Pide nombre, correo y cuándo le gustaría, y avisa a los asesores. Queda en Envíos de Elementor como “Solicitud de cita · chat”.</span></label>
+						</p>
+						<p class="asi-field">
+							<label for="asi-contact-appointments_notify"><strong>Correos que reciben las solicitudes</strong> <span class="asi-muted">Varios: sepáralos con coma. Vacío = el correo de contacto. En modo prueba solo llega al correo de prueba.</span></label>
+							<input type="text" class="large-text" id="asi-contact-appointments_notify" name="contact[appointments_notify]" value="<?php echo esc_attr( $c['appointments_notify'] ); ?>">
+						</p>
+						<p class="asi-actions"><?php submit_button( 'Guardar', 'primary', 'submit', false ); ?></p>
 					<?php $this->card_close(); ?>
 				</div>
 				<div class="asi-sticky">

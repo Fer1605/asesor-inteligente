@@ -825,6 +825,24 @@ class ASI_AI_Interpreter {
 		return $spec;
 	}
 
+	/**
+	 * ¿La frase de la IA deja fuera un código o modelo del catálogo que el cliente escribió?
+	 */
+	public static function drops_code( ASI_Query_Analyzer $analyzer, $message, $phrase ) {
+		$said   = $analyzer->analyze( (string) $message );
+		$phrase = str_replace( ' ', '', ASI_Normalizer::normalize( (string) $phrase ) );
+		foreach ( isset( $said['groups'] ) ? (array) $said['groups'] : array() as $group ) {
+			if ( empty( $group['critical'] ) || ( 'code' !== ( isset( $group['kind'] ) ? $group['kind'] : '' ) && 'code' !== ( isset( $group['term_kind'] ) ? $group['term_kind'] : '' ) ) ) {
+				continue;
+			}
+			$code = str_replace( ' ', '', ASI_Normalizer::normalize( (string) $group['text'] ) );
+			if ( '' !== $code && false === strpos( $phrase, $code ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/** La búsqueda guardada, en texto para la IA. */
 	public static function spec_summary( array $spec ) {
 		$spec  = self::clean_spec( $spec );
@@ -1052,6 +1070,11 @@ class ASI_AI_Interpreter {
 		}
 		// ¿Entendieron lo mismo? Se compara lo que buscaron las reglas con la frase de la IA.
 		$rules_q = isset( $response['state']['q'] ) ? (string) $response['state']['q'] : '';
+		// Nombró un modelo exacto del catálogo ("BT-50") y las reglas lo encontraron: la IA no lo
+		// cambia por otra cosa ("pickup isuzu"), aunque sepa que se parecen.
+		if ( 'results' === $response['kind'] && ! empty( $response['cards'] ) && self::drops_code( $analyzer, $message, $phrase ) ) {
+			return $out;
+		}
 		if ( 'results' === $response['kind'] && self::signature( $analyzer->analyze( $rules_q ) ) === self::signature( $analyzer->analyze( $phrase ) ) ) {
 			// Entendieron lo mismo: queda la respuesta de las reglas, pero la búsqueda armada se guarda
 			// para que el próximo mensaje parta de ella.
@@ -1064,6 +1087,9 @@ class ASI_AI_Interpreter {
 		$fresh      = $state;
 		$fresh['q'] = '';
 		$new        = $dialogue->handle( $phrase, $fresh );
+		// "Dame una cotización entre 250 y 350 mil": la frase de la IA ya no dice "cotizar"; la
+		// respuesta sigue preguntando cuál cotiza, como con las reglas.
+		$new = $dialogue->follow_quote( $message, $state, $new );
 		// Solo si con su lectura sí hay resultados exactos (no "estas se acercan").
 		if ( isset( $new['kind'] ) && 'results' === $new['kind'] && ! empty( $new['cards'] ) && empty( $new['learn'] ) ) {
 			if ( $out['spec'] ) {
