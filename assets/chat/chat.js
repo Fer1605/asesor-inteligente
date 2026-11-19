@@ -75,11 +75,15 @@
 	if ( config.assistant.name ) {
 		identity.appendChild( el( 'span', 'asi-chat__name', config.assistant.name ) );
 	}
+	header.append( identity );
+
+	// "Nueva conversación" va junto a Enviar: así está a la mano también cuando la barra flota.
 	const reset = el( 'button', 'asi-chat__reset' );
 	reset.type = 'button';
+	reset.title = ui.new;
+	reset.setAttribute( 'aria-label', ui.new );
 	reset.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>';
-	reset.appendChild( document.createTextNode( ui.new ) );
-	header.append( identity, reset );
+	reset.appendChild( el( 'span', 'asi-chat__reset-label', ui.new ) );
 
 	const log = el( 'div', 'asi-chat__log' );
 	log.setAttribute( 'role', 'log' );
@@ -96,13 +100,19 @@
 	send.type = 'submit';
 	send.setAttribute( 'aria-label', ui.send );
 	send.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>';
-	form.append( input, send );
+	form.append( input, send, reset );
+
+	// Ocupa el lugar de la barra mientras flota, para que nada salte.
+	const spacer = el( 'div', 'asi-chat__spacer' );
+	spacer.hidden = true;
 
 	root.textContent = '';
-	root.append( header, log, form );
-	if ( ! config.assistant.name && ! config.assistant.avatar ) {
+	if ( config.assistant.name || config.assistant.avatar ) {
+		root.append( header );
+	} else {
 		root.classList.add( 'asi-chat--anonymous' );
 	}
+	root.append( log, spacer, form );
 
 	// ---------- Mensajes ----------
 
@@ -505,6 +515,180 @@
 		log.scrollTop = Math.min( target, log.scrollHeight );
 	}
 
+	// ---------- La página alrededor del chat ----------
+
+	// Alto del encabezado fijo del sitio (si lo hay), para no dejar el chat debajo de él.
+	function headerOffset() {
+		let offset = 0;
+		const x = Math.round( window.innerWidth / 2 );
+		for ( let y = 2; y <= 240; y += 8 ) {
+			let node = document.elementFromPoint( x, y );
+			while ( node && node !== document.body && node !== document.documentElement ) {
+				if ( root.contains( node ) ) {
+					break;
+				}
+				const position = window.getComputedStyle( node ).position;
+				if ( 'fixed' === position || 'sticky' === position ) {
+					const rect = node.getBoundingClientRect();
+					if ( rect.top <= 4 && rect.bottom > offset ) {
+						offset = rect.bottom;
+					}
+				}
+				node = node.parentElement;
+			}
+		}
+		return Math.min( Math.round( offset ), 240 );
+	}
+
+	// Al escribir y al responder: el chat completo a la vista, justo debajo del encabezado del sitio,
+	// esté donde esté el usuario en la página.
+	function bringIntoView( jump ) {
+		const top = headerOffset();
+		const box = root.getBoundingClientRect();
+		if ( box.top >= top - 2 && box.bottom <= window.innerHeight + 2 ) {
+			return;
+		}
+		const target = Math.max( 0, window.pageYOffset + box.top - top - 12 );
+		try {
+			window.scrollTo( { top: target, behavior: true === jump ? 'instant' : 'smooth' } );
+		} catch ( e ) {
+			window.scrollTo( 0, target );
+		}
+	}
+
+	// Barra de escribir flotante: si el pie del chat queda debajo de la pantalla, la barra se queda
+	// abajo a la vista y se asienta en su lugar al llegar al final del chat.
+	let docked = false;
+	let dockReady = 'complete' === document.readyState;
+	let dockTicking = false;
+
+	// Si algún contenedor tiene transform, "fixed" se mediría contra él y no contra la pantalla.
+	function canFloat() {
+		for ( let node = root.parentElement; node && node !== document.documentElement; node = node.parentElement ) {
+			const style = window.getComputedStyle( node );
+			if ( 'none' !== style.transform || 'none' !== style.filter || 'none' !== style.perspective ) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	// Botones flotantes del sitio (WhatsApp, volver arriba…) que quedarían encima de la barra: se suben
+	// todos juntos con margin-bottom, que no rompe cómo se apilan entre ellos. La lista se arma una vez
+	// (y al cambiar el tamaño de la ventana); en cada scroll solo se ajusta cuánto suben.
+	let floaters = null;
+
+	function findFloaters() {
+		floaters = [];
+		document.querySelectorAll( 'body *' ).forEach( function ( node ) {
+			if ( root.contains( node ) || 'fixed' !== window.getComputedStyle( node ).position ) {
+				return;
+			}
+			const rect = node.getBoundingClientRect();
+			// Botones pequeños de la mitad de abajo; no barras de ancho completo (avisos de cookies).
+			if ( rect.height > 0 && rect.width < window.innerWidth * 0.6 && rect.top > window.innerHeight / 2 ) {
+				floaters.push( { node: node, margin: node.style.marginBottom, base: parseFloat( window.getComputedStyle( node ).marginBottom ) || 0 } );
+			}
+		} );
+	}
+
+	function liftFloaters() {
+		if ( null === floaters ) {
+			findFloaters();
+		}
+		const bar = form.getBoundingClientRect();
+		// Dónde estaría cada botón sin subirlo, y cuánto hay que subirlos (lo mismo a todos, para que
+		// sigan apilados igual) para que el más bajo quede justo arriba de la barra.
+		let need = 0;
+		const beside = floaters.filter( function ( item ) {
+			const rect = item.node.getBoundingClientRect();
+			item.bottom = rect.bottom + ( ( parseFloat( item.node.style.marginBottom ) || item.base ) - item.base );
+			item.top    = item.bottom - rect.height;
+			return rect.right > bar.left && rect.left < bar.right;
+		} );
+		beside.forEach( function ( item ) {
+			if ( item.top < bar.bottom && item.bottom > bar.top - 8 ) {
+				need = Math.max( need, Math.round( item.bottom - bar.top + 8 ) );
+			}
+		} );
+		floaters.forEach( function ( item ) {
+			item.node.style.marginBottom = need > 0 && beside.indexOf( item ) > -1 ? ( item.base + need ) + 'px' : item.margin;
+		} );
+	}
+
+	function setDocked( on ) {
+		if ( on === docked ) {
+			if ( on ) {
+				placeDock();
+			}
+			return;
+		}
+		docked = on;
+		if ( on ) {
+			spacer.style.height = form.offsetHeight + 'px';
+			spacer.hidden = false;
+			form.classList.add( 'is-floating' );
+			placeDock();
+		} else {
+			form.classList.remove( 'is-floating' );
+			form.style.left = '';
+			form.style.width = '';
+			spacer.hidden = true;
+		}
+	}
+
+	// Mismo ancho y misma posición que el chat.
+	function placeDock() {
+		const box = root.getBoundingClientRect();
+		form.style.left = box.left + 'px';
+		form.style.width = box.width + 'px';
+	}
+
+	function updateDock() {
+		dockTicking = false;
+		if ( ! dockReady ) {
+			return;
+		}
+		const box    = root.getBoundingClientRect();
+		const height = docked ? spacer.offsetHeight : form.offsetHeight;
+		const view   = window.innerHeight;
+		// Flota mientras el chat está en pantalla pero su pie (la barra) todavía no.
+		setDocked( box.bottom > view + 1 && box.top < view - height - 24 );
+		liftFloaters();
+	}
+
+	function requestDock() {
+		if ( ! dockTicking ) {
+			dockTicking = true;
+			window.requestAnimationFrame( updateDock );
+		}
+	}
+
+	if ( canFloat() ) {
+		window.addEventListener( 'scroll', requestDock, { passive: true } );
+		window.addEventListener( 'resize', function () {
+			// Al cambiar de tamaño los botones pueden ser otros o estar en otro lugar: se vuelven a buscar
+			// (antes se dejan como estaban, para medir su margen original).
+			( floaters || [] ).forEach( function ( item ) {
+				item.node.style.marginBottom = item.margin;
+			} );
+			floaters = null;
+			requestDock();
+		} );
+		if ( 'function' === typeof window.ResizeObserver ) {
+			new window.ResizeObserver( requestDock ).observe( root );
+		}
+		// Hasta que carga la página (imágenes, encabezado) no se decide: así no da saltos al abrir.
+		if ( ! dockReady ) {
+			const ready = function () {
+				dockReady = true;
+				requestDock();
+			};
+			window.addEventListener( 'load', ready );
+			window.setTimeout( ready, 2500 );
+		}
+	}
+
 	// ---------- Conversación ----------
 
 	function ask( message ) {
@@ -521,6 +705,7 @@
 		items.push( { who: 'user', text: message } );
 		const question = bubble( 'user', message );
 		typing( true );
+		bringIntoView();
 
 		const headers = { 'Content-Type': 'application/json' };
 		if ( config.nonce ) {
@@ -575,6 +760,7 @@
 				busy = false;
 				root.classList.remove( 'is-busy' );
 				scrollToQuestion( question );
+				bringIntoView();
 			} );
 	}
 
@@ -625,9 +811,35 @@
 	}
 	renderAll();
 
-	// Llegó desde el buscador del sitio: se pregunta directamente y se limpia la URL.
-	if ( config.query ) {
+	// ¿Llegó buscando desde el sitio? Una recarga o un atrás/adelante no es una búsqueda nueva.
+	function incomingSearch() {
+		try {
+			const entry = window.performance.getEntriesByType( 'navigation' )[ 0 ];
+			if ( entry && entry.type ) {
+				return 'reload' !== entry.type && 'back_forward' !== entry.type;
+			}
+		} catch ( e ) {}
+		const legacy = window.performance && window.performance.navigation ? window.performance.navigation.type : 0;
+		return 1 !== legacy && 2 !== legacy;
+	}
+
+	// Llegó desde el buscador del sitio: conversación nueva solo con esa búsqueda (la anterior se
+	// quedaba arriba y parecía que no había pasado nada), y se limpia la URL.
+	if ( config.query && incomingSearch() ) {
+		state = {};
+		items = [ { who: 'bot', data: config.initial } ];
+		renderAll();
 		ask( config.query );
+		// Al llegar, sin animación (y otra vez al terminar de cargar: el navegador puede devolver el
+		// scroll arriba).
+		bringIntoView( true );
+		if ( 'complete' !== document.readyState ) {
+			window.addEventListener( 'load', function () {
+				bringIntoView( true );
+			} );
+		}
+	}
+	if ( config.query ) {
 		try {
 			const url = new URL( window.location.href );
 			url.searchParams.delete( 'q' );

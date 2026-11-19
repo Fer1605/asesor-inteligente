@@ -72,9 +72,9 @@
 	color: var(--asi-on-primary);
 }
 
+/* Sin nombre ni foto del asistente el encabezado quedaría vacío: no se muestra. */
 .asi-chat.asi-chat--anonymous .asi-chat__header {
-	justify-content: flex-end;
-	padding-block: 8px;
+	display: none;
 }
 
 .asi-chat .asi-chat__identity {
@@ -545,10 +545,38 @@
 /* Formulario */
 .asi-chat .asi-chat__form {
 	display: flex;
+	align-items: center;
 	gap: 8px;
 	padding: 12px;
 	border-top: 1px solid var(--asi-border);
 	background: var(--asi-background);
+}
+
+/* Barra flotante: mientras el pie del chat está fuera de la pantalla, la barra se queda abajo a la
+   vista (mismo ancho que el chat) y se asienta en su lugar al llegar al final. */
+.asi-chat .asi-chat__form.is-floating {
+	position: fixed;
+	bottom: 0;
+	z-index: 9990;
+	padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+	border: 1px solid var(--asi-border);
+	border-bottom: 0;
+	border-radius: var(--asi-radius-sm) var(--asi-radius-sm) 0 0;
+	box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.asi-chat .asi-chat__spacer {
+	flex: none;
+}
+
+/* "Nueva conversación" junto a Enviar */
+.asi-chat .asi-chat__form .asi-chat__reset {
+	flex: none;
+	height: 44px;
+	padding: 0 16px;
+	border: 1px solid var(--asi-border);
+	box-shadow: none;
+	white-space: nowrap;
 }
 
 .asi-chat .asi-chat__input {
@@ -629,6 +657,22 @@
 
 	.asi-chat .asi-chat__input {
 		font-size: 16px; /* Evita el zoom automático en iPhone. */
+	}
+
+	/* En celular, solo el ícono (el nombre queda para lectores de pantalla y al mantener presionado). */
+	.asi-chat .asi-chat__form .asi-chat__reset {
+		width: 44px;
+		padding: 0;
+		justify-content: center;
+	}
+
+	.asi-chat .asi-chat__reset-label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
 	}
 }
 

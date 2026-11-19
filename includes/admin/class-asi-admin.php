@@ -87,7 +87,7 @@ class ASI_Admin {
 	const BUTTON_LABELS = array(
 		'button'       => array( 'Enviar', 'Fondo del botón de enviar.' ),
 		'button_hover' => array( 'Enviar · al pasar el mouse', 'Fondo del botón de enviar en hover.' ),
-		'reset_bg'     => array( 'Nueva conversación', 'Fondo del botón del encabezado.' ),
+		'reset_bg'     => array( 'Nueva conversación', 'Fondo del botón que va junto a Enviar.' ),
 		'reset_text'   => array( 'Nueva conversación · texto', 'Texto e ícono de ese botón.' ),
 		'reset_hover'  => array( 'Nueva conversación · al pasar el mouse', 'Fondo de ese botón en hover.' ),
 	);
@@ -1183,7 +1183,6 @@ class ASI_Admin {
 					<img class="asi-chat__avatar" id="asi-preview-avatar" src="<?php echo esc_url( $avatar ); ?>" alt="" style="<?php echo $avatar ? '' : 'display:none'; ?>">
 					<span class="asi-chat__name" id="asi-preview-name"><?php echo esc_html( $name ); ?></span>
 				</div>
-				<button type="button" class="asi-chat__reset"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>Nueva conversación</button>
 			</div>
 			<div class="asi-chat__log">
 				<div class="asi-msg asi-msg--bot"><div class="asi-msg__bubble">¡Hola! Cuéntame qué necesitas y te ayudo a encontrarlo.</div></div>
@@ -1203,7 +1202,7 @@ class ASI_Admin {
 				</div>
 				<div class="asi-chips"><button type="button" class="asi-chip asi-chip--primary">Subir a Q80.00</button></div>
 			</div>
-			<div class="asi-chat__form"><input class="asi-chat__input" placeholder="Escribe lo que buscas…" disabled><button type="button" class="asi-chat__send"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg></button></div>
+			<div class="asi-chat__form"><input class="asi-chat__input" placeholder="Escribe lo que buscas…" disabled><button type="button" class="asi-chat__send"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg></button><button type="button" class="asi-chat__reset"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg><span class="asi-chat__reset-label">Nueva conversación</span></button></div>
 		</div>
 		<?php
 	}
