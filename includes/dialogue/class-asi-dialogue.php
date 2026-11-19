@@ -1772,7 +1772,7 @@ class ASI_Dialogue {
 	 * Los datos de contacto del negocio (pestaña Contacto del panel), listos para el chat.
 	 * null si no hay ninguno.
 	 */
-	private function contact_block( $title_key = 'contact_title' ) {
+	private function contact_block( $title_key = 'contact_title', array $vars = array() ) {
 		$contact = isset( $this->context['contact'] ) ? (array) $this->context['contact'] : array();
 		if ( empty( $contact['items'] ) ) {
 			return null;
@@ -1786,7 +1786,7 @@ class ASI_Dialogue {
 			$items[] = array_merge( $item, array( 'label' => isset( $labels[ $item['type'] ] ) ? $labels[ $item['type'] ] : '' ) );
 		}
 		return array(
-			'title' => $this->responder->say( $title_key, array( 'site' => $this->context['site_name'] ) ),
+			'title' => $this->responder->say( $title_key, array_merge( array( 'site' => $this->context['site_name'] ), $vars ) ),
 			'items' => $items,
 			'page'  => ! empty( $contact['page'] ) ? array( 'url' => $contact['page'], 'label' => $this->responder->say( 'contact_page' ) ) : null,
 		);
@@ -2345,10 +2345,14 @@ class ASI_Dialogue {
 			'spec_q'    => isset( $state['spec_q'] ) && is_string( $state['spec_q'] ) ? $this->short( $state['spec_q'], self::MAX_MESSAGE ) : '',
 			// Cuándo le gustaría la cita (mientras el chat junta los datos de la solicitud).
 			'appt'      => isset( $state['appt'] ) && is_string( $state['appt'] ) ? $this->short( strip_tags( $state['appt'] ), 80 ) : '',
+			// Cita o prueba de manejo (lo que pidió).
+			'appt_kind' => isset( $state['appt_kind'] ) && 'test_drive' === $state['appt_kind'] ? 'test_drive' : '',
+			// Identificador de la conversación (lo pone el endpoint; sirve para el resumen de una cita).
+			'cid'       => isset( $state['cid'] ) && is_string( $state['cid'] ) && preg_match( '/^[a-z0-9]{12,32}$/', $state['cid'] ) ? $state['cid'] : '',
 		);
 		// Otra página de idioma o país: la conversación empieza de cero.
 		if ( '' !== $clean['lang'] && $clean['lang'] !== $this->context['lang'] ) {
-			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'], 'selected' => array(), 'quoted' => array(), 'last' => '', 'awaiting' => '', 'previewed' => array(), 'fin' => array(), 'fin_ids' => array(), 'set' => array(), 'spec' => array(), 'spec_q' => '', 'appt' => '' );
+			$clean = array( 'q' => '', 'shown' => array(), 'results' => array(), 'focus' => 0, 'recent' => array(), 'turns' => 0, 'lang' => '', 'profile' => array(), 'asked' => array(), 'pending' => array(), 'offer' => array(), 'customer' => $clean['customer'], 'selected' => array(), 'quoted' => array(), 'last' => '', 'awaiting' => '', 'previewed' => array(), 'fin' => array(), 'fin_ids' => array(), 'set' => array(), 'spec' => array(), 'spec_q' => '', 'appt' => '', 'appt_kind' => '', 'cid' => $clean['cid'] );
 		}
 		return $clean;
 	}

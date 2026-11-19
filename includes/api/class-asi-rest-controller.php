@@ -163,6 +163,10 @@ class ASI_REST_Controller {
 		$message = (string) $request->get_param( 'message' );
 
 		$state    = is_array( $state ) ? $state : array();
+		$ai_used  = false;
+		// Cada conversación tiene su identificador (para el registro privado y el resumen de una cita).
+		$cid          = isset( $state['cid'] ) && ASI_Chat_Log::valid_id( $state['cid'] ) ? $state['cid'] : ASI_Chat_Log::new_id();
+		$state['cid'] = $cid;
 		$dcontext = self::dialogue_context_for( $context, $this->plugin->languages );
 		$dialogue = new ASI_Dialogue( new ASI_Index_Repository(), $dcontext );
 		$response = $dialogue->handle( $message, $state );
@@ -186,6 +190,7 @@ class ASI_REST_Controller {
 				// Ya entendida: no va a "preguntas sin respuesta"; queda en la lista de la IA del panel.
 				$response = $fixed;
 				unset( $response['learn'] );
+				$ai_used = true;
 			}
 		}
 
@@ -197,8 +202,23 @@ class ASI_REST_Controller {
 		}
 		unset( $response['learn'], $response['qkey'], $response['fin_unread'], $response['guessed'], $response['over_budget'] );
 
+		$response['state']        = isset( $response['state'] ) && is_array( $response['state'] ) ? $response['state'] : array();
+		$response['state']['cid'] = $cid;
+
 		// Reportería (sin datos personales): conversación, lo que pidió de nuevo, detalle visto.
 		ASI_Reports::chat_turn( $dialogue, $state, $response );
+
+		// Registro privado de la conversación (lo que buscó, en palabras del panel: "Tipo: Pickup").
+		$old_q    = isset( $state['q'] ) && is_string( $state['q'] ) ? $state['q'] : '';
+		$new_q    = isset( $response['state']['q'] ) && is_string( $response['state']['q'] ) ? $response['state']['q'] : '';
+		$criteria = array();
+		if ( '' !== $new_q && $new_q !== $old_q ) {
+			$names = ASI_Reports::dim_names();
+			foreach ( $dialogue->report_criteria( $new_q ) as $c ) {
+				$criteria[] = ( isset( $names[ $c['dim'] ] ) ? $names[ $c['dim'] ] : $c['dim'] ) . ': ' . $c['label'];
+			}
+		}
+		ASI_Chat_Log::record( $message, $state, $ai_used ? array_merge( $response, array( 'ai_model' => 1 ) ) : $response, $context->lang, $criteria );
 
 		$response = apply_filters( 'asi_chat_response', $response, $message, $context );
 		$rest     = rest_ensure_response( $response );

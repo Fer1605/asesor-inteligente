@@ -126,6 +126,7 @@ class ASI_Admin {
 		add_action( 'admin_post_asi_action', array( $this, 'handle_action' ) );
 		add_action( 'admin_post_asi_report_csv', array( $this, 'report_csv' ) );
 		add_action( 'admin_post_asi_report_print', array( $this, 'report_print' ) );
+		add_action( 'admin_post_asi_chats_json', array( $this, 'chats_json' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'assets' ) );
 	}
 
@@ -903,14 +904,22 @@ class ASI_Admin {
 	/**
 	 * Tarjeta pequeña con una cifra.
 	 */
-	private function stat( $icon, $tone, $value, $label, $hint ) {
+	private function stat( $icon, $tone, $value, $label, $hint, $delta = false ) {
+		// Contra el periodo anterior: "↑ 18 %" / "↓ 5 %" (null: antes no había con qué comparar).
+		$change = '';
+		if ( false !== $delta ) {
+			$change = null === $delta
+				? ''
+				: sprintf( '<span class="asi-stat__delta asi-stat__delta--%1$s">%2$s %3$s %% vs. periodo anterior</span>', $delta > 0 ? 'up' : ( $delta < 0 ? 'down' : 'same' ), $delta > 0 ? '↑' : ( $delta < 0 ? '↓' : '=' ), esc_html( abs( $delta ) ) );
+		}
 		printf(
-			'<div class="asi-stat"><span class="asi-icon asi-icon--%1$s dashicons %2$s" aria-hidden="true"></span><div><strong class="asi-stat__value">%3$s</strong><span class="asi-stat__label">%4$s</span><span class="asi-stat__hint">%5$s</span></div></div>',
+			'<div class="asi-stat"><span class="asi-icon asi-icon--%1$s dashicons %2$s" aria-hidden="true"></span><div><strong class="asi-stat__value">%3$s</strong><span class="asi-stat__label">%4$s</span><span class="asi-stat__hint">%5$s</span>%6$s</div></div>',
 			esc_attr( $tone ),
 			esc_attr( $icon ),
 			esc_html( $value ),
 			esc_html( $label ),
-			esc_html( $hint )
+			esc_html( $hint ),
+			$change // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- armado arriba con valores escapados.
 		);
 	}
 
@@ -1535,6 +1544,20 @@ class ASI_Admin {
 
 		<p class="asi-muted">¿Cómo enseñarle paso a paso? Está en la <a href="<?php echo esc_url( $this->tab_url( 'guia' ) . '#asi-ensenar' ); ?>">Guía</a>.</p>
 
+		<?php if ( ! $ver && class_exists( 'ASI_Chat_Log' ) ) : ?>
+		<?php $this->card_open( 'Conversaciones guardadas', 'dashicons-format-chat', 'blue' ); ?>
+			<p>
+				<strong><?php echo esc_html( number_format_i18n( ASI_Chat_Log::count_since( 30 ) ) ); ?></strong> conversaciones en los últimos 30 días.
+				<span class="asi-muted">Cada conversación queda guardada en privado (qué escribió la persona y qué le respondió el chat, sin correos ni teléfonos) durante <?php echo (int) ASI_Chat_Log::KEEP_DAYS; ?> días. Sirve para ver qué pregunta y qué cotiza la gente, y para el resumen que llega con cada solicitud de cita.</span>
+			</p>
+			<p class="asi-actions">
+				<?php foreach ( array( 30, 90, ASI_Chat_Log::KEEP_DAYS ) as $days ) : ?>
+					<a class="button" href="<?php echo esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'asi_chats_json', 'dias' => $days ), admin_url( 'admin-post.php' ) ), 'asi_chats_json' ) ); ?>"><span class="dashicons dashicons-download" aria-hidden="true"></span> Últimos <?php echo (int) $days; ?> días (JSON)</a>
+				<?php endforeach; ?>
+			</p>
+		<?php $this->card_close(); ?>
+		<?php endif; ?>
+
 		<?php if ( ( ! $ver && ! $ai_on ) || 'preguntas' === $ver ) : ?>
 		<?php $this->card_open( 'Preguntas por revisar', 'dashicons-format-status', 'amber' ); ?>
 			<?php $this->list_search( 'aprendizaje', 'preguntas', $q_list, 'Buscar una pregunta…' ); ?>
@@ -1905,24 +1928,44 @@ class ASI_Admin {
 		$this->chart_print = $print;
 		$this->chart_scope = $scope;
 		$who               = array( 'all' => '', 'chat' => ' (solo chat)', 'site' => ' (solo sitio)' );
+		// El periodo anterior del mismo largo: cada número dice si subió o bajó.
+		$prev  = ASI_Reports::build( ASI_Reports::previous( $report['period'] ), ! empty( $report['include_test'] ) );
+		$p     = $prev['counts'];
+		$pick  = function ( array $pair ) use ( $scope ) {
+			return 'all' === $scope ? $pair['chat'] + $pair['site'] : $pair[ $scope ];
+		};
+		// El panel muestra lo principal; el reporte descargable, todo.
+		$limit = $print ? ASI_Reports::MAX_ROWS : 10;
 		?>
 		<div class="asi-stats">
 			<?php
 			if ( 'site' !== $scope ) {
-				$this->stat( 'dashicons-format-chat', 'blue', $fmt( $c['conversation'] ), 'Conversaciones en el chat', $fmt( $c['search'] ) . ' búsquedas' );
+				$this->stat( 'dashicons-format-chat', 'blue', $fmt( $c['conversation'] ), 'Conversaciones en el chat', $fmt( $c['search'] ) . ' búsquedas', ASI_Reports::change( $c['conversation'], $p['conversation'] ) );
 			}
 			if ( 'chat' !== $scope ) {
-				$this->stat( 'dashicons-admin-site-alt3', 'purple', $fmt( $c['visitor'] ), 'Personas buscando en el sitio', $fmt( $c['search_site'] ) . ' búsquedas con filtros o buscador' );
+				$this->stat( 'dashicons-admin-site-alt3', 'purple', $fmt( $c['visitor'] ), 'Personas buscando en el sitio', $fmt( $c['search_site'] ) . ' búsquedas con filtros o buscador', ASI_Reports::change( $c['visitor'], $p['visitor'] ) );
 			}
 			if ( 'all' === $scope ) {
-				$this->stat( 'dashicons-media-document', 'green', $fmt( $total( $c['quote'] ) ), 'Cotizaciones', 'Chat ' . $fmt( $c['quote']['chat'] ) . ' · Sitio ' . $fmt( $c['quote']['site'] ) );
-				$this->stat( 'dashicons-columns', 'amber', $fmt( $total( $c['compare'] ) ), 'Comparaciones', 'Chat ' . $fmt( $c['compare']['chat'] ) . ' · Sitio ' . $fmt( $c['compare']['site'] ) );
+				$this->stat( 'dashicons-media-document', 'green', $fmt( $total( $c['quote'] ) ), 'Cotizaciones', 'Chat ' . $fmt( $c['quote']['chat'] ) . ' · Sitio ' . $fmt( $c['quote']['site'] ), ASI_Reports::change( $total( $c['quote'] ), $total( $p['quote'] ) ) );
+				$this->stat( 'dashicons-columns', 'amber', $fmt( $total( $c['compare'] ) ), 'Comparaciones', 'Chat ' . $fmt( $c['compare']['chat'] ) . ' · Sitio ' . $fmt( $c['compare']['site'] ), ASI_Reports::change( $total( $c['compare'] ), $total( $p['compare'] ) ) );
 			} else {
-				$this->stat( 'dashicons-media-document', 'green', $fmt( $c['quote'][ $scope ] ), 'Cotizaciones', 'chat' === $scope ? 'Desde el chat' : 'Desde los formularios del sitio' );
-				$this->stat( 'dashicons-columns', 'amber', $fmt( $c['compare'][ $scope ] ), 'Comparaciones', 'chat' === $scope ? 'Desde el chat' : 'Desde los formularios del sitio' );
+				$this->stat( 'dashicons-media-document', 'green', $fmt( $c['quote'][ $scope ] ), 'Cotizaciones', 'chat' === $scope ? 'Desde el chat' : 'Desde los formularios del sitio', ASI_Reports::change( $c['quote'][ $scope ], $p['quote'][ $scope ] ) );
+				$this->stat( 'dashicons-columns', 'amber', $fmt( $c['compare'][ $scope ] ), 'Comparaciones', 'chat' === $scope ? 'Desde el chat' : 'Desde los formularios del sitio', ASI_Reports::change( $c['compare'][ $scope ], $p['compare'][ $scope ] ) );
 			}
 			?>
 		</div>
+		<p class="asi-muted asi-stats__note">Las flechas comparan con los <?php echo esc_html( number_format_i18n( count( $report['daily'] ) ) ); ?> días anteriores (del <?php echo esc_html( date_i18n( 'j M', strtotime( $prev['period']['from'] ) ) ); ?> al <?php echo esc_html( date_i18n( 'j M Y', strtotime( $prev['period']['to'] ) ) ); ?>).</p>
+
+		<?php $highlights = ASI_Reports::highlights( $report, $prev, $scope ); ?>
+		<?php if ( $highlights ) : ?>
+			<?php $this->card_open( 'Lo destacado', 'dashicons-star-filled', 'blue' ); ?>
+				<ul class="asi-highlights">
+					<?php foreach ( $highlights as $line ) : ?>
+						<li><?php echo esc_html( $line ); ?></li>
+					<?php endforeach; ?>
+				</ul>
+			<?php $this->card_close(); ?>
+		<?php endif; ?>
 
 		<?php $this->card_open( 'all' === $scope ? '¿El chat da resultados?' : ( 'chat' === $scope ? '¿Cuánto convierte el chat?' : '¿Cuánto convierte el sitio?' ), 'dashicons-chart-line', 'blue' ); ?>
 			<?php $this->chart_results( $report['rate'] ); ?>
@@ -1956,13 +1999,13 @@ class ASI_Admin {
 			<?php else : ?>
 				<?php $this->chart_legend(); ?>
 				<div class="asi-report-criteria">
-				<?php foreach ( $report['criteria'] as $dim => $labels ) : ?>
+				<?php foreach ( $print ? $report['criteria'] : array_slice( $report['criteria'], 0, 3, true ) as $dim => $labels ) : ?>
 					<?php
 					$rows = array();
 					foreach ( $labels as $label => $pair ) {
 						$rows[] = array( 'id' => 0, 'title' => (string) $label, 'chat' => $pair['chat'], 'site' => $pair['site'] );
 					}
-					$rows = ASI_Reports::top( $rows, $scope );
+					$rows = ASI_Reports::top( $rows, $scope, $print ? 10 : 5 );
 					if ( ! $rows ) {
 						continue;
 					}
@@ -1983,11 +2026,16 @@ class ASI_Admin {
 			'compare' => array( 'Lo más comparado', 'dashicons-columns', 'Cada vehículo de una comparación cuenta una vez.' ),
 		);
 		foreach ( $sections as $kind => $info ) :
-			$shown = ASI_Reports::top( $report['items'][ $kind ], $scope );
+			$shown = ASI_Reports::top( $report['items'][ $kind ], $scope, $limit );
 			$tones = array( 'view' => 'blue', 'quote' => 'green', 'compare' => 'amber' );
 			$this->card_open( $info[0], $info[1], $tones[ $kind ] );
 			?>
-			<p class="asi-muted"><?php echo esc_html( $info[2] ); ?><?php echo 'all' === $scope && $report['totals'][ $kind ] > ASI_Reports::MAX_ROWS ? ' ' . esc_html( sprintf( 'Se muestran los %1$d primeros de %2$d.', ASI_Reports::MAX_ROWS, $report['totals'][ $kind ] ) ) : ''; ?></p>
+			<p class="asi-muted"><?php echo esc_html( $info[2] ); ?><?php
+			$all_of = count( ASI_Reports::top( $report['items'][ $kind ], $scope, 1000 ) );
+			if ( $all_of > $limit ) {
+				echo ' ' . esc_html( $print ? sprintf( 'Se muestran los %1$d primeros de %2$d.', $limit, $all_of ) : sprintf( 'Aquí, los %d primeros; el reporte descargable trae los %d primeros y el detalle.', $limit, ASI_Reports::MAX_ROWS ) );
+			}
+			?></p>
 			<?php if ( ! $shown ) : ?>
 				<div class="asi-empty"><span class="dashicons <?php echo esc_attr( $info[1] ); ?>" aria-hidden="true"></span>Nada en este periodo.</div>
 			<?php else : ?>
@@ -1997,8 +2045,103 @@ class ASI_Admin {
 			<?php
 			$this->card_close();
 		endforeach;
+
+		if ( $print ) {
+			$this->report_details( $report, $prev, $scope );
+		}
 		?>
 		<?php
+	}
+
+	/**
+	 * Solo en el reporte descargable: lo cotizado por marca, tipo, precio…, lo que buscan contra lo
+	 * que cotizan, y el periodo anterior lado a lado.
+	 */
+	private function report_details( array $report, array $prev, $scope ) {
+		$pick = function ( array $pair ) use ( $scope ) {
+			return 'all' === $scope ? $pair['chat'] + $pair['site'] : $pair[ $scope ];
+		};
+		$leads = array_merge(
+			ASI_Reports::top( $report['items']['quote'], $scope, 1000 ),
+			array()
+		);
+		$groups = $leads ? ASI_Reports::breakdown( $leads ) : array();
+		if ( $groups ) {
+			$this->card_open( 'Lo cotizado, por tipo', 'dashicons-chart-bar', 'green' );
+			echo '<p class="asi-muted">Cada vehículo cotizado, agrupado por lo que dice su ficha. Ayuda a ver qué marcas, rangos de precio y tipos convierten más.</p>';
+			$this->chart_legend();
+			echo '<div class="asi-report-criteria">';
+			foreach ( $groups as $name => $rows ) {
+				echo '<div class="asi-report-criteria__group"><h3>' . esc_html( $name ) . '</h3>';
+				$this->chart_bars( ASI_Reports::group_rows( $name, $rows, $scope, 10 ) );
+				echo '</div>';
+			}
+			echo '</div>';
+			$this->card_close();
+		}
+
+		// Lo que buscan contra lo que cotizan (por marca): dónde se cae el interés.
+		$searched = isset( $report['criteria']['Marca'] ) ? (array) $report['criteria']['Marca'] : array();
+		$quoted   = isset( $groups['Marca'] ) ? $groups['Marca'] : array();
+		if ( $searched && $quoted ) {
+			$rank = function ( array $rows ) use ( $pick ) {
+				uasort( $rows, function ( $a, $b ) use ( $pick ) { return $pick( $b ) - $pick( $a ); } );
+				$out = array();
+				$i   = 0;
+				foreach ( $rows as $label => $pair ) {
+					$out[ ASI_Normalizer::normalize( (string) $label ) ] = array( ++$i, $pick( $pair ), (string) $label );
+				}
+				return $out;
+			};
+			$by_title = array();
+			foreach ( $quoted as $row ) {
+				$by_title[ $row['title'] ] = $row;
+			}
+			$s_rank = $rank( $searched );
+			$q_rank = $rank( $by_title );
+			$keys   = array_slice( array_unique( array_merge( array_keys( $s_rank ), array_keys( $q_rank ) ) ), 0, 12 );
+			$this->card_open( 'Lo que buscan contra lo que cotizan (por marca)', 'dashicons-randomize', 'purple' );
+			echo '<p class="asi-muted">Una marca muy buscada que casi no se cotiza puede necesitar mejores precios, más fotos o más opciones a la vista.</p>';
+			echo '<table class="asi-table"><thead><tr><th>Marca</th><th>Búsquedas</th><th>Lugar</th><th>Cotizaciones</th><th>Lugar</th></tr></thead><tbody>';
+			foreach ( $keys as $key ) {
+				$s = isset( $s_rank[ $key ] ) ? $s_rank[ $key ] : null;
+				$q = isset( $q_rank[ $key ] ) ? $q_rank[ $key ] : null;
+				printf(
+					'<tr><td><strong>%1$s</strong></td><td>%2$s</td><td>%3$s</td><td>%4$s</td><td>%5$s</td></tr>',
+					esc_html( $s ? $s[2] : $q[2] ),
+					esc_html( $s ? number_format_i18n( $s[1] ) : '0' ),
+					esc_html( $s ? $s[0] . '.º' : '—' ),
+					esc_html( $q ? number_format_i18n( $q[1] ) : '0' ),
+					esc_html( $q ? $q[0] . '.º' : '—' )
+				);
+			}
+			echo '</tbody></table>';
+			$this->card_close();
+		}
+
+		// El periodo anterior, número por número.
+		$c    = $report['counts'];
+		$p    = $prev['counts'];
+		$rows = array(
+			'Conversaciones en el chat'     => array( $c['conversation'], $p['conversation'], 'site' !== $scope ),
+			'Personas buscando en el sitio' => array( $c['visitor'], $p['visitor'], 'chat' !== $scope ),
+			'Búsquedas en el chat'          => array( $c['search'], $p['search'], 'site' !== $scope ),
+			'Búsquedas en el sitio'         => array( $c['search_site'], $p['search_site'], 'chat' !== $scope ),
+			'Cotizaciones'                  => array( $pick( $c['quote'] ), $pick( $p['quote'] ), true ),
+			'Comparaciones'                 => array( $pick( $c['compare'] ), $pick( $p['compare'] ), true ),
+		);
+		$this->card_open( 'Contra el periodo anterior', 'dashicons-backup', 'blue' );
+		printf( '<p class="asi-muted">Del %1$s al %2$s, contra el %3$s al %4$s.</p>', esc_html( date_i18n( 'j M Y', strtotime( $report['period']['from'] ) ) ), esc_html( date_i18n( 'j M Y', strtotime( $report['period']['to'] ) ) ), esc_html( date_i18n( 'j M Y', strtotime( $prev['period']['from'] ) ) ), esc_html( date_i18n( 'j M Y', strtotime( $prev['period']['to'] ) ) ) );
+		echo '<table class="asi-table"><thead><tr><th>Indicador</th><th>Este periodo</th><th>Periodo anterior</th><th>Cambio</th></tr></thead><tbody>';
+		foreach ( $rows as $label => $row ) {
+			if ( ! $row[2] ) {
+				continue;
+			}
+			$delta = ASI_Reports::change( $row[0], $row[1] );
+			printf( '<tr><td>%1$s</td><td><strong>%2$s</strong></td><td>%3$s</td><td>%4$s</td></tr>', esc_html( $label ), esc_html( number_format_i18n( $row[0] ) ), esc_html( number_format_i18n( $row[1] ) ), esc_html( null === $delta ? '—' : ( $delta > 0 ? '+' : '' ) . $delta . ' %' ) );
+		}
+		echo '</tbody></table>';
+		$this->card_close();
 	}
 
 	/** Colores de la reportería: el chat siempre azul y el sitio siempre naranja. */
@@ -2274,6 +2417,29 @@ class ASI_Admin {
 	}
 
 	/** Descarga del reporte en CSV. */
+	/** Las conversaciones guardadas, en un JSON para analizarlas (solo quien puede usar el panel). */
+	public function chats_json() {
+		if ( ! current_user_can( ASI_Access::CAP ) ) {
+			wp_die( esc_html__( 'Sin permisos.', 'asesor-inteligente' ) );
+		}
+		check_admin_referer( 'asi_chats_json' );
+		$days = isset( $_GET['dias'] ) ? min( ASI_Chat_Log::KEEP_DAYS, max( 1, absint( $_GET['dias'] ) ) ) : 30;
+		nocache_headers();
+		header( 'Content-Type: application/json; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="conversaciones-asesor-' . current_time( 'Y-m-d' ) . '-ultimos-' . $days . '-dias.json"' );
+		echo wp_json_encode(
+			array(
+				'sitio'          => home_url( '/' ),
+				'descargado'     => current_time( 'mysql' ),
+				'dias'           => $days,
+				'claves'         => array( 't' => 'hora (unix)', 'u' => 'lo que escribió', 'k' => 'tipo de respuesta', 'r' => 'lo que respondió', 'n' => 'opciones mostradas', 'c' => 'títulos mostrados', 's' => 'lo que buscó', 'a' => 'acción (quote, compare, finance)', 'ai' => 'la IA ayudó' ),
+				'conversaciones' => ASI_Chat_Log::export( $days ),
+			),
+			JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT
+		);
+		exit;
+	}
+
 	public function report_csv() {
 		if ( ! current_user_can( ASI_Access::CAP ) ) {
 			wp_die( esc_html__( 'Sin permisos.', 'asesor-inteligente' ) );

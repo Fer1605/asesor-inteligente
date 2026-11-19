@@ -34,9 +34,10 @@ class ASI_Appointments {
 	 * @param array  $customer name, email, phone.
 	 * @param string $when     Cuándo le gustaría (tal como lo escribió).
 	 * @param int    $item_id  Vehículo o producto que estaba viendo (0 = ninguno).
+	 * @param array  $extra    cid (conversación, para el resumen) y kind ('' cita, 'test_drive' prueba de manejo).
 	 * @return array|WP_Error { test: bool }
 	 */
-	public function submit( array $customer, $when, $item_id = 0 ) {
+	public function submit( array $customer, $when, $item_id = 0, array $extra = array() ) {
 		if ( ! $this->enabled() ) {
 			return new WP_Error( 'asi_appt_off', 'Las solicitudes de cita están apagadas.' );
 		}
@@ -55,12 +56,15 @@ class ASI_Appointments {
 		$item_id = absint( $item_id );
 		$item_id = $item_id && 'publish' === get_post_status( $item_id ) ? $item_id : 0;
 		$test    = 'test' === ASI_Actions::mode();
+		$drive   = isset( $extra['kind'] ) && 'test_drive' === $extra['kind'];
+		// Lo más importante de la conversación, para que el asesor no empiece de cero.
+		$summary = class_exists( 'ASI_Chat_Log' ) && ! empty( $extra['cid'] ) ? ASI_Chat_Log::summary( (string) $extra['cid'] ) : array( 'lines' => array(), 'budget' => '', 'last_seen' => '' );
 
-		self::save_submission( $customer, $when, $item_id, $test );
-		ASI_Reports::add( 'chat', 'lead', $test ? 'test' : '', 'appointment' );
+		self::save_submission( $customer, $when, $item_id, $test, $drive, $summary );
+		ASI_Reports::add( 'chat', 'lead', $test ? 'test' : '', $drive ? 'test_drive' : 'appointment' );
 		$to = $test ? ASI_Settings::email_list( (string) ASI_Settings::all()['test_email'] ) : self::recipients();
 		if ( $to ) {
-			self::notify( $to, $customer, $when, $item_id, $test );
+			self::notify( $to, $customer, $when, $item_id, $test, $drive, $summary );
 		}
 		/**
 		 * Una solicitud de cita del chat (para mandarla a un CRM como HubSpot).
@@ -75,6 +79,9 @@ class ASI_Appointments {
 					'when'       => $when,
 					'item_id'    => $item_id,
 					'item_title' => $item_id ? wp_strip_all_tags( get_the_title( $item_id ) ) : '',
+					'kind'       => $drive ? 'test_drive' : 'appointment',
+					'summary'    => $summary['lines'],
+					'budget'     => $summary['budget'],
 					'test'       => $test,
 				)
 			)
@@ -95,7 +102,7 @@ class ASI_Appointments {
 	}
 
 	/** Queda en los Envíos de Elementor, junto a los formularios del sitio. */
-	private static function save_submission( array $customer, $when, $item_id, $test ) {
+	private static function save_submission( array $customer, $when, $item_id, $test, $drive = false, array $summary = array() ) {
 		if ( ! class_exists( '\ElementorPro\Modules\Forms\Submissions\Database\Query' ) ) {
 			return false;
 		}
@@ -105,8 +112,10 @@ class ASI_Appointments {
 			array( 'id' => 'correo', 'type' => 'email', 'value' => $customer['email'] ),
 			array( 'id' => 'telefono', 'type' => 'text', 'value' => $customer['phone'] ),
 			array( 'id' => 'cuando', 'type' => 'text', 'value' => $when ),
-			array( 'id' => 'tipo_consulta', 'type' => 'hidden', 'value' => 'Solicitud de cita (chat)' ),
+			array( 'id' => 'tipo_consulta', 'type' => 'hidden', 'value' => $drive ? 'Prueba de manejo (chat)' : 'Solicitud de cita (chat)' ),
 			array( 'id' => 'vehiculo_interes', 'type' => 'hidden', 'value' => $title ),
+			array( 'id' => 'presupuesto', 'type' => 'hidden', 'value' => isset( $summary['budget'] ) ? $summary['budget'] : '' ),
+			array( 'id' => 'resumen_chat', 'type' => 'textarea', 'value' => ! empty( $summary['lines'] ) ? '• ' . implode( "\n• ", $summary['lines'] ) : '' ),
 		);
 		try {
 			$query = \ElementorPro\Modules\Forms\Submissions\Database\Query::get_instance();
@@ -115,7 +124,7 @@ class ASI_Appointments {
 					'main_meta_id'            => 0,
 					'post_id'                 => $item_id,
 					'element_id'              => 'asi-cita',
-					'form_name'               => 'Solicitud de cita · chat' . ( $test ? ' (prueba)' : '' ),
+					'form_name'               => ( $drive ? 'Prueba de manejo · chat' : 'Solicitud de cita · chat' ) . ( $test ? ' (prueba)' : '' ),
 					'referer'                 => $item_id ? get_permalink( $item_id ) : home_url( '/' ),
 					'referer_title'           => '' !== $title ? $title : wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),
 					'campaign_id'             => 0,
@@ -134,26 +143,30 @@ class ASI_Appointments {
 		}
 	}
 
-	private static function notify( array $to, array $customer, $when, $item_id, $test ) {
+	private static function notify( array $to, array $customer, $when, $item_id, $test, $drive = false, array $summary = array() ) {
+		$what = $drive ? 'prueba de manejo' : 'cita';
 		$rows = array(
 			'Nombre'         => $customer['name'],
 			'Correo'         => array( 'text' => $customer['email'], 'url' => 'mailto:' . $customer['email'] ),
 			'Teléfono'       => '' !== $customer['phone'] ? array( 'text' => $customer['phone'], 'url' => 'tel:' . preg_replace( '/[^0-9+]/', '', $customer['phone'] ) ) : '',
 			'Le gustaría'    => $when,
-			'Le interesa'    => $item_id ? array( 'text' => wp_strip_all_tags( get_the_title( $item_id ) ), 'url' => get_permalink( $item_id ) ) : '',
+			'Le interesa'    => $item_id ? array( 'text' => wp_strip_all_tags( get_the_title( $item_id ) ), 'url' => get_permalink( $item_id ) ) : ( ! empty( $summary['last_seen'] ) ? $summary['last_seen'] : '' ),
+			'Presupuesto'    => ! empty( $summary['budget'] ) ? $summary['budget'] : '',
 			'Fecha'          => wp_date( 'j \d\e F, H:i' ),
 		);
 		ASI_Mailer::send(
 			$to,
-			( $test ? '[PRUEBA] ' : '' ) . 'Solicitud de cita desde el chat: ' . $customer['name'],
+			( $test ? '[PRUEBA] ' : '' ) . 'Solicitud de ' . $what . ' desde el chat: ' . $customer['name'],
 			array(
-				'badge'  => $test ? 'PRUEBA · ESTE AVISO NO LLEGÓ A VENTAS' : '',
-				'title'  => 'Solicitud de cita desde el chat',
-				'intro'  => $customer['name'] . ' quiere una cita. El chat no le dio fecha ni hora: hay que contactarle para confirmarla.',
-				'rows'   => $rows,
+				'badge'   => $test ? 'PRUEBA · ESTE AVISO NO LLEGÓ A VENTAS' : '',
+				'title'   => 'Solicitud de ' . $what . ' desde el chat',
+				'intro'   => $customer['name'] . ' quiere una ' . $what . '. El chat no le dio fecha ni hora: hay que contactarle para confirmarla.',
+				'rows'    => $rows,
+				// Lo que habló con el chat antes de pedirla (lo más importante, en orden).
+				'summary' => ! empty( $summary['lines'] ) ? array( 'title' => 'Lo que habló con el chat', 'lines' => $summary['lines'] ) : array(),
 				'button' => array(
 					'label' => 'Responder a ' . strtok( $customer['name'], ' ' ),
-					'url'   => 'mailto:' . $customer['email'] . '?subject=' . rawurlencode( 'Tu cita en ' . ASI_Mailer::site_name() ),
+					'url'   => 'mailto:' . $customer['email'] . '?subject=' . rawurlencode( 'Tu ' . $what . ' en ' . ASI_Mailer::site_name() ),
 				),
 				'note'   => 'Enviado por el asistente del sitio.',
 			),

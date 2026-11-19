@@ -23,7 +23,7 @@ trait ASI_Dialogue_Appointments {
 		// Juntando los datos de la solicitud.
 		if ( isset( $state['pending']['action'] ) && 'appointment' === $state['pending']['action'] ) {
 			if ( $this->words_in( $normalized, 'cancel_words' ) && str_word_count( $normalized ) <= 4 ) {
-				return $this->appointment_reply( 'appt_cancelled', array(), array( 'pending' => array(), 'appt' => '' ) );
+				return $this->appointment_reply( 'appt_cancelled', array(), array( 'pending' => array(), 'appt' => '', 'appt_kind' => '' ) );
 			}
 			list( $given, $when ) = $this->appointment_data( $message, $normalized, true, $state );
 			// No dio datos sino que pidió otra cosa ("mejor muéstrame pickups"): se deja la cita.
@@ -31,12 +31,15 @@ trait ASI_Dialogue_Appointments {
 				$state['pending'] = array();
 				$state['appt']    = '';
 				$reply            = $this->route( $message, $normalized, $state );
-				$reply['state']   = array_merge( isset( $reply['state'] ) ? $reply['state'] : array(), array( 'pending' => array(), 'appt' => '' ) );
+				$reply['state']   = array_merge( isset( $reply['state'] ) ? $reply['state'] : array(), array( 'pending' => array(), 'appt' => '', 'appt_kind' => '' ) );
 				return $reply;
 			}
 			$state['customer'] = array_merge( $state['customer'], $given );
 			if ( '' !== $when ) {
 				$state['appt'] = $when;
+			}
+			if ( $this->words_in( $normalized, 'test_drive_words' ) ) {
+				$state['appt_kind'] = 'test_drive'; // "Mejor una prueba de manejo".
 			}
 			return $this->appointment_next( $state, $service );
 		}
@@ -45,9 +48,11 @@ trait ASI_Dialogue_Appointments {
 			return null;
 		}
 		// El sitio no recibe solicitudes: los datos de contacto para coordinarla.
+		// "Quiero hacer una prueba de manejo": lo mismo que una cita, con sus palabras.
+		$state['appt_kind'] = $this->words_in( $normalized, 'test_drive_words' ) ? 'test_drive' : '';
 		if ( ! $service || ! $service->enabled() ) {
-			$reply            = $this->appointment_reply( 'appt_off', array( 'site' => $this->context['site_name'] ), array() );
-			$reply['contact'] = $this->contact_block( 'appt_contact_title' );
+			$reply            = $this->appointment_reply( 'appt_off', $this->appointment_words_for( $state ), array() );
+			$reply['contact'] = $this->contact_block( 'appt_contact_title', $this->appointment_words_for( $state ) );
 			if ( ! $reply['contact'] ) {
 				$page = $this->info_page( 'contact' );
 				if ( $page ) {
@@ -70,13 +75,15 @@ trait ASI_Dialogue_Appointments {
 	 */
 	private function appointment_next( array $state, $service, $first = false ) {
 		$customer = $state['customer'];
-		$vars     = array(
-			'name'  => ! empty( $customer['name'] ) ? strtok( $customer['name'], ' ' ) : '',
-			'email' => isset( $customer['email'] ) ? $customer['email'] : '',
-			'when'  => (string) $state['appt'],
-			'site'  => $this->context['site_name'],
+		$vars     = array_merge(
+			$this->appointment_words_for( $state ),
+			array(
+				'name'  => ! empty( $customer['name'] ) ? strtok( $customer['name'], ' ' ) : '',
+				'email' => isset( $customer['email'] ) ? $customer['email'] : '',
+				'when'  => (string) $state['appt'],
+			)
 		);
-		$keep = array( 'pending' => $state['pending'], 'customer' => $customer, 'appt' => (string) $state['appt'] );
+		$keep = array( 'pending' => $state['pending'], 'customer' => $customer, 'appt' => (string) $state['appt'], 'appt_kind' => (string) $state['appt_kind'] );
 		if ( empty( $customer['email'] ) || empty( $customer['name'] ) || '' === (string) $state['appt'] ) {
 			if ( $first ) {
 				$missing = array();
@@ -88,21 +95,22 @@ trait ASI_Dialogue_Appointments {
 				if ( '' === (string) $state['appt'] ) {
 					$missing[] = $this->responder->say( 'appt_need_when' );
 				}
-				$reply             = $this->appointment_reply( 'appt_start', array_merge( $vars, array( 'missing' => $this->responder->join_list( $missing, 'and' ) ) ), $keep );
+				$reply             = $this->appointment_reply( 'test_drive' === $state['appt_kind'] ? 'appt_start_drive' : 'appt_start', array_merge( $vars, array( 'missing' => $this->responder->join_list( $missing, 'and' ) ) ), $keep );
 				$reply['followup'] = $this->responder->say( 'appt_consent', $vars );
-				$reply['contact']  = $this->contact_block( 'appt_contact_title' );
+				$reply['contact']  = $this->contact_block( 'appt_contact_title', $vars );
 				return $reply;
 			}
 			$key = empty( $customer['email'] ) ? 'appt_ask_email' : ( empty( $customer['name'] ) ? 'appt_ask_name' : 'appt_ask_when' );
 			return $this->appointment_reply( $key, $vars, $keep );
 		}
 		$ids    = isset( $state['pending']['ids'] ) ? (array) $state['pending']['ids'] : array();
-		$result = $service ? $service->submit( $customer, (string) $state['appt'], $ids ? (int) $ids[0] : 0 ) : null;
-		$clear  = array( 'pending' => array(), 'appt' => '', 'customer' => $customer );
+		// Con el resumen de la conversación (lo arma el servicio con el registro privado del chat).
+		$result = $service ? $service->submit( $customer, (string) $state['appt'], $ids ? (int) $ids[0] : 0, array( 'cid' => (string) $state['cid'], 'kind' => (string) $state['appt_kind'] ) ) : null;
+		$clear  = array( 'pending' => array(), 'appt' => '', 'appt_kind' => '', 'customer' => $customer );
 		if ( ! is_array( $result ) ) {
 			$code             = is_object( $result ) && method_exists( $result, 'get_error_code' ) ? $result->get_error_code() : '';
 			$reply            = $this->appointment_reply( 'asi_limit' === $code ? 'action_limit' : 'appt_failed', $vars, $clear );
-			$reply['contact'] = $this->contact_block( 'appt_contact_title' );
+			$reply['contact'] = $this->contact_block( 'appt_contact_title', $vars );
 			return $reply;
 		}
 		$reply = $this->appointment_reply( 'appt_done', $vars, $clear );
@@ -176,6 +184,20 @@ trait ASI_Dialogue_Appointments {
 			$out .= isset( $map[ $char ] ) ? $map[ $char ] : preg_quote( $char, '/' );
 		}
 		return $out;
+	}
+
+	/**
+	 * Cómo se llama lo que pide: "la cita" o "la prueba de manejo" (y del vehículo que estaba viendo).
+	 */
+	private function appointment_words_for( array $state ) {
+		$drive = 'test_drive' === ( isset( $state['appt_kind'] ) ? $state['appt_kind'] : '' );
+		$focus = ! empty( $state['focus'] ) ? $this->focus_row( $state ) : null;
+		return array(
+			'thing'   => $this->responder->say( $drive ? 'appt_thing_drive' : 'appt_thing' ),
+			'things'  => $this->responder->say( $drive ? 'appt_things_drive' : 'appt_things' ),
+			'vehicle' => $focus && $drive ? ' ' . $this->responder->say( 'appt_of_vehicle', array( 'title' => $focus['card']['title'] ) ) : '',
+			'site'    => $this->context['site_name'],
+		);
 	}
 
 	private function appointment_reply( $key, array $vars, array $state_changes ) {

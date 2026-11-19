@@ -33,6 +33,7 @@ require $root . '/includes/dialogue/trait-asi-dialogue-actions.php';
 require $root . '/includes/dialogue/trait-asi-dialogue-appointments.php';
 require $root . '/includes/dialogue/class-asi-dialogue.php';
 require $root . '/includes/ai/class-asi-ai-interpreter.php';
+require $root . '/includes/class-asi-chat-log.php';
 require $root . '/includes/extend/interface-asi-connector.php';
 require $root . '/includes/extend/interface-asi-pack.php';
 require $root . '/includes/extend/interface-asi-advisor.php';

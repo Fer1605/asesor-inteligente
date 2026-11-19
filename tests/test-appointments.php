@@ -7,8 +7,8 @@ final class ASI_Test_Appointments {
 	public function enabled() {
 		return $this->on;
 	}
-	public function submit( array $customer, $when, $item_id = 0 ) {
-		$this->calls[] = array( $customer, $when, $item_id );
+	public function submit( array $customer, $when, $item_id = 0, array $extra = array() ) {
+		$this->calls[] = array( $customer, $when, $item_id, $extra );
 		return array( 'test' => false );
 	}
 }
@@ -85,3 +85,39 @@ $st = array();
 $r  = $asay( 'quiero agendar una cita', $st );
 check( 'cita apagada: lo dice y da el contacto', true, false !== strpos( $r['text'], 'no agendo citas' ) && ! empty( $r['contact']['items'] ) );
 check( 'cita apagada: no pide datos', array(), $st['pending'] );
+
+// Prueba de manejo: la misma solicitud, con sus palabras y con el vehículo que veía.
+$appts->on    = true;
+$appts->calls = array();
+$st = array( 'focus' => 1, 'cid' => 'abc123def456ghi7' );
+$r  = $asay( 'quiero hacer una prueba de manejo', $st );
+check( 'prueba de manejo: la nombra con el vehículo', true, false !== strpos( $r['text'], 'prueba de manejo del MAZDA BT-50' ) );
+$r = $asay( 'Ana López, ana@example.com, el sábado temprano', $st );
+check( 'prueba de manejo: va como prueba de manejo y con la conversación', array( 'test_drive', 'abc123def456ghi7' ), $appts->calls ? array( $appts->calls[0][3]['kind'], $appts->calls[0][3]['cid'] ) : array() );
+check( 'prueba de manejo: confirma la prueba, no "la cita"', true, false !== strpos( $r['text'], 'confirmar la prueba de manejo' ) );
+$appts->calls = array();
+$st = array();
+$r  = $asay( 'quiero agendar una cita', $st );
+$r  = $asay( 'Ana López, ana@example.com, el lunes', $st );
+check( 'cita normal: va como cita', '', $appts->calls ? $appts->calls[0][3]['kind'] : 'nada' );
+
+// Resumen para el asesor: lo importante de la conversación, en orden y en pocas líneas.
+$turns = array(
+	array( 'k' => 'smalltalk', 'u' => 'hola' ),
+	array( 'k' => 'results', 'u' => 'busco una pickup diesel de hasta 250 mil', 'n' => 12, 'c' => array( 'BT-50 1.9L' ), 's' => array( 'Tipo: Pickup', 'Combustible: Diésel', 'Presupuesto: hasta Q 250,000' ) ),
+	array( 'k' => 'detail', 'u' => 'la primera', 'c' => array( 'BT-50 1.9L' ) ),
+	array( 'k' => 'fact', 'u' => 'que motor tiene?', 'c' => array( 'BT-50 1.9L' ) ),
+	array( 'k' => 'finance', 'u' => 'cuotas de la primera', 'c' => array( 'BT-50 1.9L' ), 'a' => 'finance' ),
+	array( 'k' => 'file', 'u' => 'cotizamela', 'c' => array( 'BT-50 1.9L' ), 'a' => 'quote' ),
+);
+$sum = ASI_Chat_Log::summarize( $turns );
+check( 'resumen: en orden, sin saludos', array( 'Buscó: Pickup · Diésel · hasta Q 250,000', 'Vio la ficha de BT-50 1.9L', 'Preguntó «que motor tiene?» sobre BT-50 1.9L', 'Calculó cuotas de BT-50 1.9L', 'Pidió la cotización de BT-50 1.9L' ), $sum['lines'] );
+check( 'resumen: el presupuesto aparte', 'hasta Q 250,000', $sum['budget'] );
+check( 'resumen: el último vehículo que vio', 'BT-50 1.9L', $sum['last_seen'] );
+$many = array();
+for ( $i = 1; $i <= 15; $i++ ) {
+	$many[] = array( 'k' => 'detail', 'c' => array( 'Vehículo ' . $i ) );
+}
+$sum = ASI_Chat_Log::summarize( $many );
+check( 'resumen: máximo 10 líneas, el principio y lo último', array( 10, 'Vio la ficha de Vehículo 1', 'Vio la ficha de Vehículo 15' ), array( count( $sum['lines'] ), $sum['lines'][0], end( $sum['lines'] ) ) );
+

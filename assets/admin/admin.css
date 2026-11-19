@@ -1403,6 +1403,15 @@ body.toplevel_page_asesor-inteligente #wpcontent { background: #f5f7fa; }
 .asi-admin .asi-stat__value { font-size: 38px; line-height: 1.1; letter-spacing: -1.2px; color: var( --asi-k-marca ); }
 .asi-admin .asi-stat__label { display: block; margin-top: 4px; font-size: 13.5px; font-weight: 600; color: var( --asi-k-texto ); }
 .asi-admin .asi-stat__hint { display: block; font-size: 12px; color: var( --asi-k-apagado ); }
+.asi-admin .asi-stat__delta { display: block; margin-top: 6px; font-size: 12px; font-weight: 600; color: var( --asi-k-apagado ); }
+.asi-admin .asi-stat__delta--up { color: #16794a; }
+.asi-admin .asi-stat__delta--down { color: #b42318; }
+.asi-admin .asi-stats__note { margin: 8px 0 0; font-size: 12px; }
+
+/* Lo destacado: frases cortas, sin adornos */
+.asi-admin .asi-highlights { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.asi-admin .asi-highlights li { margin: 0; padding: 0 0 0 18px; position: relative; font-size: 14px; color: var( --asi-k-texto ); }
+.asi-admin .asi-highlights li::before { content: ""; position: absolute; left: 4px; top: 0.6em; width: 6px; height: 6px; border-radius: 50%; background: var( --asi-k-tenue ); }
 
 /* Tablas */
 .asi-admin .asi-table th,

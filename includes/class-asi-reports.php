@@ -109,6 +109,9 @@ class ASI_Reports {
 		global $wpdb;
 		$limit = gmdate( 'Y-m-d', strtotime( current_time( 'Y-m-d' ) . ' -' . self::KEEP_DAYS . ' days' ) );
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . self::table() . ' WHERE day < %s', $limit ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.NotPrepared
+		if ( class_exists( 'ASI_Chat_Log' ) ) {
+			ASI_Chat_Log::purge(); // Las conversaciones guardadas, con su propio plazo.
+		}
 	}
 
 	/** Tipos de contenido que cuentan vistas: los que el asistente indexa, menos las páginas. */
@@ -679,6 +682,7 @@ class ASI_Reports {
 			}
 		);
 		self::name_items( $report['items'] );
+		$report['include_test'] = (bool) $include_test;
 		$report['totals'] = array();
 		foreach ( $report['items'] as $kind => $items ) {
 			$report['totals'][ $kind ] = count( $items );
@@ -692,6 +696,247 @@ class ASI_Reports {
 			$report['items'][ $kind ] = self::top( array_values( $keep ), 'all', count( $keep ) );
 		}
 		return $report;
+	}
+
+	/** El periodo anterior del mismo largo ("últimos 30 días" → los 30 de antes). */
+	public static function previous( array $period ) {
+		$days = (int) round( ( strtotime( $period['to'] . ' 12:00:00' ) - strtotime( $period['from'] . ' 12:00:00' ) ) / DAY_IN_SECONDS ) + 1;
+		$to   = gmdate( 'Y-m-d', strtotime( $period['from'] . ' -1 day' ) );
+		return array( 'from' => gmdate( 'Y-m-d', strtotime( $to . ' -' . ( $days - 1 ) . ' days' ) ), 'to' => $to, 'key' => 'previous' );
+	}
+
+	/**
+	 * Cuánto cambió un número contra el periodo anterior, en %; null si antes no había con qué comparar.
+	 */
+	public static function change( $now, $before ) {
+		return $before > 0 ? (int) round( 100 * ( $now - $before ) / $before ) : null;
+	}
+
+	/** Símbolo de las monedas más comunes (las demás se muestran con su código). */
+	const CURRENCY_SYMBOLS = array( 'GTQ' => 'Q', 'USD' => '$', 'MXN' => '$', 'HNL' => 'L', 'NIO' => 'C$', 'CRC' => '₡', 'PAB' => 'B/.', 'DOP' => 'RD$', 'COP' => '$', 'EUR' => '€' );
+
+	/** Valores de las fichas en palabras ("diesel" → "Diésel"). */
+	const VALUE_LABELS = array(
+		'gasoline' => 'Gasolina', 'diesel' => 'Diésel', 'hybrid' => 'Híbrido', 'electric' => 'Eléctrico', 'gas' => 'Gas',
+		'new' => 'Nuevo', 'used' => 'Usado', 'auto' => 'Automática', 'manual' => 'Mecánica',
+	);
+
+	/**
+	 * Lo que se sabe de cada contenido de una lista (marca, tipo, año, precio…), de su tarjeta en el índice.
+	 *
+	 * @param int[] $ids Contenidos.
+	 * @return array id => { Marca, Tipo, Año, Combustible, Transmisión, Nuevo o usado, price, currency, price_text }
+	 */
+	public static function item_facts( array $ids ) {
+		global $wpdb;
+		$ids = array_values( array_unique( array_filter( array_map( 'intval', $ids ) ) ) );
+		if ( ! $ids || ! class_exists( 'ASI_Index_Table' ) ) {
+			return array();
+		}
+		$table = ASI_Index_Table::name();
+		$rows  = (array) $wpdb->get_results( 'SELECT post_id, card FROM ' . $table . ' WHERE post_id IN (' . implode( ',', $ids ) . ')', ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.NotPrepared
+		$label = function ( $value ) {
+			$value = trim( (string) $value );
+			if ( isset( self::VALUE_LABELS[ strtolower( $value ) ] ) ) {
+				return self::VALUE_LABELS[ strtolower( $value ) ];
+			}
+			// Siglas como vienen ("BYD", "SUV", "BMW"); lo demás, con mayúscula inicial ("PICK UP" → "Pick up").
+			if ( preg_match( '/^[A-Z0-9-]{2,4}$/', $value ) ) {
+				return $value;
+			}
+			$value = function_exists( 'mb_strtolower' ) ? mb_strtolower( $value, 'UTF-8' ) : strtolower( $value );
+			return '' === $value ? '' : ( function_exists( 'mb_strtoupper' ) ? mb_strtoupper( mb_substr( $value, 0, 1 ), 'UTF-8' ) . mb_substr( $value, 1 ) : ucfirst( $value ) );
+		};
+		$out   = array();
+		$money = null;
+		foreach ( $rows as $row ) {
+			$card  = json_decode( (string) $row['card'], true );
+			$card  = is_array( $card ) ? $card : array();
+			$attrs = isset( $card['attrs'] ) && is_array( $card['attrs'] ) ? $card['attrs'] : array();
+			$price = isset( $card['price'] ) ? trim( (string) $card['price'] ) : '';
+			// La moneda la decide la configuración del sitio (como en las tarjetas del chat): "Q 239,900".
+			if ( null === $money && class_exists( 'ASI_Money' ) && class_exists( 'ASI_Settings' ) ) {
+				$money = ASI_Money::config( (array) ASI_Settings::money( '' ) );
+			}
+			$iso = isset( $card['currency'] ) ? (string) $card['currency'] : '';
+			if ( $money ) {
+				$found = ASI_Money::card_price( $card, $money );
+				$iso   = '' !== (string) $found['currency'] ? (string) $found['currency'] : $iso;
+				if ( '' !== $price && preg_match( '/^[0-9.,\s]+$/', $price ) && '' !== $iso && null !== $found['amount'] ) {
+					$price = ASI_Money::format( $found['amount'], $iso );
+				}
+			}
+			$facts = array(
+				'Marca'          => isset( $card['brand'] ) ? $label( $card['brand'] ) : '',
+				'Tipo'           => isset( $attrs['body_label'] ) ? $label( $attrs['body_label'] ) : ( isset( $card['category'] ) ? $label( $card['category'] ) : '' ),
+				'Año'            => isset( $attrs['year'] ) ? (string) $attrs['year'] : '',
+				'Combustible'    => isset( $attrs['fuel'] ) ? $label( $attrs['fuel'] ) : '',
+				'Transmisión'    => isset( $attrs['transmission'] ) ? $label( $attrs['transmission'] ) : '',
+				'Nuevo o usado'  => isset( $attrs['condition'] ) ? $label( $attrs['condition'] ) : '',
+				'price'          => class_exists( 'ASI_Dialogue' ) ? ASI_Dialogue::parse_price( $price ) : (float) preg_replace( '/[^0-9.]/', '', $price ),
+				'currency'       => preg_match( '/^\s*([^\d\s]+)/u', $price, $m ) ? trim( $m[1] ) : '',
+				'price_text'     => $price,
+			);
+			$out[ (int) $row['post_id'] ] = $facts;
+		}
+		return $out;
+	}
+
+	/**
+	 * Una lista (lo más cotizado, por ejemplo) agrupada por marca, tipo, rango de precio, año…
+	 *
+	 * @param array[] $items Lista (id, title, chat, site).
+	 * @return array nombre del grupo => fila[] (title, chat, site), de mayor a menor
+	 */
+	public static function breakdown( array $items ) {
+		$facts  = self::item_facts( wp_list_pluck( $items, 'id' ) );
+		$groups = array();
+		$add    = function ( $group, $value, array $item ) use ( &$groups ) {
+			if ( '' === (string) $value ) {
+				return;
+			}
+			if ( ! isset( $groups[ $group ][ $value ] ) ) {
+				$groups[ $group ][ $value ] = array( 'id' => 0, 'title' => (string) $value, 'chat' => 0, 'site' => 0 );
+			}
+			$groups[ $group ][ $value ]['chat'] += (int) $item['chat'];
+			$groups[ $group ][ $value ]['site'] += (int) $item['site'];
+		};
+		// Rangos de precio en la moneda más usada (lo demás va aparte, sin mezclar monedas).
+		$by_currency = array();
+		foreach ( $items as $item ) {
+			if ( isset( $facts[ $item['id'] ] ) && $facts[ $item['id'] ]['price'] > 0 ) {
+				$by_currency[ $facts[ $item['id'] ]['currency'] ][] = $facts[ $item['id'] ]['price'];
+			}
+		}
+		uasort( $by_currency, function ( $a, $b ) { return count( $b ) - count( $a ); } );
+		$main  = $by_currency ? (string) key( $by_currency ) : '';
+		$range = $main ? self::price_step( $by_currency[ $main ] ) : 0;
+		foreach ( $items as $item ) {
+			if ( ! isset( $facts[ $item['id'] ] ) ) {
+				continue;
+			}
+			$f = $facts[ $item['id'] ];
+			foreach ( array( 'Marca', 'Tipo', 'Año', 'Combustible', 'Transmisión', 'Nuevo o usado' ) as $group ) {
+				$add( $group, $f[ $group ], $item );
+			}
+			if ( $f['price'] > 0 ) {
+				if ( $f['currency'] === $main && $range ) {
+					$low = floor( $f['price'] / $range ) * $range;
+					$add( 'Rango de precio', self::range_label( $main, $low, $low + $range ), $item );
+				} else {
+					$add( 'Rango de precio', 'Precio en ' . ( '' !== $f['currency'] ? $f['currency'] : 'otra moneda' ), $item );
+				}
+			}
+		}
+		$order = array( 'Marca', 'Tipo', 'Rango de precio', 'Año', 'Combustible', 'Nuevo o usado', 'Transmisión' );
+		$out   = array();
+		foreach ( $order as $group ) {
+			if ( empty( $groups[ $group ] ) || count( $groups[ $group ] ) < 2 && 'Rango de precio' !== $group ) {
+				continue; // Un solo valor no dice nada ("todos son nuevos").
+			}
+			$rows = array_values( $groups[ $group ] );
+			if ( 'Rango de precio' === $group ) {
+				// De menor a mayor precio (lo de otra moneda, al final).
+				$at = function ( $row ) {
+					return preg_match( '/[0-9][0-9.,]*/', $row['title'], $m ) && 0 !== strpos( $row['title'], 'Precio en' ) ? (float) str_replace( ',', '', $m[0] ) : PHP_INT_MAX;
+				};
+				usort( $rows, function ( $a, $b ) use ( $at ) { return $at( $a ) <=> $at( $b ); } );
+			} else {
+				usort( $rows, function ( $a, $b ) { return ( $b['chat'] + $b['site'] ) - ( $a['chat'] + $a['site'] ) ?: strnatcmp( $a['title'], $b['title'] ); } );
+			}
+			$out[ $group ] = $rows;
+		}
+		return $out;
+	}
+
+	/**
+	 * Las filas de un grupo del desglose, para una fuente: los rangos de precio en su orden, lo demás
+	 * de mayor a menor.
+	 */
+	public static function group_rows( $group, array $rows, $scope, $max = 10 ) {
+		if ( 'Rango de precio' !== $group ) {
+			return self::top( $rows, $scope, $max );
+		}
+		return array_values( array_filter( $rows, function ( $row ) use ( $scope ) {
+			return ( 'all' === $scope ? $row['chat'] + $row['site'] : $row[ $scope ] ) > 0;
+		} ) );
+	}
+
+	/** "Q 200 – 300 mil", "$ 1.5 – 2 millones": corto, para que quepa en la gráfica. */
+	private static function range_label( $symbol, $low, $high ) {
+		$short = function ( $n, $unit ) {
+			return rtrim( rtrim( number_format( $n / $unit, 1, '.', ',' ), '0' ), '.' );
+		};
+		if ( $high >= 1000000 && 0 === (int) fmod( $low, 100000 ) ) {
+			return trim( $symbol . ' ' . $short( $low, 1000000 ) . ' – ' . $short( $high, 1000000 ) . ' millones' );
+		}
+		if ( $high >= 1000 && 0 === (int) fmod( $low, 1000 ) ) {
+			return trim( $symbol . ' ' . $short( $low, 1000 ) . ' – ' . $short( $high, 1000 ) . ' mil' );
+		}
+		return trim( $symbol . ' ' . number_format_i18n( $low ) . ' – ' . number_format_i18n( $high ) );
+	}
+
+	/** Un escalón "redondo" para agrupar precios en 4 a 6 rangos (50 mil, 100 mil, 200 mil…). */
+	private static function price_step( array $prices ) {
+		sort( $prices );
+		$span = end( $prices ) - reset( $prices );
+		if ( $span <= 0 ) {
+			return max( 1, pow( 10, floor( log10( max( 1, reset( $prices ) ) ) ) ) );
+		}
+		$raw  = $span / 5;
+		$base = pow( 10, floor( log10( $raw ) ) );
+		foreach ( array( 1, 2, 2.5, 5, 10 ) as $mult ) {
+			if ( $base * $mult >= $raw ) {
+				return $base * $mult;
+			}
+		}
+		return $base * 10;
+	}
+
+	/**
+	 * Lo destacado, en frases cortas (para leerlo de un vistazo).
+	 *
+	 * @param array  $report Reporte.
+	 * @param array  $prev   Reporte del periodo anterior.
+	 * @param string $scope  all|chat|site.
+	 * @return string[]
+	 */
+	public static function highlights( array $report, array $prev, $scope ) {
+		$out   = array();
+		$n     = function ( $pair ) use ( $scope ) {
+			return 'all' === $scope ? $pair['chat'] + $pair['site'] : $pair[ $scope ];
+		};
+		$first = function ( $labels ) use ( $n ) {
+			$best = '';
+			$max  = 0;
+			foreach ( (array) $labels as $label => $pair ) {
+				if ( $n( $pair ) > $max ) {
+					$best = (string) $label;
+					$max  = $n( $pair );
+				}
+			}
+			return $best;
+		};
+		foreach ( array( 'Marca' => 'La marca más buscada: %s.', 'Tipo de vehículo' => 'El tipo más buscado: %s.', 'Categoría' => 'Lo más buscado: %s.', 'Presupuesto' => 'El presupuesto más común: %s.' ) as $dim => $text ) {
+			// "Categoría" solo en sitios sin marca ni tipo (en un concesionario son líneas sueltas: "Han").
+			if ( 'Categoría' === $dim && $out ) {
+				continue;
+			}
+			if ( ! empty( $report['criteria'][ $dim ] ) && '' !== $first( $report['criteria'][ $dim ] ) ) {
+				$out[] = sprintf( $text, $first( $report['criteria'][ $dim ] ) );
+			}
+		}
+		$quoted = self::top( $report['items']['quote'], $scope, 1 );
+		if ( $quoted ) {
+			$out[] = sprintf( 'Lo más cotizado: %s.', $quoted[0]['title'] );
+		}
+		$now    = $n( $report['counts']['quote'] ) + $n( $report['counts']['compare'] );
+		$before = $n( $prev['counts']['quote'] ) + $n( $prev['counts']['compare'] );
+		$delta  = self::change( $now, $before );
+		if ( null !== $delta && 0 !== $delta ) {
+			$out[] = sprintf( 'Cotizaciones y comparaciones: %s %d %% contra el periodo anterior.', $delta > 0 ? 'subieron' : 'bajaron', abs( $delta ) );
+		}
+		return array_slice( $out, 0, 5 );
 	}
 
 	/**
@@ -964,7 +1209,29 @@ class ASI_Reports {
 		$rows[] = array();
 		$rows[] = array( array( 'Personas: en el chat, cada conversación; en el sitio, quien filtró, buscó o abrió una ficha sin usar el chat (una vez al día).', 'note' ) );
 		$rows[] = array( array( 'Cotizaciones: la de un vehículo y la de varios (favoritos) cuentan igual.', 'note' ) );
-		$book->add_sheet( 'Resumen', $rows, $wide ? array( 44, 13, 13, 13 ) : array( 44, 14 ), $fixed );
+
+		// Contra el periodo anterior del mismo largo.
+		$prev   = self::build( self::previous( $p ), ! empty( $report['include_test'] ) );
+		$pc     = $prev['counts'];
+		$pick   = function ( array $pair ) use ( $scope ) {
+			return 'all' === $scope ? $pair['chat'] + $pair['site'] : $pair[ $scope ];
+		};
+		$rows[] = array();
+		$rows[] = array( array( 'Contra el periodo anterior (del ' . date_i18n( 'j M Y', strtotime( $prev['period']['from'] ) ) . ' al ' . date_i18n( 'j M Y', strtotime( $prev['period']['to'] ) ) . ')', 'bold' ) );
+		$rows[] = array( array( 'Indicador', 'header' ), array( 'Este periodo', 'header_num' ), array( 'Anterior', 'header_num' ), array( 'Cambio', 'header_num' ) );
+		$compare = array(
+			'Conversaciones en el chat'     => array( $c['conversation'], $pc['conversation'], 'site' !== $scope ),
+			'Personas buscando en el sitio' => array( $c['visitor'], $pc['visitor'], 'chat' !== $scope ),
+			'Cotizaciones'                  => array( $pick( $c['quote'] ), $pick( $pc['quote'] ), true ),
+			'Comparaciones'                 => array( $pick( $c['compare'] ), $pick( $pc['compare'] ), true ),
+		);
+		foreach ( $compare as $label => $pair ) {
+			if ( $pair[2] ) {
+				$delta  = self::change( $pair[0], $pair[1] );
+				$rows[] = array( array( $label, 'text' ), (int) $pair[0], (int) $pair[1], null === $delta ? array( '—', 'text' ) : array( $delta / 100, 'percent' ) );
+			}
+		}
+		$book->add_sheet( 'Resumen', $rows, $wide ? array( 44, 13, 13, 13 ) : array( 44, 14, 14, 14 ), $fixed );
 
 		// Por día.
 		$rows   = $intro( 'Por día' );
@@ -1004,15 +1271,32 @@ class ASI_Reports {
 		}
 		$book->add_sheet( 'Lo más buscado', $rows, $wide ? array( 22, 26, 12, 12, 12 ) : array( 22, 26, 12 ), $fixed );
 
-		// Lo más visto, cotizado y comparado.
+		// Lo más visto, cotizado y comparado (con marca, tipo, año y precio, para filtrar en Excel).
 		foreach ( array( 'view' => 'Lo más visto', 'quote' => 'Lo más cotizado', 'compare' => 'Lo más comparado' ) as $kind => $title ) {
+			$list   = array_values( $top_of( $report['items'][ $kind ] ) );
+			$facts  = self::item_facts( wp_list_pluck( $list, 'id' ) );
 			$rows   = $intro( $title );
-			$rows[] = $head( array( '#', 'Vehículo / contenido' ) );
+			$rows[] = array_merge( $head( array( '#', 'Vehículo / contenido' ) ), array( array( 'Marca', 'header' ), array( 'Tipo', 'header' ), array( 'Año', 'header' ), array( 'Precio', 'header' ) ) );
 			$fixed  = count( $rows );
-			foreach ( array_values( $top_of( $report['items'][ $kind ] ) ) as $i => $item ) {
-				$rows[] = array_merge( array( $i + 1, array( $item['title'], 'text' ) ), $nums( $item ) );
+			foreach ( $list as $i => $item ) {
+				$f      = isset( $facts[ $item['id'] ] ) ? $facts[ $item['id'] ] : array( 'Marca' => '', 'Tipo' => '', 'Año' => '', 'price_text' => '' );
+				$rows[] = array_merge( array( $i + 1, array( $item['title'], 'text' ) ), $nums( $item ), array( array( $f['Marca'], 'text' ), array( $f['Tipo'], 'text' ), array( $f['Año'], 'text' ), array( $f['price_text'], 'text' ) ) );
 			}
-			$book->add_sheet( $title, $rows, $wide ? array( 5, 46, 12, 12, 12 ) : array( 5, 46, 12 ), $fixed );
+			$book->add_sheet( $title, $rows, array_merge( $wide ? array( 5, 46, 12, 12, 12 ) : array( 5, 46, 12 ), array( 16, 16, 8, 16 ) ), $fixed );
+		}
+
+		// Lo cotizado, agrupado por lo que dice cada ficha.
+		$groups = self::breakdown( self::top( $report['items']['quote'], $scope, 1000 ) );
+		if ( $groups ) {
+			$rows   = $intro( 'Lo cotizado, por tipo' );
+			$rows[] = $head( array( 'Agrupado por', 'Valor' ) );
+			$fixed  = count( $rows );
+			foreach ( $groups as $group => $list ) {
+				foreach ( array_values( self::group_rows( $group, $list, $scope, 1000 ) ) as $i => $item ) {
+					$rows[] = array_merge( array( array( 0 === $i ? $group : '', 0 === $i ? 'bold' : 'text' ), array( $item['title'], 'text' ) ), $nums( $item ) );
+				}
+			}
+			$book->add_sheet( 'Cotizado por tipo', $rows, $wide ? array( 20, 28, 12, 12, 12 ) : array( 20, 28, 12 ), $fixed );
 		}
 		return $book->build();
 	}

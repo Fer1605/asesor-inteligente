@@ -105,6 +105,17 @@ final class ASI_Mailer {
 			$out .= '</table>';
 		}
 
+		// Un resumen en pocas líneas (lo que habló una persona con el chat).
+		if ( ! empty( $c['summary']['lines'] ) ) {
+			$out .= '<div style="margin:0 0 8px;font-size:13px;font-weight:700;color:' . $text . ';' . $font . '">' . $e( $c['summary']['title'] ) . '</div>';
+			$out .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:10px;border-collapse:separate;margin:0 0 20px;">';
+			foreach ( array_values( (array) $c['summary']['lines'] ) as $n => $line ) {
+				$border = $n ? 'border-top:1px solid #f0f0f0;' : '';
+				$out   .= '<tr><td style="' . $border . 'padding:9px 0 9px 14px;font-size:13px;color:' . $muted . ';width:22px;vertical-align:top;' . $font . '">' . ( $n + 1 ) . '.</td><td style="' . $border . 'padding:9px 14px 9px 6px;font-size:14px;line-height:1.45;color:' . $text . ';' . $font . '">' . $e( $line ) . '</td></tr>';
+			}
+			$out .= '</table>';
+		}
+
 		foreach ( isset( $c['items'] ) ? (array) $c['items'] : array() as $item ) {
 			$out .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:10px;border-collapse:separate;margin:0 0 12px;"><tr>';
 			if ( ! empty( $item['image'] ) ) {
