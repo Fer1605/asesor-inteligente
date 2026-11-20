@@ -268,6 +268,7 @@ class ASI_REST_Controller {
 			'country_name'  => $context->country_name,
 			'multi_country' => $registry->is_multi_country(),
 			'hour'          => (int) current_time( 'G' ),
+			'now'           => (int) current_time( 'timestamp' ), // Hora del sitio (fechas de las citas).
 			'home_url'      => $context->home_url,
 			'siblings'      => $siblings,
 			'languages'     => ASI_Lexicon::available(),

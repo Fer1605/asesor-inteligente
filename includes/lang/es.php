@@ -45,6 +45,8 @@ return array(
 		'cuanto', 'cuesta', 'cuestan', 'vale', 'valen', 'costo', 'costos',
 		// Marcas de refinamiento: dicen cómo filtrar, no qué buscar.
 		'solo', 'solamente', 'unicamente', 'nada', 'pero', 'mejor', 'ahora',
+		// "Barato" ordena por precio (lo lee el diálogo); no es una palabra que esté en las fichas.
+		'barato', 'barata', 'baratos', 'baratas', 'economico', 'economica', 'economicos', 'economicas', 'accesible', 'accesibles',
 	),
 
 	// Terminaciones de género intercambiables al comparar ("automático" encuentra "automática").
@@ -122,6 +124,26 @@ return array(
 	// Una cita para probar el vehículo (las mismas solicitudes, con sus palabras).
 	'test_drive_words'  => array( 'prueba de manejo', 'pruebas de manejo', 'test drive', 'probarlo', 'probarla', 'manejarlo', 'manejarla', 'conducirlo', 'conducirla', 'prueba de conduccion' ),
 	'when_words'        => array( 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo', 'mañana', 'pasado mañana', 'hoy', 'tarde', 'noche', 'mediodia', 'temprano', 'esta semana', 'proxima semana', 'semana que viene', 'fin de semana', 'fin de mes', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre', 'cuando puedan', 'cuanto antes', 'lo antes posible', 'cualquier dia', 'a las' ),
+	// Para leer la fecha de una cita ("el viernes a las 8am") y escribirla completa.
+	'when_calendar'     => array(
+		'weekdays'       => array( 'domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado' ),
+		'months'         => array( 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre' ),
+		'weekday_names'  => array( 'domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado' ),
+		'month_names'    => array( 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre' ),
+		'date_format'    => '{weekday} {day} de {month}',
+		'time_format'    => 'a las {time}',
+		'part_names'     => array( 'morning' => 'en la mañana', 'afternoon' => 'en la tarde', 'night' => 'en la noche' ),
+		'today'          => array( 'hoy', 'hoy mismo' ),
+		'tomorrow'       => array( 'mañana', 'manana' ),
+		'after_tomorrow' => array( 'pasado mañana', 'pasado manana' ),
+		'next'           => array( 'proximo', 'proxima', 'siguiente', 'que viene', 'entrante' ),
+		'at'             => array( 'a las', 'a la', 'las', 'tipo', 'como a las', 'sobre las' ),
+		'noon'           => array( 'mediodia', 'medio dia' ),
+		'morning'        => array( 'en la mañana', 'por la mañana', 'de la mañana', 'en la manana', 'por la manana', 'de la manana', 'temprano' ),
+		'afternoon'      => array( 'en la tarde', 'por la tarde', 'de la tarde', 'tarde' ),
+		'night'          => array( 'en la noche', 'por la noche', 'de la noche', 'noche' ),
+		'asap'           => array( 'lo antes posible', 'cuanto antes', 'lo mas pronto', 'lo mas pronto posible', 'cuando puedan', 'cuando pueda', 'cuando tengan espacio', 'cualquier dia', 'el dia que puedan' ),
+	),
 	'name_particles'    => array( 'de', 'del', 'la', 'las', 'los', 'el', 'y', 'e', 'van', 'von', 'da', 'dos' ),
 	'details_words'     => array( 'cuentame', 'cuentanos', 'hablame', 'detalles', 'detalle', 'informacion', 'info', 'ficha', 'como es', 'que tal es', 'caracteristicas', 'ver' ),
 	'not_name_words'    => array( 'hola', 'buenas', 'gracias', 'porfavor', 'por favor', 'ok', 'opciones', 'vehiculos', 'carros', 'autos', 'camionetas', 'pickup', 'suv', 'familia', 'trabajo', 'finca', 'precio', 'cuotas', 'cotizacion', 'mas', 'otras', 'ninguna' ),
@@ -274,6 +296,12 @@ return array(
 
 	// El más barato o el más caro.
 	'cheapest_markers'  => array( 'mas barato', 'mas barata', 'mas baratos', 'mas baratas', 'mas economico', 'mas economica', 'mas economicos', 'mas economicas', 'menor precio', 'precio mas bajo', 'mas accesible', 'mas accesibles' ),
+	// "Quiero un carro barato": lo más económico, de menor a mayor precio (sin "el más").
+	'cheap_words'       => array( 'barato', 'barata', 'baratos', 'baratas', 'economico', 'economica', 'economicos', 'economicas', 'accesible', 'accesibles', 'bajo costo', 'bajo precio', 'precio bajo', 'precios bajos', 'low cost', 'no tan caro', 'no muy caro' ),
+	// "Económico" que habla de gastar poco combustible, no de precio.
+	'cheap_not'         => array( 'combustible', 'consumo', 'rinde', 'rendimiento', 'gaste poco', 'gasta poco', 'mantenimiento' ),
+	// Palabras que no dicen qué tipo de producto quiere ("un vehículo barato" = cualquiera).
+	'any_product_words' => array( 'vehiculo', 'vehiculos', 'carro', 'carros', 'auto', 'autos', 'automovil', 'automoviles', 'algo', 'opcion', 'opciones', 'modelo', 'modelos', 'unidad', 'unidades', 'producto', 'productos' ),
 	'priciest_markers'  => array( 'mas caro', 'mas cara', 'mas caros', 'mas caras', 'mayor precio', 'precio mas alto', 'mas costoso', 'mas costosa', 'de mas precio' ),
 
 	// Tratamiento de usted: se aplica a las plantillas (nunca a nombres de productos). Frases primero.
@@ -517,7 +545,10 @@ return array(
 		'appt_consent'        => array( 'Con estos datos un asesor de {site} te contactará. Si prefieres no seguir, escribe “cancelar”.' ),
 		'appt_ask_email'      => array( '¿A qué correo te escribimos para confirmarte {thing}?' ),
 		'appt_ask_name'       => array( '¿A nombre de quién dejo la solicitud?' ),
-		'appt_ask_when'       => array( 'Gracias, {name}. ¿Qué día y a qué hora te gustaría? Es solo tu preferencia: un asesor te confirma.' ),
+		'appt_ask_when'       => array( 'Gracias, {name}. ¿Qué día y a qué hora te gustaría? Por ejemplo, «mañana a las 10» o «el lunes en la tarde». Es solo tu preferencia: un asesor te confirma.' ),
+		'appt_when_past'      => array( 'El {when} ya pasó. ¿Qué otro día te queda bien? Puedes elegir uno de estos o escribirme otro:' ),
+		'appt_when_past_note' => array( 'Ojo: el {when} ya pasó.' ),
+		'appt_when_day'       => array( '¿Qué día te queda bien? Puedes elegir uno de estos o escribirme otro (por ejemplo, «el martes a las 10»):' ),
 		'appt_done'           => array( '¡Listo, {name}! Enviamos tu solicitud a nuestros asesores. Te van a escribir a {email} para confirmar {thing} ({when}).' ),
 		'appt_test_note'      => array( '(Modo prueba: el aviso fue solo al correo de prueba.)' ),
 		'appt_after'          => array( '¿Te ayudo con algo más mientras tanto?' ),
@@ -788,6 +819,8 @@ return array(
 		// El más barato o el más caro.
 		'cheapest' => array( 'El más económico{en_label} es {title}, a {price}.', 'La opción de menor precio{en_label} es {title}: {price}.' ),
 		'priciest' => array( 'El de mayor precio{en_label} es {title}, a {price}.', 'El más caro{en_label} es {title}: {price}.' ),
+		'cheap_list'  => array( 'Te muestro lo más económico{en_label}, de menor a mayor precio. Arranca en {price} con {title}:', 'Esto es lo más accesible{en_label}, ordenado por precio. Lo primero es {title}, a {price}:' ),
+		'cheap_list_followup' => array( '¿Tienes un presupuesto en mente? Dime hasta cuánto y lo ajusto, o cuéntame para qué lo vas a usar.', 'Si me dices hasta cuánto quieres invertir o qué tipo buscas, lo afino.' ),
 		'sorted_more' => array( 'Te dejo también las siguientes, ordenadas por precio:', 'Estas le siguen en precio:' ),
 		'prices_missing' => array( 'No tengo precios publicados{en_label}; con una cotización te damos el precio exacto:', 'Los precios{en_label} se dan por cotización; puedes pedirla aquí:' ),
 

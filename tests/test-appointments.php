@@ -18,7 +18,7 @@ $ashop = new ASI_Test_Repository();
 $ashop->add( 1, 'es', 'catalog', 'MAZDA BT-50', array( 'category' => array( 'Pick up' ) ), 'Pickup.', array(), array( 'price' => '344900' ) );
 $ashop->add( 2, 'es', 'catalog', 'NISSAN FRONTIER', array( 'category' => array( 'Pick up' ) ), 'Pickup.', array(), array( 'price' => '300000' ) );
 $acontact = array( 'on_closing' => true, 'items' => array( array( 'type' => 'phone', 'value' => '+502 0000-0000', 'url' => 'tel:+50200000000' ) ), 'page' => '' );
-$apbot = new ASI_Dialogue( $ashop, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'appointments' => $appts, 'contact' => $acontact ), function () {
+$apbot = new ASI_Dialogue( $ashop, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'appointments' => $appts, 'contact' => $acontact, 'now' => gmmktime( 9, 0, 0, 11, 18, 2026 ) /* miércoles 18 nov 2026, 9:00 */ ), function () {
 	return 0;
 } );
 $asay = function ( $message, &$state ) use ( $apbot ) {
@@ -34,7 +34,7 @@ check( 'cita: no promete fecha ni hora', true, false !== strpos( $r['text'], 'no
 check( 'cita: pide nombre, correo y cuándo', true, false !== strpos( $r['text'], 'tu nombre' ) && false !== strpos( $r['text'], 'tu correo' ) && false !== strpos( $r['text'], 'qué día' ) );
 check( 'cita: deja los datos de contacto a la mano', true, ! empty( $r['contact']['items'] ) );
 $r = $asay( 'Luis de leon, luis.prueba@example.com, el sábado en la tarde', $st );
-check( 'cita: con todo en un mensaje, la envía', array( 'Luis de Leon', 'luis.prueba@example.com', 'sábado en la tarde' ), $appts->calls ? array( $appts->calls[0][0]['name'], $appts->calls[0][0]['email'], $appts->calls[0][1] ) : array() );
+check( 'cita: con todo en un mensaje, la envía', array( 'Luis de Leon', 'luis.prueba@example.com', 'sábado 21 de noviembre en la tarde' ), $appts->calls ? array( $appts->calls[0][0]['name'], $appts->calls[0][0]['email'], $appts->calls[0][1] ) : array() );
 check( 'cita: confirma que la pasó a los asesores', true, false !== strpos( $r['text'], 'asesores' ) && false !== strpos( $r['text'], 'luis.prueba@example.com' ) );
 check( 'cita: ya no queda pendiente', array(), $st['pending'] );
 
@@ -42,11 +42,11 @@ check( 'cita: ya no queda pendiente', array(), $st['pending'] );
 $appts->calls = array();
 $st = array();
 $r  = $asay( 'me gustaria una cita para el viernes a las 10', $st );
-check( 'cita: toma el cuándo de la primera frase', 'viernes a las 10', $st['appt'] );
+check( 'cita: toma el cuándo de la primera frase, con su fecha', 'viernes 20 de noviembre a las 10:00', $st['appt'] );
 $r = $asay( 'ana@example.com', $st );
 check( 'cita: con el correo, pide el nombre', true, false !== strpos( $r['text'], 'nombre' ) );
 $r = $asay( 'Ana María de la Cruz', $st );
-check( 'cita: envía con nombre compuesto', array( 'Ana María de la Cruz', 'viernes a las 10' ), $appts->calls ? array( $appts->calls[0][0]['name'], $appts->calls[0][1] ) : array() );
+check( 'cita: envía con nombre compuesto', array( 'Ana María de la Cruz', 'viernes 20 de noviembre a las 10:00' ), $appts->calls ? array( $appts->calls[0][0]['name'], $appts->calls[0][1] ) : array() );
 
 // Si falta solo el cuándo, lo que responda es el cuándo.
 $appts->calls = array();
@@ -121,3 +121,46 @@ for ( $i = 1; $i <= 15; $i++ ) {
 $sum = ASI_Chat_Log::summarize( $many );
 check( 'resumen: máximo 10 líneas, el principio y lo último', array( 10, 'Vio la ficha de Vehículo 1', 'Vio la ficha de Vehículo 15' ), array( count( $sum['lines'] ), $sum['lines'][0], end( $sum['lines'] ) ) );
 
+
+// Fechas: el día concreto; lo que ya pasó o no dice qué día se vuelve a preguntar.
+$cal = ASI_Lexicon::get( 'es' )->get_list( 'when_calendar' );
+$now = gmmktime( 9, 2, 0, 11, 20, 2026 ); // viernes 20 nov 2026, 9:02.
+$w   = function ( $text ) use ( $cal, $now ) {
+	$r = ASI_When::resolve( $text, $now, $cal );
+	return ( $r['past'] ? 'PASÓ ' : '' ) . ( '' !== $r['label'] ? $r['label'] : ( $r['asap'] ? 'ASAP' : '-' ) );
+};
+check( 'fecha: hoy viernes a las 8am ya pasó', 'PASÓ viernes 20 de noviembre a las 8:00', $w( 'el viernes a las 8am' ) );
+check( 'fecha: hoy a las 3 (de la tarde) sí', 'viernes 20 de noviembre a las 15:00', $w( 'hoy a las 3' ) );
+check( 'fecha: el próximo viernes', 'viernes 27 de noviembre a las 8:00', $w( 'el próximo viernes a las 8 am' ) );
+check( 'fecha: mañana en la mañana', 'sábado 21 de noviembre en la mañana', $w( 'mañana en la mañana' ) );
+check( 'fecha: pasado mañana 10:30', 'domingo 22 de noviembre a las 10:30', $w( 'pasado mañana 10:30' ) );
+check( 'fecha: el lunes', 'lunes 23 de noviembre', $w( 'el lunes' ) );
+check( 'fecha: el 25', 'miércoles 25 de noviembre', $w( 'el 25' ) );
+check( 'fecha: el 5 es del mes que viene', 'sábado 5 de diciembre', $w( 'el 5' ) );
+check( 'fecha: 27/11 a las 4 pm', 'viernes 27 de noviembre a las 16:00', $w( '27/11 a las 4 pm' ) );
+check( 'fecha: 15 de noviembre ya pasó', 'PASÓ domingo 15 de noviembre', $w( 'el 15 de noviembre' ) );
+check( 'fecha: 3 de enero es del año que viene', 'domingo 3 de enero', $w( '3 de enero' ) );
+check( 'fecha: solo la tarde no dice el día', '-', $w( 'en la tarde' ) );
+check( 'fecha: lo antes posible', 'ASAP', $w( 'lo antes posible' ) );
+check( 'fecha: los próximos días sin domingo', array( 'sábado 21 de noviembre', 'lunes 23 de noviembre', 'martes 24 de noviembre' ), ASI_When::next_days( $now, $cal ) );
+
+// En la conversación: viernes 9:02, "el viernes a las 8am" → ya pasó, pregunta otro día con botones.
+$late = new ASI_Dialogue( $ashop, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'appointments' => $appts, 'contact' => $acontact, 'now' => $now ), function () {
+	return 0;
+} );
+$appts->calls = array();
+$st = array();
+$r  = $late->handle( 'quiero una cita', $st );
+$st = $r['state'];
+$r  = $late->handle( 'Jonathan Prueba, jonathan.prueba@example.com', $st );
+$st = $r['state'];
+$r  = $late->handle( 'el viernes a las 8am', $st );
+$st = $r['state'];
+check( 'cita: un día que ya pasó no se envía', array(), $appts->calls );
+check( 'cita: dice que ya pasó', true, false !== strpos( $r['text'], 'ya pasó' ) );
+check( 'cita: ofrece los siguientes días', 'sábado 21 de noviembre', isset( $r['suggestions'][0] ) ? $r['suggestions'][0] : '' );
+$r  = $late->handle( 'en la tarde', $st );
+$st = $r['state'];
+check( 'cita: sin día, pregunta qué día', true, false !== strpos( $r['text'], 'Qué día' ) && ! $appts->calls );
+$r  = $late->handle( 'lunes 23 de noviembre', $st );
+check( 'cita: con un día válido, la envía con la fecha completa', 'lunes 23 de noviembre', $appts->calls ? $appts->calls[0][1] : '' );

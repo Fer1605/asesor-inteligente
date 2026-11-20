@@ -574,21 +574,60 @@ trait ASI_Dialogue_Products {
 	private function price_rank_flow( $message, $normalized, array $state ) {
 		$cheap  = ASI_Lexicon::find_phrase( $normalized, (array) $this->lexicon->get_list( 'cheapest_markers' ) );
 		$pricey = ASI_Lexicon::find_phrase( $normalized, (array) $this->lexicon->get_list( 'priciest_markers' ) );
+		// "Un carro barato" (sin "el más"): una lista de lo más económico, no un solo vehículo.
+		$loose = false;
+		if ( '' === $cheap && '' === $pricey && '' === ASI_Lexicon::find_phrase( $normalized, (array) $this->lexicon->get_list( 'cheap_not' ) ) ) {
+			$cheap = ASI_Lexicon::find_phrase( $normalized, (array) $this->lexicon->get_list( 'cheap_words' ) );
+			$loose = '' !== $cheap;
+		}
 		$marker = strlen( $cheap ) >= strlen( $pricey ) ? $cheap : $pricey;
 		if ( '' === $marker ) {
 			return null;
 		}
-		$rest  = trim( str_replace( ' ' . $marker . ' ', ' ', ' ' . $normalized . ' ' ) );
+		$rest = trim( str_replace( ' ' . $marker . ' ', ' ', ' ' . $normalized . ' ' ) );
+		if ( $loose ) {
+			// "Un vehículo barato": "vehículo" no dice qué tipo; se busca en todo.
+			$rest = trim( preg_replace( '/\s+/', ' ', ' ' . $rest . ' ' ) );
+			foreach ( (array) $this->lexicon->get_list( 'any_product_words' ) as $word ) {
+				$rest = trim( str_replace( ' ' . $word . ' ', ' ', ' ' . $rest . ' ' ) );
+			}
+		}
 		$query = $this->analyzer->analyze( $rest );
 		$text  = $rest;
-		if ( ! $query['groups'] ) {
-			if ( '' === $state['q'] ) {
-				return null;
-			}
-			$text  = $state['q'];
-			$query = $this->analyzer->analyze( $text );
+		// Con monto ("barata de hasta 200 mil") la búsqueda normal ya lo resuelve.
+		if ( $loose && ( ! empty( $query['price_max'] ) || ! empty( $query['price_min'] ) ) ) {
+			return null;
 		}
-		$result = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'catalog' ), 'limit' => 200 ) );
+		$wide = false; // Todo el catálogo: no dijo qué tipo ("quiero un vehículo barato").
+		// "¿Es barata?" sobre lo que está viendo: no es pedir el catálogo.
+		if ( $loose && ! $query['groups'] && ! $query['attrs'] && ! empty( $state['focus'] ) ) {
+			return null;
+		}
+		if ( ! $query['groups'] && ! $query['attrs'] ) {
+			if ( '' !== $state['q'] && ! $loose ) {
+				$text  = $state['q'];
+				$query = $this->analyzer->analyze( $text );
+			} else {
+				$wide = true;
+			}
+		}
+		if ( $loose ) {
+			$query['cheapest_first'] = true;
+		}
+		$result = $wide ? array( 'items' => array() ) : $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'catalog' ), 'limit' => 200 ) );
+		// Palabras sueltas que no son un producto ("quiero un vehículo"): todo el catálogo.
+		if ( ! $result['items'] && ( $wide || '' === $state['q'] ) && ! $query['attrs'] ) {
+			$wide = true;
+			$text = '';
+			$all  = $query;
+			$all['groups']    = array();
+			$all['label']     = '';
+			$all['price_max'] = null;
+			$all['price_min'] = 0.01; // Todo lo que tiene precio.
+			$all['cheapest_first'] = true; // El corte de resultados se hace ya ordenado por precio.
+			$query  = $all;
+			$result = $this->search->search( $this->context['lang'], $all, array( 'roles' => array( 'catalog' ), 'limit' => 400 ) );
+		}
 		// "¿Cuánto sale la más barata?": las palabras sueltas no son un producto; es de lo que venía viendo.
 		if ( ( ! $result['items'] || 'exact' !== $result['quality'] ) && $text === $rest && '' !== $state['q'] ) {
 			$text   = $state['q'];
@@ -606,7 +645,7 @@ trait ASI_Dialogue_Products {
 				$priced[] = array( $price, $row );
 			}
 		}
-		$en_label = '' !== $query['label'] ? ' ' . $this->lexicon->word( 'among' ) . ' ' . $query['label'] : '';
+		$en_label = isset( $query['label'] ) && '' !== $query['label'] ? ' ' . $this->lexicon->word( 'among' ) . ' ' . $query['label'] : '';
 
 		if ( ! $priced ) {
 			$page  = $this->info_page( 'quote' );
@@ -637,6 +676,22 @@ trait ASI_Dialogue_Products {
 		$top  = $rows[0];
 		$next = array_slice( $rows, 1, 3 );
 		$ids  = array_map( 'intval', array_column( array_slice( $rows, 0, 4 ), 'post_id' ) );
+
+		if ( $loose ) {
+			$list  = array_slice( $rows, 0, 4 );
+			$cards = $this->cards( $list, $query );
+			$price = isset( $cards[0]['price'] ) && '' !== (string) $cards[0]['price'] ? $cards[0]['price'] : $top['card']['price'];
+			return array(
+				'kind'        => 'results',
+				'text'        => $this->responder->say( 'cheap_list', array( 'title' => $top['card']['title'], 'price' => $price, 'en_label' => $en_label ) ),
+				'cards'       => $cards,
+				'followup'    => $this->responder->say( 'cheap_list_followup' ),
+				'links'       => array(),
+				'suggestions' => array(),
+				'more'        => false,
+				'state'       => array( 'q' => $this->short( $text, 200 ), 'shown' => $ids, 'results' => $ids, 'focus' => 0 ),
+			);
+		}
 
 		$top_cards = $this->cards( array( $top ), $query );
 		// El precio como se ve en la tarjeta ("$ 25,990"), no el número crudo de la ficha.

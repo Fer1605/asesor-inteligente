@@ -3,7 +3,7 @@
  * Plugin Name:       Asesor Inteligente
  * Plugin URI:        https://github.com/Fer1605/asesor-inteligente
  * Description:       Asesor de ventas conversacional para WordPress, sin servicios externos de IA por defecto (interpretación con IA gratuita opcional, apagada). Descubre solo el contenido, los campos, los idiomas y los países (Polylang, WPML, ACF, WooCommerce, Elementor), recomienda según lo que necesita el cliente y se conecta con las acciones del sitio (cotizar, comparar).
- * Version:           0.3.0-dev.64
+ * Version:           0.3.0-dev.65
  * Requires at least: 5.9
  * Requires PHP:      7.4
  * Author:            Fer Santizo
@@ -17,7 +17,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ASI_VERSION', '0.3.0-dev.64' );
+define( 'ASI_VERSION', '0.3.0-dev.65' );
 define( 'ASI_FILE', __FILE__ );
 define( 'ASI_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ASI_URL', plugin_dir_url( __FILE__ ) );
@@ -25,6 +25,7 @@ define( 'ASI_URL', plugin_dir_url( __FILE__ ) );
 require_once ASI_DIR . 'includes/class-asi-settings.php';
 require_once ASI_DIR . 'includes/class-asi-access.php';
 require_once ASI_DIR . 'includes/text/class-asi-normalizer.php';
+require_once ASI_DIR . 'includes/text/class-asi-when.php';
 require_once ASI_DIR . 'includes/text/class-asi-money.php';
 require_once ASI_DIR . 'includes/i18n/class-asi-country-resolver.php';
 require_once ASI_DIR . 'includes/i18n/class-asi-language-adapter.php';

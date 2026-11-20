@@ -35,11 +35,16 @@ trait ASI_Dialogue_Appointments {
 				return $reply;
 			}
 			$state['customer'] = array_merge( $state['customer'], $given );
-			if ( '' !== $when ) {
-				$state['appt'] = $when;
-			}
 			if ( $this->words_in( $normalized, 'test_drive_words' ) ) {
 				$state['appt_kind'] = 'test_drive'; // "Mejor una prueba de manejo".
+			}
+			if ( '' !== $when ) {
+				// El día concreto ("viernes 27 de noviembre a las 8:00"); si ya pasó o no dice qué día, se pregunta.
+				$check = $this->when_check( $when );
+				if ( '' === $check['label'] ) {
+					return $this->when_retry( $check, $state );
+				}
+				$state['appt'] = $check['label'];
 			}
 			return $this->appointment_next( $state, $service );
 		}
@@ -64,9 +69,13 @@ trait ASI_Dialogue_Appointments {
 		// "Quiero una cita el sábado, soy Ana, ana@…": lo que ya dio cuenta.
 		list( $given, $when ) = $this->appointment_data( $message, $normalized, false, $state );
 		$state['customer'] = array_merge( $state['customer'], $given );
-		$state['appt']     = $when;
+		$check             = '' !== $when ? $this->when_check( $when ) : array( 'label' => '', 'past' => false );
+		$state['appt']     = $check['label'];
 		$state['pending']  = array( 'action' => 'appointment', 'ids' => $state['focus'] ? array( (int) $state['focus'] ) : array() );
 		$next              = $this->appointment_next( $state, $service, true );
+		if ( ! empty( $check['past'] ) ) {
+			$next['text'] = $this->responder->say( 'appt_when_past_note', array( 'when' => $check['past_label'] ) ) . ' ' . $next['text'];
+		}
 		return $next;
 	}
 
@@ -174,6 +183,40 @@ trait ASI_Dialogue_Appointments {
 		}
 		$out = preg_replace( '/^\s*((para|el|la|los|las|on|for)\s+)+/iu', '', trim( $out ) );
 		return trim( $out, " \t.!¿?" );
+	}
+
+	/**
+	 * El día de la cita, concreto. label '' si ya pasó o no dice qué día ("en la tarde").
+	 * "Lo antes posible" / "cuando puedan" se acepta tal cual: el asesor propone.
+	 *
+	 * @return array { label: string, past: bool, past_label: string }
+	 */
+	private function when_check( $when ) {
+		$cal = (array) $this->lexicon->get_list( 'when_calendar' );
+		if ( ! $cal ) {
+			return array( 'label' => (string) $when, 'past' => false, 'past_label' => '' );
+		}
+		$r = ASI_When::resolve( $when, $this->now(), $cal );
+		if ( $r['past'] ) {
+			return array( 'label' => '', 'past' => true, 'past_label' => $r['label'] );
+		}
+		if ( '' === $r['date'] ) {
+			return array( 'label' => $r['asap'] ? $this->short( (string) $when, 80 ) : '', 'past' => false, 'past_label' => '' );
+		}
+		return array( 'label' => $r['label'], 'past' => false, 'past_label' => '' );
+	}
+
+	/** Pide otro día (ya pasó o no dijo cuál), con los siguientes días como botones. */
+	private function when_retry( array $check, array $state ) {
+		$keep  = array( 'pending' => $state['pending'], 'customer' => $state['customer'], 'appt' => '', 'appt_kind' => (string) $state['appt_kind'] );
+		$reply = $this->appointment_reply( $check['past'] ? 'appt_when_past' : 'appt_when_day', array( 'when' => $check['past_label'] ), $keep );
+		$reply['suggestions'] = ASI_When::next_days( $this->now(), (array) $this->lexicon->get_list( 'when_calendar' ) );
+		return $reply;
+	}
+
+	/** Ahora, en la hora del sitio. */
+	private function now() {
+		return isset( $this->context['now'] ) && $this->context['now'] ? (int) $this->context['now'] : time();
 	}
 
 	/** Patrón que acepta la palabra del léxico con o sin tildes ("sabado" encuentra "sábado"). */
