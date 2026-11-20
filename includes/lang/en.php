@@ -230,6 +230,10 @@ return array(
 		'asap'           => array( 'as soon as possible', 'asap', 'any day', 'whenever' ),
 	),
 	'cheap_words'      => array( 'cheap', 'inexpensive', 'affordable', 'budget friendly', 'low cost', 'low price', 'not too expensive' ),
+	'cheap_patterns'   => array(
+		'/(?:^|\s)not\s+(?:too|so|very|that)?\s*(?:expensive|pricey|costly)(?=\s|$)/u',
+		'/(?:^|\s)(?:without|don t|dont)\s+(?:spending|spend)\s+(?:too\s+)?(?:much|a lot)(?=\s|$)/u',
+	),
 	'cheap_not'        => array( 'fuel', 'mileage', 'consumption', 'maintenance' ),
 	'any_product_words' => array( 'vehicle', 'vehicles', 'car', 'cars', 'something', 'option', 'options', 'model', 'models', 'product', 'products', 'unit', 'units' ),
 	'priciest_markers' => array( 'most expensive', 'highest price', 'priciest' ),

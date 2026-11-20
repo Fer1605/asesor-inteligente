@@ -47,6 +47,7 @@ return array(
 		'solo', 'solamente', 'unicamente', 'nada', 'pero', 'mejor', 'ahora',
 		// "Barato" ordena por precio (lo lee el diálogo); no es una palabra que esté en las fichas.
 		'barato', 'barata', 'baratos', 'baratas', 'economico', 'economica', 'economicos', 'economicas', 'accesible', 'accesibles',
+		'baratito', 'baratita', 'baratitos', 'baratitas', 'economiquito', 'economiquita',
 	),
 
 	// Terminaciones de género intercambiables al comparar ("automático" encuentra "automática").
@@ -297,7 +298,15 @@ return array(
 	// El más barato o el más caro.
 	'cheapest_markers'  => array( 'mas barato', 'mas barata', 'mas baratos', 'mas baratas', 'mas economico', 'mas economica', 'mas economicos', 'mas economicas', 'menor precio', 'precio mas bajo', 'mas accesible', 'mas accesibles' ),
 	// "Quiero un carro barato": lo más económico, de menor a mayor precio (sin "el más").
-	'cheap_words'       => array( 'barato', 'barata', 'baratos', 'baratas', 'economico', 'economica', 'economicos', 'economicas', 'accesible', 'accesibles', 'bajo costo', 'bajo precio', 'precio bajo', 'precios bajos', 'low cost', 'no tan caro', 'no muy caro' ),
+	'cheap_words'       => array( 'barato', 'barata', 'baratos', 'baratas', 'economico', 'economica', 'economicos', 'economicas', 'accesible', 'accesibles', 'bajo costo', 'bajo precio', 'precio bajo', 'precios bajos', 'low cost', 'baratito', 'baratita', 'baratitos', 'baratitas', 'economiquito', 'economiquita', 'buen precio', 'precio accesible' ),
+	// "No tan caro", "que no sea muy cara", "que no salga caro", "que no cueste mucho" (texto ya normalizado).
+	'cheap_patterns'    => array(
+		'/(?:^|\s)no\s+(?:(?:sea|salga|este|me\s+salga|me\s+cueste|resulte|quede)\s+)?(?:(?:tan|muy|demasiado|tanto)\s+)?(?:car[oa]s?|costos[oa]s?)(?=\s|$)/u',
+		'/(?:^|\s)no\s+(?:me\s+)?(?:cueste|cuesten|salga|salgan)\s+(?:mucho|tanto|un\s+ojo)(?=\s|$)/u',
+		'/(?:^|\s)sin\s+gastar\s+(?:mucho|tanto|demasiado)(?=\s|$)/u',
+		'/(?:^|\s)no\s+(?:quiero|busco|necesito|ocupo|me\s+interesa)\s+(?:algo|nada|un|una|uno)?\s*(?:(?:tan|muy|demasiado)\s+)?(?:car[oa]s?|costos[oa]s?)(?=\s|$)/u',
+		'/(?:^|\s)nada\s+(?:(?:tan|muy|demasiado)\s+)?(?:car[oa]|costos[oa])(?=\s|$)/u',
+	),
 	// "Económico" que habla de gastar poco combustible, no de precio.
 	'cheap_not'         => array( 'combustible', 'consumo', 'rinde', 'rendimiento', 'gaste poco', 'gasta poco', 'mantenimiento' ),
 	// Palabras que no dicen qué tipo de producto quiere ("un vehículo barato" = cualquiera).

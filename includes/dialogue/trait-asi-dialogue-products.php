@@ -578,6 +578,12 @@ trait ASI_Dialogue_Products {
 		$loose = false;
 		if ( '' === $cheap && '' === $pricey && '' === ASI_Lexicon::find_phrase( $normalized, (array) $this->lexicon->get_list( 'cheap_not' ) ) ) {
 			$cheap = ASI_Lexicon::find_phrase( $normalized, (array) $this->lexicon->get_list( 'cheap_words' ) );
+			// "Que no sea tan caro", "que no cueste mucho": la frase entera es el marcador.
+			foreach ( (array) $this->lexicon->get_list( 'cheap_patterns' ) as $pattern ) {
+				if ( '' === $cheap && @preg_match( $pattern, $normalized, $m ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+					$cheap = trim( $m[0] );
+				}
+			}
 			$loose = '' !== $cheap;
 		}
 		$marker = strlen( $cheap ) >= strlen( $pricey ) ? $cheap : $pricey;

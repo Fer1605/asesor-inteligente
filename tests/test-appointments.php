@@ -164,3 +164,15 @@ $st = $r['state'];
 check( 'cita: sin día, pregunta qué día', true, false !== strpos( $r['text'], 'Qué día' ) && ! $appts->calls );
 $r  = $late->handle( 'lunes 23 de noviembre', $st );
 check( 'cita: con un día válido, la envía con la fecha completa', 'lunes 23 de noviembre', $appts->calls ? $appts->calls[0][1] : '' );
+
+// "No tan caro" y sus formas: lo detecta el patrón del idioma.
+$cheap_hit = function ( $text ) {
+	$n = ASI_Normalizer::normalize( $text );
+	foreach ( (array) ASI_Lexicon::get( 'es' )->get_list( 'cheap_patterns' ) as $p ) {
+		if ( preg_match( $p, $n ) ) {
+			return true;
+		}
+	}
+	return false;
+};
+check( 'barato: frases con "no caro"', array( true, true, true, true, true, true, false ), array_map( $cheap_hit, array( 'algo que no sea tan caro', 'una pickup no muy cara', 'que no salga caro', 'una suv que no cueste mucho', 'no quiero algo caro', 'nada muy caro', 'una pickup que no sea toyota' ) ) );
