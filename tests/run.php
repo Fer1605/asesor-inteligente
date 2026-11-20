@@ -6,6 +6,10 @@
  * Este archivo no se sube a producción.
  */
 
+if ( 'cli' !== PHP_SAPI ) {
+	exit; // Solo desde la terminal (nunca desde el navegador).
+}
+
 define( 'ASI_CLI_TESTS', true );
 
 $root = dirname( __DIR__ );

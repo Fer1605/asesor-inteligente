@@ -112,6 +112,10 @@ class ASI_Reports {
 		if ( class_exists( 'ASI_Chat_Log' ) ) {
 			ASI_Chat_Log::purge(); // Las conversaciones guardadas, con su propio plazo.
 		}
+		// Clics del aprendizaje: lo que nadie volvió a abrir en el mismo plazo ya no cuenta.
+		if ( class_exists( 'ASI_Learning' ) && (int) get_option( ASI_Learning::TABLE_VERSION_OPTION ) === ASI_Learning::TABLE_VERSION ) {
+			$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . ASI_Learning::table() . ' WHERE updated_at < %s', gmdate( 'Y-m-d H:i:s', time() - self::KEEP_DAYS * DAY_IN_SECONDS ) ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.NotPrepared
+		}
 	}
 
 	/** Tipos de contenido que cuentan vistas: los que el asistente indexa, menos las páginas. */
@@ -248,14 +252,14 @@ class ASI_Reports {
 
 	/** Huella del visitante (IP y navegador); nunca se guarda tal cual. */
 	private static function visitor() {
-		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+		$ip = ASI_Settings::client_ip();
 		$ua = isset( $_SERVER['HTTP_USER_AGENT'] ) ? substr( sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ), 0, 200 ) : '';
 		return $ip . '|' . $ua;
 	}
 
 	/** Tope de eventos por minuto y visitante. */
 	private static function within_rate() {
-		$ip   = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+		$ip   = ASI_Settings::client_ip();
 		$rate = 'asi_rp_' . md5( $ip );
 		$n    = (int) get_transient( $rate );
 		if ( $n >= self::PER_MINUTE ) {
@@ -1072,6 +1076,11 @@ class ASI_Reports {
 		$out   = fopen( 'php://temp', 'r+' );
 		fwrite( $out, "\xEF\xBB\xBF" );
 		$put = function ( array $row ) use ( $out ) {
+			foreach ( $row as $i => $cell ) {
+				if ( is_string( $cell ) && preg_match( '/^[=+\-@\t\r]/', $cell ) ) {
+					$row[ $i ] = "'" . $cell;
+				}
+			}
 			fputcsv( $out, $row );
 		};
 		$c   = $report['counts'];

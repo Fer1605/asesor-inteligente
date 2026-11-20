@@ -268,7 +268,7 @@ class ASI_AI_Interpreter {
 	 * "hasta", "menos de". Con errores de dedo y sin acentos.
 	 */
 	public static function says_cap( $message ) {
-		$text = ' ' . preg_replace( '/[^a-z0-9 ]+/', ' ', strtr( mb_strtolower( (string) $message, 'UTF-8' ), array( 'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ñ' => 'n' ) ) ) . ' ';
+		$text = ' ' . preg_replace( '/[^a-z0-9 ]+/', ' ', strtr( function_exists( 'mb_strtolower' ) ? mb_strtolower( (string) $message, 'UTF-8' ) : strtolower( (string) $message ), array( 'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ñ' => 'n' ) ) ) . ' ';
 		return (bool) preg_match( '/\s(no|n|ni)\s(?:\S+\s){0,5}?(mas|ms|mayor|mayores|pase|pasen|pasar|exceda|excedan|arriba)\s(de|a|del)\s/', $text )
 			|| (bool) preg_match( '/\s(hasta|maximo|maxim|max|tope|menos de|no mas)\s/', $text );
 	}
@@ -761,7 +761,7 @@ class ASI_AI_Interpreter {
 		if ( '' === $value || mb_strlen( $value ) > 30 || str_word_count( ASI_Normalizer::normalize( $value ) ) > 4 || preg_match( '/[^\p{L}\s]/u', $value ) ) {
 			return '';
 		}
-		return mb_strtolower( $value );
+		return function_exists( 'mb_strtolower' ) ? mb_strtolower( $value, 'UTF-8' ) : strtolower( $value );
 	}
 
 	/**

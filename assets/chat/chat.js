@@ -33,7 +33,7 @@
 	}
 
 	function safeUrl( url ) {
-		return /^https?:\/\//i.test( url || '' ) ? url : '#';
+		return /^(https?:\/\/|tel:|mailto:)/i.test( url || '' ) ? url : '#';
 	}
 
 	function isExternal( url ) {

@@ -21,3 +21,15 @@ foreach ( $crit as $c ) {
 sort( $pairs );
 check( 'reportes: marca, tipo, combustible y presupuesto, con su nombre para mostrar', array( 'attr:body=SUV', 'attr:fuel=Gasolina', 'budget=Hasta Q 300,000', 'term:brand=Honda', 'term:brand=Toyota' ), $pairs );
 check( 'reportes: búsqueda vacía', array(), $rbot->report_criteria( '' ) );
+
+if ( ! function_exists( 'wp_strip_all_tags' ) ) {
+	function wp_strip_all_tags( $text ) {
+		return trim( strip_tags( (string) $text ) );
+	}
+}
+// Registro de conversaciones: lo que escribe mientras el chat pide sus datos no se guarda.
+$contact_turn = ASI_Chat_Log::turn( 'Ana López, ana@example.com', array( 'pending' => array( 'action' => 'appointment', 'ids' => array( 1 ) ) ), array( 'kind' => 'appointment', 'text' => 'Gracias, Ana.', 'state' => array() ) );
+check( 'registro: el mensaje de contacto no se guarda', '[datos de contacto]', $contact_turn['u'] );
+check( 'registro: la respuesta con su nombre tampoco', '', $contact_turn['r'] );
+$normal_turn = ASI_Chat_Log::turn( 'una pickup diésel', array( 'last' => array( 'x' ) ), array( 'kind' => 'results', 'text' => 'Tengo 3 opciones.', 'state' => array() ) );
+check( 'registro: un turno normal sí se guarda (y un estado raro no rompe nada)', 'una pickup diésel', $normal_turn['u'] );

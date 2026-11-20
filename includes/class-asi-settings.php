@@ -241,6 +241,18 @@ class ASI_Settings {
 	 *
 	 * @return bool
 	 */
+	/**
+	 * Llave del visitante para los límites: la IPv4 completa; en IPv6, su bloque /64 (una casa o
+	 * un servidor tiene millones de direcciones dentro del mismo bloque).
+	 *
+	 * @return string
+	 */
+	public static function client_ip() {
+		$ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+		$bin = '' !== $ip && function_exists( 'inet_pton' ) ? @inet_pton( $ip ) : false; // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		return ( $bin && 16 === strlen( $bin ) ) ? bin2hex( substr( $bin, 0, 8 ) ) : $ip;
+	}
+
 	public static function current_user_can_use() {
 		$mode = self::mode();
 		if ( 'public' === $mode ) {

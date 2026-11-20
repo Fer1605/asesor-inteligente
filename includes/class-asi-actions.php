@@ -74,7 +74,7 @@ final class ASI_Actions implements ASI_Action_Runner {
 		if ( ! $item_ids ) {
 			return new WP_Error( 'asi_no_items', 'Los productos ya no están publicados.' );
 		}
-		if ( ! self::within_limit() ) {
+		if ( ! self::within_limit() || ! self::mail_allowed( $customer['email'] ) ) {
 			return new WP_Error( 'asi_limit', 'Demasiadas solicitudes seguidas.' );
 		}
 
@@ -177,11 +177,11 @@ final class ASI_Actions implements ASI_Action_Runner {
 	private static function store( array $file ) {
 		$dir   = self::dir();
 		$token = bin2hex( random_bytes( 16 ) );
-		$name  = $token . '.pdf';
+		$name  = self::disk_name( $token ) . '.pdf';
 		if ( false === file_put_contents( $dir . '/' . $name, $file['binary'] ) ) {
 			return new WP_Error( 'asi_store', 'No se pudo guardar el archivo.' );
 		}
-		update_option( 'asi_file_' . $token, sanitize_file_name( $file['filename'] ), false );
+		update_option( 'asi_file_' . self::disk_name( $token ), sanitize_file_name( $file['filename'] ), false );
 		foreach ( (array) glob( $dir . '/*.pdf' ) as $old ) {
 			if ( filemtime( $old ) < time() - self::TTL ) {
 				delete_option( 'asi_file_' . basename( $old, '.pdf' ) );
@@ -199,6 +199,14 @@ final class ASI_Actions implements ASI_Action_Runner {
 		);
 	}
 
+	/**
+	 * Nombre en disco: no es el token del enlace (en Nginx la carpeta no se puede cerrar, y así
+	 * quien tenga un enlace vencido no llega al archivo directo).
+	 */
+	private static function disk_name( $token ) {
+		return substr( hash_hmac( 'sha256', 'file|' . $token, wp_salt( 'secure_auth' ) ), 0, 40 );
+	}
+
 	private static function sign( $token, $expires ) {
 		return substr( hash_hmac( 'sha256', $token . '|' . (int) $expires, wp_salt( 'auth' ) ), 0, 32 );
 	}
@@ -213,11 +221,16 @@ final class ASI_Actions implements ASI_Action_Runner {
 		if ( ! preg_match( '/^[a-f0-9]{32}$/', $token ) || $expires < time() || ! hash_equals( self::sign( $token, $expires ), $sig ) ) {
 			return new WP_Error( 'asi_file', 'El enlace venció o no es válido.', array( 'status' => 403 ) );
 		}
-		$path = self::dir() . '/' . $token . '.pdf';
+		$disk = self::disk_name( $token );
+		$path = self::dir() . '/' . $disk . '.pdf';
+		if ( ! is_file( $path ) && is_file( self::dir() . '/' . $token . '.pdf' ) ) {
+			$disk = $token; // Archivos guardados antes de este cambio (vencen solos en un día).
+			$path = self::dir() . '/' . $token . '.pdf';
+		}
 		if ( ! is_file( $path ) ) {
 			return new WP_Error( 'asi_file', 'El archivo ya no está disponible.', array( 'status' => 404 ) );
 		}
-		$filename = (string) get_option( 'asi_file_' . $token, 'documento.pdf' );
+		$filename = (string) get_option( 'asi_file_' . $disk, 'documento.pdf' );
 		$download = (bool) $request->get_param( 'download' );
 		nocache_headers();
 		header( 'Content-Type: application/pdf' );
@@ -234,20 +247,26 @@ final class ASI_Actions implements ASI_Action_Runner {
 	 * Respaldo cuando el sitio no tiene su propio correo: la plantilla del asistente con el PDF.
 	 */
 	private static function email_file( $to, array $file, $subject, array $item_ids, array $customer ) {
-		$path = trailingslashit( get_temp_dir() ) . sanitize_file_name( $file['filename'] );
-		file_put_contents( $path, $file['binary'] );
+		// Carpeta propia por envío: dos visitantes con el mismo vehículo no se pisan el adjunto.
+		$tmp  = trailingslashit( get_temp_dir() ) . 'asi-' . bin2hex( random_bytes( 8 ) );
+		wp_mkdir_p( $tmp );
+		$path = $tmp . '/' . sanitize_file_name( $file['filename'] );
+		if ( false === file_put_contents( $path, $file['binary'] ) ) {
+			return new WP_Error( 'asi_mail', 'No se pudo preparar el adjunto.' );
+		}
 		$sent = ASI_Mailer::send(
 			$to,
 			$subject,
 			array(
 				'title' => $subject,
-				'intro' => sprintf( 'Hola %s, gracias por tu interés. Te adjuntamos el documento que pediste; si tienes cualquier duda, responde a este correo.', strtok( $customer['name'], ' ' ) ),
+				'intro' => sprintf( 'Hola %s, gracias por tu interés. Te adjuntamos el documento que pediste; si tienes cualquier duda, responde a este correo.', self::first_name( $customer['name'] ) ),
 				'items' => self::mail_items( $item_ids ),
 			),
 			array(),
 			array( $path )
 		);
 		wp_delete_file( $path );
+		@rmdir( $tmp ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		return $sent ? true : new WP_Error( 'asi_mail', 'No se pudo enviar el correo.' );
 	}
 
@@ -279,7 +298,7 @@ final class ASI_Actions implements ASI_Action_Runner {
 				),
 				'note'   => 'Enviado por el asistente del sitio.',
 			),
-			array( 'Reply-To: ' . $customer['name'] . ' <' . $customer['email'] . '>' )
+			array( self::reply_to( $customer ) )
 		);
 	}
 
@@ -319,8 +338,43 @@ final class ASI_Actions implements ASI_Action_Runner {
 		);
 	}
 
+	/**
+	 * Correos al visitante: como mucho 3 al día a una misma dirección y un tope diario del sitio,
+	 * para que nadie use el chat para mandar correos a terceros.
+	 */
+	public static function mail_allowed( $email ) {
+		if ( current_user_can( ASI_Access::CAP ) ) {
+			return true;
+		}
+		$day   = 'asi_mail_day_' . gmdate( 'Ymd' );
+		$to    = 'asi_mail_to_' . md5( strtolower( (string) $email ) );
+		$max   = (int) apply_filters( 'asi_mail_daily_max', 200 );
+		$per   = (int) apply_filters( 'asi_mail_per_address', 3 );
+		$n_day = (int) get_transient( $day );
+		$n_to  = (int) get_transient( $to );
+		if ( $n_day >= $max || $n_to >= $per ) {
+			return false;
+		}
+		set_transient( $day, $n_day + 1, DAY_IN_SECONDS );
+		set_transient( $to, $n_to + 1, DAY_IN_SECONDS );
+		return true;
+	}
+
+	/** Primer nombre para un saludo: solo letras (un "nombre" no puede volverse un enlace en el correo). */
+	public static function first_name( $name ) {
+		$first = (string) strtok( (string) $name, ' ' );
+		$first = (string) preg_replace( "/[^\\p{L}'\\-]/u", '', $first );
+		return $first;
+	}
+
+	/** Cabecera Reply-To segura: sin comas ni comillas en el nombre (wp_mail separa direcciones por comas). */
+	public static function reply_to( array $customer ) {
+		$name = trim( (string) preg_replace( '/[,;"<>\\r\\n]+/', ' ', (string) $customer['name'] ) );
+		return 'Reply-To: "' . $name . '" <' . $customer['email'] . '>';
+	}
+
 	public static function within_limit( $kind = 'action', $max = self::LIMIT_PER_HR ) {
-		$ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'cli';
+		$ip  = ASI_Settings::client_ip();
 		$key = 'asi_' . ( 'action' === $kind ? 'act' : substr( $kind, 0, 4 ) ) . '_' . md5( $ip );
 		$n   = (int) get_transient( $key );
 		if ( $n >= $max && ! current_user_can( ASI_Access::CAP ) ) {

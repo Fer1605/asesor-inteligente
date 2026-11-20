@@ -122,13 +122,15 @@ class ASI_Chat_Log {
 				$titles[] = self::short( wp_strip_all_tags( (string) $card['title'] ), 80 );
 			}
 		}
-		$old_last = isset( $before['last'] ) ? (string) $before['last'] : '';
-		$new_last = isset( $after['last'] ) ? (string) $after['last'] : '';
+		// Si el chat estaba pidiendo nombre, correo o teléfono, el mensaje es de contacto: no se guarda.
+		$contact  = ! empty( $before['pending']['action'] );
+		$old_last = isset( $before['last'] ) && is_string( $before['last'] ) ? $before['last'] : '';
+		$new_last = isset( $after['last'] ) && is_string( $after['last'] ) ? $after['last'] : '';
 		$turn     = array(
 			't' => time(),
-			'u' => self::short( self::scrub( $message ), 300 ),
+			'u' => $contact ? '[datos de contacto]' : self::short( self::scrub( $message ), 300 ),
 			'k' => isset( $response['kind'] ) ? (string) $response['kind'] : '',
-			'r' => self::short( self::scrub( wp_strip_all_tags( $text ) ), 300 ),
+			'r' => $contact ? '' : self::short( self::scrub( wp_strip_all_tags( $text ) ), 300 ),
 			'n' => count( $titles ),
 			'c' => array_slice( $titles, 0, 4 ),
 		);

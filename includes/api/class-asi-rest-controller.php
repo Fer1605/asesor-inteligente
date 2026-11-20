@@ -128,17 +128,23 @@ class ASI_REST_Controller {
 	 * @return WP_REST_Response
 	 */
 	public function click( WP_REST_Request $request ) {
+		// El límite va primero: leer la búsqueda (vocabulario del índice) es lo pesado.
+		if ( ! ASI_Learning::click_allowed() ) {
+			$rest = rest_ensure_response( array( 'ok' => true ) );
+			$rest->header( 'Cache-Control', 'no-store' );
+			return $rest;
+		}
 		$context    = ASI_Context::resolve( $request->get_param( 'lang' ), $this->plugin->languages );
 		$settings   = ASI_Settings::all();
 		$lexicon    = ASI_Lexicon::get( $context->language, isset( $settings['synonyms'][ $context->language ] ) ? (array) $settings['synonyms'][ $context->language ] : array() );
 		$repository = new ASI_Index_Repository();
 		$key        = ASI_Dialogue::content_key( new ASI_Query_Analyzer( $lexicon, $repository->vocabulary( $context->lang ) ), $lexicon, (string) $request->get_param( 'q' ) );
 		$post_id = (int) $request->get_param( 'id' );
-		$ip      = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+		$ip      = ASI_Settings::client_ip();
 		$once    = 'asi_ckd_' . md5( $ip . '|' . $context->lang . '|' . $key . '|' . $post_id );
 
 		// Solo resultados que existen en el índice de ese idioma.
-		if ( '' !== $key && $post_id && ! get_transient( $once ) && ASI_Learning::click_allowed() && $repository->rows( $context->lang, array( $post_id ) ) ) {
+		if ( '' !== $key && $post_id && ! get_transient( $once ) && $repository->rows( $context->lang, array( $post_id ) ) ) {
 			set_transient( $once, 1, DAY_IN_SECONDS );
 			ASI_Learning::record_click( $context->lang, $key, $post_id );
 		}
@@ -154,6 +160,12 @@ class ASI_REST_Controller {
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public function chat( WP_REST_Request $request ) {
+		// Solo JSON: un formulario de otro sitio (que siempre manda otro tipo) no puede escribir en el
+		// chat, ni pedir correos, desde el navegador de sus visitantes. Las llamadas internas no traen tipo.
+		$type = $request->get_content_type();
+		if ( ! empty( $type['value'] ) && 'application/json' !== $type['value'] ) {
+			return new WP_Error( 'asi_bad_type', 'Formato no válido.', array( 'status' => 415 ) );
+		}
 		if ( $this->rate_limited() ) {
 			return new WP_Error( 'asi_rate_limited', __( 'Demasiados mensajes seguidos. Espera un momento, por favor.', 'asesor-inteligente' ), array( 'status' => 429 ) );
 		}
@@ -161,6 +173,8 @@ class ASI_REST_Controller {
 		$context = ASI_Context::resolve( $request->get_param( 'lang' ), $this->plugin->languages );
 		$state   = $request->get_param( 'state' );
 		$message = (string) $request->get_param( 'message' );
+		// El mismo tope que lee el diálogo: la IA, la caché y el registro nunca reciben más.
+		$message = function_exists( 'mb_substr' ) ? mb_substr( $message, 0, ASI_Dialogue::MAX_MESSAGE ) : substr( $message, 0, ASI_Dialogue::MAX_MESSAGE );
 
 		$state    = is_array( $state ) ? $state : array();
 		$ai_used  = false;
@@ -169,6 +183,9 @@ class ASI_REST_Controller {
 		$state['cid'] = $cid;
 		$dcontext = self::dialogue_context_for( $context, $this->plugin->languages );
 		$dialogue = new ASI_Dialogue( new ASI_Index_Repository(), $dcontext );
+		// El estado viene del navegador: se limpia una vez aquí, para todo lo que lo usa (IA, reportería, registro).
+		$state        = $dialogue->sanitize_state( $state );
+		$state['cid'] = $cid;
 		$response = $dialogue->handle( $message, $state );
 
 		// IA (opcional): revisa cada búsqueda y corrige solo si entendió otra cosa; además rescata lo que
@@ -296,7 +313,7 @@ class ASI_REST_Controller {
 	 * @return bool
 	 */
 	private function rate_limited() {
-		$ip    = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+		$ip    = ASI_Settings::client_ip();
 		$key   = 'asi_rl_' . md5( $ip . '|' . get_current_user_id() );
 		$count = (int) get_transient( $key );
 		$limit = (int) apply_filters( 'asi_rate_limit', self::RATE_LIMIT );

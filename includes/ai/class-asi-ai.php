@@ -583,12 +583,15 @@ class ASI_AI {
 			);
 		}
 		$t0       = microtime( true );
-		$response = wp_remote_post(
+		// "Otra IA" tiene una dirección escrita a mano: nada de direcciones internas ni redirecciones.
+		$response = call_user_func(
+			'custom' === $provider ? 'wp_safe_remote_post' : 'wp_remote_post',
 			self::endpoint( $provider ),
 			array(
-				'timeout' => self::TIMEOUT,
-				'headers' => $headers,
-				'body'    => wp_json_encode( $body ),
+				'timeout'     => self::TIMEOUT,
+				'headers'     => $headers,
+				'body'        => wp_json_encode( $body ),
+				'redirection' => 'custom' === $provider ? 0 : 5,
 			)
 		);
 		$ms    = (int) round( ( microtime( true ) - $t0 ) * 1000 );
@@ -664,6 +667,9 @@ class ASI_AI {
 		}
 		if ( in_array( $code, array( 401, 403 ), true ) ) {
 			return 'key';
+		}
+		if ( in_array( $code, array( 400, 413 ), true ) && preg_match( '/context|too long|too large|reduce the length|maximum.*tokens|max_tokens/i', (string) $detail ) ) {
+			return 'other'; // La petición era demasiado grande: el modelo sigue sirviendo.
 		}
 		return in_array( $code, array( 400, 404 ), true ) ? 'model' : 'other';
 	}
@@ -949,7 +955,9 @@ class ASI_AI {
 		$headers = 'anthropic' === self::PROVIDERS[ $provider ]['format']
 			? array( 'x-api-key' => $keys[ $provider ], 'anthropic-version' => '2023-06-01' )
 			: array( 'Authorization' => 'Bearer ' . $keys[ $provider ] );
-		$list    = wp_remote_get( 'anthropic' === $provider ? $url . '?limit=100' : $url, array( 'timeout' => self::TIMEOUT, 'headers' => $headers ) );
+		$list    = 'custom' === $provider
+			? wp_safe_remote_get( $url, array( 'timeout' => self::TIMEOUT, 'headers' => $headers, 'redirection' => 0 ) )
+			: wp_remote_get( 'anthropic' === $provider ? $url . '?limit=100' : $url, array( 'timeout' => self::TIMEOUT, 'headers' => $headers ) );
 		if ( is_wp_error( $list ) || 200 !== (int) wp_remote_retrieve_response_code( $list ) ) {
 			return null;
 		}

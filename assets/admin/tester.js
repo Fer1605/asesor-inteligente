@@ -8,6 +8,9 @@
 	const input = document.getElementById( 'asi-input' );
 	const lang = document.getElementById( 'asi-lang' );
 	const json = document.getElementById( 'asi-json' );
+	function safeUrl( url ) {
+		return /^(https?:\/\/|tel:|mailto:)/i.test( url || '' ) ? url : '#';
+	}
 	if ( ! log || ! form ) {
 		return;
 	}
@@ -50,7 +53,7 @@
 			data.compare.columns.forEach( function ( title, index ) {
 				const th = el( 'th' );
 				const a = el( 'a', '', title );
-				a.href = data.compare.urls[ index ];
+				a.href = safeUrl( data.compare.urls[ index ] );
 				a.target = '_blank';
 				th.appendChild( a );
 				head.appendChild( th );
@@ -74,7 +77,7 @@
 			const grid = el( 'div', 'asi-places' );
 			data.places.forEach( function ( item ) {
 				const a = el( 'a', 'asi-place' );
-				a.href = item.url;
+				a.href = safeUrl( item.url );
 				a.target = '_blank';
 				a.appendChild( el( 'strong', 'asi-place__title', item.title ) );
 				if ( item.summary ) {
@@ -98,7 +101,7 @@
 			const grid = el( 'div', 'asi-cards' );
 			list.forEach( function ( card ) {
 				const link = el( 'a', 'asi-card' );
-				link.href = card.url;
+				link.href = safeUrl( card.url );
 				link.target = '_blank';
 				const media = el( 'div', 'asi-card__media' + ( card.image ? '' : ' asi-card__media--empty' ) );
 				if ( card.image ) {
@@ -137,7 +140,7 @@
 			const list = el( 'div', 'asi-links' );
 			data.links.forEach( function ( item ) {
 				const a = el( 'a', 'asi-link' );
-				a.href = item.url;
+				a.href = safeUrl( item.url );
 				a.target = '_blank';
 				a.appendChild( el( 'span', 'asi-link__title', item.title ) );
 				if ( item.summary ) {

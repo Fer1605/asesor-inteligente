@@ -170,7 +170,7 @@ class ASI_Appointments {
 				),
 				'note'   => 'Enviado por el asistente del sitio.',
 			),
-			array( 'Reply-To: ' . $customer['name'] . ' <' . $customer['email'] . '>' )
+			array( ASI_Actions::reply_to( $customer ) )
 		);
 	}
 }

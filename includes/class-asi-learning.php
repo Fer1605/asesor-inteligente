@@ -256,7 +256,7 @@ class ASI_Learning {
 	 * @return bool
 	 */
 	public static function click_allowed() {
-		$ip    = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+		$ip    = ASI_Settings::client_ip();
 		$key   = 'asi_ck_' . md5( $ip );
 		$count = (int) get_transient( $key );
 		if ( $count >= self::CLICKS_PER_MINUTE ) {

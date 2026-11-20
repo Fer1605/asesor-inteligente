@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) && ! defined( 'ASI_CLI_TESTS' ) ) {
 }
 
 /** Ruta de una URL sin depender de WordPress (las pruebas corren sin él). */
-function wp_parse_url_path( $url ) {
+function asi_parse_url_path( $url ) {
 	$path = parse_url( (string) $url, PHP_URL_PATH );
 	return is_string( $path ) ? $path : '';
 }
@@ -2094,7 +2094,7 @@ class ASI_Dialogue {
 	 * o con texto de relleno ("lorem ipsum").
 	 */
 	private function is_utility_page( array $row ) {
-		$text = ASI_Normalizer::normalize( ( isset( $row['card']['title'] ) ? $row['card']['title'] : '' ) . ' ' . ( isset( $row['card']['url'] ) ? preg_replace( '#[/_-]+#', ' ', (string) wp_parse_url_path( $row['card']['url'] ) ) : '' ) );
+		$text = ASI_Normalizer::normalize( ( isset( $row['card']['title'] ) ? $row['card']['title'] : '' ) . ' ' . ( isset( $row['card']['url'] ) ? preg_replace( '#[/_-]+#', ' ', (string) asi_parse_url_path( $row['card']['url'] ) ) : '' ) );
 		if ( '' !== ASI_Lexicon::find_phrase( $text, (array) $this->lexicon->get_list( 'utility_pages' ) ) ) {
 			return true;
 		}
@@ -2315,6 +2315,11 @@ class ASI_Dialogue {
 		);
 	}
 
+	/** El estado del navegador ya limpio (lo usa el endpoint antes de la IA y la reportería). */
+	public function sanitize_state( array $state ) {
+		return $this->clean_state( $state );
+	}
+
 	private function clean_state( array $state ) {
 		$ints = function ( $list, $max ) {
 			return array_slice( array_values( array_filter( array_map( 'intval', is_array( $list ) ? $list : array() ) ) ), -$max );
@@ -2326,7 +2331,7 @@ class ASI_Dialogue {
 			'focus'   => isset( $state['focus'] ) ? max( 0, (int) $state['focus'] ) : 0,
 			'recent'  => array_slice( array_values( array_filter( isset( $state['recent'] ) && is_array( $state['recent'] ) ? $state['recent'] : array(), 'is_string' ) ), -ASI_Responder::MEMORY ),
 			'turns'   => isset( $state['turns'] ) ? max( 0, (int) $state['turns'] ) : 0,
-			'lang'    => isset( $state['lang'] ) && is_string( $state['lang'] ) ? $state['lang'] : '',
+			'lang'    => isset( $state['lang'] ) && is_string( $state['lang'] ) && strlen( $state['lang'] ) <= 40 ? $state['lang'] : '',
 			'profile' => self::clean_profile( isset( $state['profile'] ) ? $state['profile'] : array() ),
 			'asked'   => array_slice( array_values( array_filter( isset( $state['asked'] ) && is_array( $state['asked'] ) ? $state['asked'] : array(), 'is_string' ) ), -10 ),
 			'pending'  => self::clean_action( isset( $state['pending'] ) ? $state['pending'] : array(), $ints ),

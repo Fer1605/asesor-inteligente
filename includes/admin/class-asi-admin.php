@@ -2571,6 +2571,14 @@ class ASI_Admin {
 		// "Otra IA": nombre, dirección (solo https) y precio opcional de su modelo.
 		$custom = isset( $_POST['ai_custom'] ) && is_array( $_POST['ai_custom'] ) ? wp_unslash( $_POST['ai_custom'] ) : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		$url    = isset( $custom['url'] ) ? esc_url_raw( trim( (string) $custom['url'] ), array( 'https' ) ) : '';
+		// Claves y dirección de "Otra IA": solo un administrador del sitio (el rol del panel no las toca).
+		$owner   = current_user_can( 'manage_options' );
+		$old_url = (string) ASI_AI::settings()['custom']['url'];
+		if ( ! $owner ) {
+			$url = $old_url;
+		} elseif ( $url !== $old_url && ( ! isset( $_POST['ai_key']['custom'] ) || '' === trim( (string) wp_unslash( $_POST['ai_key']['custom'] ) ) ) ) {
+			ASI_AI::save_key( 'custom', '' ); // Otra dirección: la clave guardada no viaja a un servidor nuevo.
+		}
 		$price  = function ( $key ) use ( $custom ) {
 			$value = isset( $custom[ $key ] ) ? str_replace( ',', '.', trim( (string) $custom[ $key ] ) ) : '';
 			return '' === $value || ! is_numeric( $value ) ? '' : (string) max( 0, min( 1000, round( (float) $value, 4 ) ) );
@@ -2590,6 +2598,9 @@ class ASI_Admin {
 		foreach ( array_keys( ASI_AI::PROVIDERS ) as $provider ) {
 			$text                = isset( $_POST['ai_models'][ $provider ] ) ? sanitize_text_field( wp_unslash( $_POST['ai_models'][ $provider ] ) ) : '';
 			$models[ $provider ] = implode( ', ', array_filter( array_map( 'trim', preg_split( '/[\s,]+/', preg_replace( '#[^A-Za-z0-9_./:,\s\-]#', '', $text ) ) ) ) );
+			if ( ! $owner ) {
+				continue;
+			}
 			if ( ! empty( $_POST['ai_drop'][ $provider ] ) ) {
 				ASI_AI::save_key( $provider, '' );
 			}
@@ -2735,12 +2746,13 @@ class ASI_Admin {
 							<?php if ( 'custom' === $provider ) : ?>
 								<li><strong>Dirección de la API.</strong> Está en su documentación; casi siempre termina en <code>/v1</code>.
 									<p><label>Nombre <span class="asi-muted">(para reconocerla en los avisos)</span><br><input type="text" class="regular-text" name="ai_custom[name]" value="<?php echo esc_attr( $custom['name'] ); ?>" placeholder="DeepSeek"></label></p>
-									<p><label>Dirección<br><input type="url" class="large-text" name="ai_custom[url]" value="<?php echo esc_attr( $custom['url'] ); ?>" placeholder="https://api.deepseek.com/v1"></label></p>
+									<p><label>Dirección<br><input type="url" class="large-text" name="ai_custom[url]" value="<?php echo esc_attr( $custom['url'] ); ?>" placeholder="https://api.deepseek.com/v1"<?php disabled( ! current_user_can( 'manage_options' ) ); ?>></label></p>
 									<p class="asi-muted">Ejemplos: DeepSeek <code>https://api.deepseek.com/v1</code> · Grok (xAI) <code>https://api.x.ai/v1</code> · Mistral <code>https://api.mistral.ai/v1</code> · OpenRouter <code>https://openrouter.ai/api/v1</code></p></li>
 							<?php endif; ?>
 							<li><strong>Pégala aquí.</strong>
 								<p><label>Clave <span class="asi-muted">(se guarda en el sitio y no se vuelve a mostrar; deja vacío para conservar la actual)</span><br>
-									<input type="password" class="regular-text" name="ai_key[<?php echo esc_attr( $provider ); ?>]" value="" autocomplete="new-password" spellcheck="false"></label>
+									<input type="password" class="regular-text" name="ai_key[<?php echo esc_attr( $provider ); ?>]" value="" autocomplete="new-password" spellcheck="false"<?php disabled( ! current_user_can( 'manage_options' ) ); ?>></label>
+									<?php if ( ! current_user_can( 'manage_options' ) ) : ?><span class="asi-muted">Las claves y la dirección las cambia un administrador del sitio.</span><?php endif; ?>
 									<?php if ( $hint ) : ?><label><input type="checkbox" name="ai_drop[<?php echo esc_attr( $provider ); ?>]" value="1"> Borrar la clave</label><?php endif; ?></p></li>
 							<li><strong>Modelos<?php echo 'custom' === $provider ? '' : ' (opcional)'; ?>.</strong>
 								<?php if ( 'custom' === $provider ) : ?>
