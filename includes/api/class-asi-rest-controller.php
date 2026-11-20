@@ -269,6 +269,7 @@ class ASI_REST_Controller {
 			'multi_country' => $registry->is_multi_country(),
 			'hour'          => (int) current_time( 'G' ),
 			'now'           => (int) current_time( 'timestamp' ), // Hora del sitio (fechas de las citas).
+			'appt_hours'    => ASI_Settings::appointment_hours(), // Cuándo se atiende (null = sin horario).
 			'home_url'      => $context->home_url,
 			'siblings'      => $siblings,
 			'languages'     => ASI_Lexicon::available(),

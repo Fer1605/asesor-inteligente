@@ -153,20 +153,155 @@ class ASI_When {
 	}
 
 	/**
-	 * Los siguientes días para elegir (sin domingos), como botones: "sábado 21 de noviembre".
+	 * Los siguientes días para elegir, como botones: "sábado 21 de noviembre". Con horario, solo
+	 * los días que se atiende; sin horario, todos menos el domingo.
 	 *
+	 * @param array|null $hours 0..6 => array( from, to ) | null (cerrado). null = sin horario.
 	 * @return string[]
 	 */
-	public static function next_days( $now, array $cal, $count = 3 ) {
+	public static function next_days( $now, array $cal, $count = 3, $hours = null ) {
 		$out  = array();
 		$date = gmdate( 'Y-m-d', $now );
-		for ( $i = 1; count( $out ) < $count && $i < 14; $i++ ) {
+		for ( $i = 1; count( $out ) < $count && $i < 21; $i++ ) {
 			$day = self::add( $date, $i );
-			if ( 0 !== (int) gmdate( 'w', strtotime( $day . ' 12:00:00 UTC' ) ) ) {
+			$wd  = (int) gmdate( 'w', strtotime( $day . ' 12:00:00 UTC' ) );
+			if ( is_array( $hours ) ? ! empty( $hours[ $wd ] ) : 0 !== $wd ) {
 				$out[] = self::label( $day, '', '', $cal );
 			}
 		}
 		return $out;
+	}
+
+	/**
+	 * ¿Se atiende ese día y a esa hora? '' si sí; 'closed' (ese día no se atiende) u 'hours' (fuera de horario).
+	 *
+	 * @param array      $r     De resolve().
+	 * @param array|null $hours 0..6 => array( from, to ) | null.
+	 */
+	public static function outside( array $r, $hours ) {
+		if ( ! is_array( $hours ) || '' === $r['date'] ) {
+			return '';
+		}
+		$wd = (int) gmdate( 'w', strtotime( $r['date'] . ' 12:00:00 UTC' ) );
+		if ( empty( $hours[ $wd ] ) ) {
+			return 'closed';
+		}
+		list( $from, $to ) = $hours[ $wd ];
+		if ( '' !== $r['time'] && ( $r['time'] < $from || $r['time'] >= $to ) ) {
+			return 'hours';
+		}
+		// "En la noche" un día que se cierra temprano; "en la mañana" un día que abre después del mediodía.
+		if ( '' === $r['time'] && ( ( 'night' === $r['part'] && $to <= '19:00' ) || ( 'morning' === $r['part'] && $from >= '12:00' ) || ( 'afternoon' === $r['part'] && $to <= '12:00' ) ) ) {
+			return 'hours';
+		}
+		return '';
+	}
+
+	/** "8:00 a 18:30" de un día (para decirlo en el chat). */
+	public static function span( array $day, array $cal ) {
+		$fmt = isset( $cal['span_format'] ) ? (string) $cal['span_format'] : 'de {from} a {to}';
+		return strtr( $fmt, array( '{from}' => (int) substr( $day[0], 0, 2 ) . substr( $day[0], 2 ), '{to}' => (int) substr( $day[1], 0, 2 ) . substr( $day[1], 2 ) ) );
+	}
+
+	/**
+	 * Lee un horario escrito ("Lunes a viernes 8:00 a 18:30, sábado 8:00 a 16:00"). null si no se
+	 * entiende todo (mejor sin horario que con uno mal leído).
+	 *
+	 * @return array|null 0..6 => array( 'HH:MM', 'HH:MM' ) | null (cerrado).
+	 */
+	public static function parse_hours( $text, array $cal ) {
+		$t     = self::plain( str_replace( array( '–', '—' ), '-', (string) $text ) );
+		$days  = self::words( $cal, 'weekdays' );
+		$short = self::words( $cal, 'weekdays_short' );
+		if ( '' === $t || ! $days ) {
+			return null;
+		}
+		$day_rx  = implode( '|', array_map( 'preg_quote', array_merge( $days, $short ) ) );
+		$range   = implode( '|', array_map( 'preg_quote', self::words( $cal, 'range' ) ) );
+		$range   = '' !== $range ? $range : 'a|-';
+		$time_rx = '(\d{1,2})(?::(\d{2}))?\s*(am|pm|hrs|h)?';
+		$out     = array_fill( 0, 7, null );
+		$found   = false;
+		// Cada tramo empieza con un día: "lunes a viernes 8:00 a 18:30", "sabado 8 am - 4 pm".
+		preg_match_all( '/((?:' . $day_rx . ')(?:\s*(?:' . $range . '|y|,)\s*(?:' . $day_rx . '))*)\s*(?:de\s+|from\s+)?' . $time_rx . '\s*(?:' . $range . '|hasta|to)\s*' . $time_rx . '/u', $t, $all, PREG_SET_ORDER );
+		foreach ( $all as $m ) {
+			$idx = self::day_list( $m[1], $days, $short, $range );
+			$a   = self::hm( (int) $m[2], '' !== $m[3] ? (int) $m[3] : 0, isset( $m[4] ) ? $m[4] : '', false );
+			$b   = self::hm( (int) $m[5], isset( $m[6] ) && '' !== $m[6] ? (int) $m[6] : 0, isset( $m[7] ) ? $m[7] : '', true );
+			if ( ! $idx || ! $a || ! $b || $a >= $b ) {
+				return null;
+			}
+			foreach ( $idx as $i ) {
+				$out[ $i ] = array( $a, $b );
+			}
+			$found = true;
+		}
+		return $found ? $out : null;
+	}
+
+	/** "lunes a viernes" → 1..5; "lunes y miercoles" → 1, 3. */
+	private static function day_list( $text, array $days, array $short, $range ) {
+		$index = function ( $w ) use ( $days, $short ) {
+			$i = array_search( $w, $days, true );
+			return false !== $i ? $i : array_search( $w, $short, true );
+		};
+		$rx = implode( '|', array_map( 'preg_quote', array_merge( $days, $short ) ) );
+		preg_match_all( '/(' . $rx . ')(?:\s*(?:' . $range . ')\s*(' . $rx . '))?/u', $text, $parts, PREG_SET_ORDER );
+		$out = array();
+		foreach ( $parts as $p ) {
+			$a = $index( $p[1] );
+			if ( false === $a ) {
+				return array();
+			}
+			if ( ! empty( $p[2] ) ) {
+				$b = $index( $p[2] );
+				if ( false === $b ) {
+					return array();
+				}
+				for ( $i = $a, $n = 0; $n < 7; $i = ( $i + 1 ) % 7, $n++ ) {
+					$out[] = $i;
+					if ( $i === $b ) {
+						break;
+					}
+				}
+			} else {
+				$out[] = $a;
+			}
+		}
+		return array_values( array_unique( $out ) );
+	}
+
+	/** Hora "HH:MM" de un horario escrito; sin am/pm, el cierre antes de las 8 es de la tarde ("8 a 5"). */
+	private static function hm( $h, $m, $ampm, $closing ) {
+		if ( 'pm' === $ampm && $h < 12 ) {
+			$h += 12;
+		} elseif ( 'am' === $ampm && 12 === $h ) {
+			$h = 0;
+		} elseif ( '' === $ampm && $closing && $h < 8 ) {
+			$h += 12;
+		}
+		return $h <= 24 && $m <= 59 ? sprintf( '%02d:%02d', min( $h, 23 ), 24 === $h ? 59 : $m ) : '';
+	}
+
+	/**
+	 * Horario guardado en el panel (0..6 => 'HH:MM-HH:MM' | '') a la forma que usa el chat.
+	 *
+	 * @return array|null null si no hay ningún día abierto.
+	 */
+	public static function from_setting( $saved ) {
+		if ( ! is_array( $saved ) ) {
+			return null;
+		}
+		$out = array_fill( 0, 7, null );
+		$any = false;
+		for ( $i = 0; $i < 7; $i++ ) {
+			$v = isset( $saved[ $i ] ) ? (string) $saved[ $i ] : '';
+			if ( preg_match( '/^(\d{2}:\d{2})-(\d{2}:\d{2})$/', $v, $m ) && $m[1] < $m[2] ) {
+				$out[ $i ] = array( $m[1], $m[2] );
+				$any       = true;
+			}
+		}
+		return $any ? $out : null;
 	}
 
 	// ---------- Utilidades ----------
@@ -176,7 +311,8 @@ class ASI_When {
 		$t = strtr( $t, array( 'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'à' => 'a', 'è' => 'e' ) );
 		$t = preg_replace( '/\b([ap])\s*\.?\s*m\s*\.?(?=[\s,.;!?]|$)/u', '$1m', $t );
 		$t = preg_replace( '/(\d)\s*(am|pm)\b/u', '$1 $2', $t );
-		$t = preg_replace( '/[^\p{L}\d:\/ ]+/u', ' ', $t );
+		$t = preg_replace( '/[^\p{L}\d:\/ \-]+/u', ' ', $t );
+		$t = preg_replace( '/\s*-\s*/u', ' - ', $t ); // "Lun-Vie 9-5": el guion es un rango.
 		return trim( preg_replace( '/\s+/u', ' ', $t ) );
 	}
 

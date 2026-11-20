@@ -73,8 +73,9 @@ trait ASI_Dialogue_Appointments {
 		$state['appt']     = $check['label'];
 		$state['pending']  = array( 'action' => 'appointment', 'ids' => $state['focus'] ? array( (int) $state['focus'] ) : array() );
 		$next              = $this->appointment_next( $state, $service, true );
-		if ( ! empty( $check['past'] ) ) {
-			$next['text'] = $this->responder->say( 'appt_when_past_note', array( 'when' => $check['past_label'] ) ) . ' ' . $next['text'];
+		if ( ! empty( $check['past'] ) || ! empty( $check['outside'] ) ) {
+			// Ya pasó o no se atiende: se dice primero y se pide otro día con los botones.
+			return $this->when_retry( $check, $state );
 		}
 		return $next;
 	}
@@ -203,14 +204,37 @@ trait ASI_Dialogue_Appointments {
 		if ( '' === $r['date'] ) {
 			return array( 'label' => $r['asap'] ? $this->short( (string) $when, 80 ) : '', 'past' => false, 'past_label' => '' );
 		}
+		// Fuera del horario del sitio (si lo tiene): ese día no se atiende o a esa hora no.
+		$outside = ASI_When::outside( $r, $this->hours() );
+		if ( '' !== $outside ) {
+			return array( 'label' => '', 'past' => false, 'past_label' => '', 'outside' => $outside, 'date' => $r['date'], 'day_label' => ASI_When::label( $r['date'], '', '', $cal ) );
+		}
 		return array( 'label' => $r['label'], 'past' => false, 'past_label' => '' );
+	}
+
+	/** Horario del sitio para citas (0..6 => array( from, to ) | null), o null si no tiene. */
+	private function hours() {
+		return isset( $this->context['appt_hours'] ) && is_array( $this->context['appt_hours'] ) ? $this->context['appt_hours'] : null;
 	}
 
 	/** Pide otro día (ya pasó o no dijo cuál), con los siguientes días como botones. */
 	private function when_retry( array $check, array $state ) {
 		$keep  = array( 'pending' => $state['pending'], 'customer' => $state['customer'], 'appt' => '', 'appt_kind' => (string) $state['appt_kind'] );
-		$reply = $this->appointment_reply( $check['past'] ? 'appt_when_past' : 'appt_when_day', array( 'when' => $check['past_label'] ), $keep );
-		$reply['suggestions'] = ASI_When::next_days( $this->now(), (array) $this->lexicon->get_list( 'when_calendar' ) );
+		$cal = (array) $this->lexicon->get_list( 'when_calendar' );
+		if ( ! empty( $check['outside'] ) ) {
+			$wd    = (int) gmdate( 'w', strtotime( $check['date'] . ' 12:00:00 UTC' ) );
+			$names = isset( $cal['weekday_names'] ) ? (array) $cal['weekday_names'] : array();
+			$hours = $this->hours();
+			$vars  = array(
+				'when'    => $check['day_label'],
+				'weekday' => isset( $names[ $wd ] ) ? $names[ $wd ] : '',
+				'span'    => 'hours' === $check['outside'] && ! empty( $hours[ $wd ] ) ? ASI_When::span( $hours[ $wd ], $cal ) : '',
+			);
+			$reply = $this->appointment_reply( 'closed' === $check['outside'] ? 'appt_when_closed' : 'appt_when_hours', $vars, $keep );
+		} else {
+			$reply = $this->appointment_reply( $check['past'] ? 'appt_when_past' : 'appt_when_day', array( 'when' => $check['past_label'] ), $keep );
+		}
+		$reply['suggestions'] = ASI_When::next_days( $this->now(), $cal, 3, $this->hours() );
 		return $reply;
 	}
 

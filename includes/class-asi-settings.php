@@ -70,6 +70,9 @@ class ASI_Settings {
 				'page'       => '', // Página de contacto (URL).
 				'appointments'        => 'off', // "Quiero una cita": off = responde con estos datos; request = toma la solicitud (sin calendario).
 				'appointments_notify' => '',    // Quién recibe las solicitudes; vacío = el correo de contacto.
+				// Horario para citas: 0 (domingo)..6 => 'HH:MM-HH:MM' o '' (cerrado). null = nunca se guardó:
+				// se lee del texto de "Horario" de arriba, si se entiende completo.
+				'appt_hours'          => null,
 			),
 			'actions_mode'        => 'test',  // Cotizar/comparar desde el chat: off, test (aviso a ventas solo al correo de prueba), live.
 			'test_email'          => '',
@@ -251,6 +254,34 @@ class ASI_Settings {
 		$ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
 		$bin = '' !== $ip && function_exists( 'inet_pton' ) ? @inet_pton( $ip ) : false; // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		return ( $bin && 16 === strlen( $bin ) ) ? bin2hex( substr( $bin, 0, 8 ) ) : $ip;
+	}
+
+	/**
+	 * Horario en que se atiende (para las citas): el del panel; si nunca se guardó, el que se lee del
+	 * texto de "Horario". null = sin horario (no se restringe nada).
+	 *
+	 * @return array|null 0..6 => array( from, to ) | null.
+	 */
+	public static function appointment_hours() {
+		$c = self::all()['contact'];
+		if ( is_array( $c['appt_hours'] ) ) {
+			return ASI_When::from_setting( $c['appt_hours'] );
+		}
+		return self::hours_from_text( (string) $c['hours'] );
+	}
+
+	/** El horario escrito, leído con el idioma que lo entienda. */
+	public static function hours_from_text( $text ) {
+		if ( '' === trim( $text ) || ! class_exists( 'ASI_Lexicon' ) ) {
+			return null;
+		}
+		foreach ( ASI_Lexicon::available() as $language ) {
+			$hours = ASI_When::parse_hours( $text, (array) ASI_Lexicon::get( $language )->get_list( 'when_calendar' ) );
+			if ( $hours ) {
+				return $hours;
+			}
+		}
+		return null;
 	}
 
 	public static function current_user_can_use() {

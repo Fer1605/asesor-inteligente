@@ -176,3 +176,31 @@ $cheap_hit = function ( $text ) {
 	return false;
 };
 check( 'barato: frases con "no caro"', array( true, true, true, true, true, true, false ), array_map( $cheap_hit, array( 'algo que no sea tan caro', 'una pickup no muy cara', 'que no salga caro', 'una suv que no cueste mucho', 'no quiero algo caro', 'nada muy caro', 'una pickup que no sea toyota' ) ) );
+
+// Horario de cada sitio: se lee del texto de contacto (o del panel); nada fijo en el código.
+$h = ASI_When::parse_hours( 'Lunes a viernes 8:00 a 18:30, sábado 8:00 a 16:00', $cal );
+check( 'horario: lunes a viernes y sábado, domingo cerrado', array( null, array( '08:00', '18:30' ), array( '08:00', '18:30' ), array( '08:00', '18:30' ), array( '08:00', '18:30' ), array( '08:00', '18:30' ), array( '08:00', '16:00' ) ), $h );
+check( 'horario: con am/pm y guion', array( '09:00', '17:00' ), ASI_When::parse_hours( 'Lun - Vie 9 am - 5 pm', $cal )[1] );
+check( 'horario: "8 a 5" cierra a las 17:00', array( '08:00', '17:00' ), ASI_When::parse_hours( 'lunes a sábado de 8 a 5', $cal )[6] );
+check( 'horario: un texto que no se entiende no inventa horario', null, ASI_When::parse_hours( 'Atención personalizada todos los días', $cal ) );
+check( 'horario: lo guardado en el panel', array( '07:30', '12:00' ), ASI_When::from_setting( array( '', '', '', '', '', '', '07:30-12:00' ) )[6] );
+check( 'horario: nada marcado = sin horario', null, ASI_When::from_setting( array_fill( 0, 7, '' ) ) );
+check( 'horario: los próximos días con atención', array( 'sábado 21 de noviembre', 'lunes 23 de noviembre', 'martes 24 de noviembre' ), ASI_When::next_days( $now, $cal, 3, $h ) );
+
+$open = new ASI_Dialogue( $ashop, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'appointments' => $appts, 'contact' => $acontact, 'now' => $now, 'appt_hours' => $h ), function () {
+	return 0;
+} );
+$appts->calls = array();
+$st = array();
+foreach ( array( 'quiero una cita', 'Jonathan Prueba, jonathan.prueba@example.com' ) as $m ) {
+	$r  = $open->handle( $m, $st );
+	$st = $r['state'];
+}
+$r  = $open->handle( 'el domingo a las 10', $st );
+$st = $r['state'];
+check( 'horario: domingo no, dice que ese día no atiende', true, false !== strpos( $r['text'], 'domingo 22 de noviembre no atendemos' ) && ! $appts->calls );
+$r  = $open->handle( 'el sábado a las 5 de la tarde', $st );
+$st = $r['state'];
+check( 'horario: sábado 17:00 fuera de horario, dice el horario del sábado', true, false !== strpos( $r['text'], 'de 8:00 a 16:00' ) && ! $appts->calls );
+$r  = $open->handle( 'el sábado a las 10', $st );
+check( 'horario: sábado 10:00 sí se envía', 'sábado 21 de noviembre a las 10:00', $appts->calls ? $appts->calls[0][1] : '' );

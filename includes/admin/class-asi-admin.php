@@ -311,6 +311,7 @@ class ASI_Admin {
 							'page'       => esc_url_raw( $text( 'page' ) ),
 							'appointments'        => isset( $in['appointments'] ) && in_array( $in['appointments'], ASI_Appointments::MODES, true ) ? $in['appointments'] : 'off',
 							'appointments_notify' => implode( ', ', array_filter( array_map( 'sanitize_email', explode( ',', $text( 'appointments_notify' ) ) ) ) ),
+							'appt_hours'          => self::hours_from_post( $in ),
 						),
 					)
 				);
@@ -965,6 +966,34 @@ class ASI_Admin {
 							<label for="asi-contact-appointments_notify"><strong>Correos que reciben las solicitudes</strong> <span class="asi-muted">Varios: sepáralos con coma. Vacío = el correo de contacto. En modo prueba solo llega al correo de prueba.</span></label>
 							<input type="text" class="large-text" id="asi-contact-appointments_notify" name="contact[appointments_notify]" value="<?php echo esc_attr( $c['appointments_notify'] ); ?>">
 						</p>
+						<?php
+						// Horario para citas: el guardado; si nunca se guardó, el que se lee del texto de "Horario".
+						$saved_hours = is_array( $c['appt_hours'] ) ? ASI_When::from_setting( $c['appt_hours'] ) : null;
+						$read_hours  = is_array( $c['appt_hours'] ) ? null : ASI_Settings::hours_from_text( (string) $c['hours'] );
+						$show_hours  = $saved_hours ? $saved_hours : $read_hours;
+						$day_names   = array( 'Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado' );
+						?>
+						<div class="asi-field">
+							<p><strong>Horario para citas</strong> <span class="asi-muted">El chat no acepta un día cerrado ni una hora fuera de este horario, y ofrece los próximos días con atención. Si no marcas ningún día, no revisa el horario.</span></p>
+							<?php if ( $read_hours ) : ?>
+								<p class="asi-muted">Lo leímos del horario de contacto de arriba (“<?php echo esc_html( $c['hours'] ); ?>”) y ya se usa así. Si algo no está bien, corrígelo y guarda.</p>
+							<?php elseif ( ! is_array( $c['appt_hours'] ) && '' !== trim( (string) $c['hours'] ) ) : ?>
+								<p class="asi-muted">No pudimos leer el horario de contacto de arriba: márcalo aquí para que el chat lo respete.</p>
+							<?php endif; ?>
+							<input type="hidden" name="contact[appt_hours_form]" value="1">
+							<table class="asi-table asi-hours">
+								<tbody>
+								<?php foreach ( array( 1, 2, 3, 4, 5, 6, 0 ) as $i ) : ?>
+									<?php $day = $show_hours && ! empty( $show_hours[ $i ] ) ? $show_hours[ $i ] : null; ?>
+									<tr>
+										<td><label><input type="checkbox" name="contact[appt_hours][<?php echo (int) $i; ?>][open]" value="1" <?php checked( (bool) $day ); ?>> <?php echo esc_html( $day_names[ $i ] ); ?></label></td>
+										<td><input type="time" name="contact[appt_hours][<?php echo (int) $i; ?>][from]" value="<?php echo esc_attr( $day ? $day[0] : '08:00' ); ?>" aria-label="<?php echo esc_attr( $day_names[ $i ] . ': abre' ); ?>"> a
+											<input type="time" name="contact[appt_hours][<?php echo (int) $i; ?>][to]" value="<?php echo esc_attr( $day ? $day[1] : '17:00' ); ?>" aria-label="<?php echo esc_attr( $day_names[ $i ] . ': cierra' ); ?>"></td>
+									</tr>
+								<?php endforeach; ?>
+								</tbody>
+							</table>
+						</div>
 						<p class="asi-actions"><?php submit_button( 'Guardar', 'primary', 'submit', false ); ?></p>
 					<?php $this->card_close(); ?>
 				</div>
@@ -2560,6 +2589,28 @@ class ASI_Admin {
 	}
 
 	// ---------- Probar ----------
+
+	// ---------- Horario ----------
+
+	/**
+	 * Horario para citas que llegó del formulario de Contacto: 0..6 => 'HH:MM-HH:MM' | ''.
+	 * Sin la tabla en el formulario (otra versión del panel), se conserva lo que había.
+	 */
+	private static function hours_from_post( array $in ) {
+		if ( empty( $in['appt_hours_form'] ) ) {
+			return ASI_Settings::all()['contact']['appt_hours'];
+		}
+		$rows = isset( $in['appt_hours'] ) && is_array( $in['appt_hours'] ) ? $in['appt_hours'] : array();
+		$out  = array();
+		for ( $i = 0; $i < 7; $i++ ) {
+			$row  = isset( $rows[ $i ] ) && is_array( $rows[ $i ] ) ? $rows[ $i ] : array();
+			$from = isset( $row['from'] ) ? substr( sanitize_text_field( (string) $row['from'] ), 0, 5 ) : '';
+			$to   = isset( $row['to'] ) ? substr( sanitize_text_field( (string) $row['to'] ), 0, 5 ) : '';
+			$ok   = ! empty( $row['open'] ) && preg_match( '/^\d{2}:\d{2}$/', $from ) && preg_match( '/^\d{2}:\d{2}$/', $to ) && $from < $to;
+			$out[ $i ] = $ok ? $from . '-' . $to : '';
+		}
+		return $out;
+	}
 
 	// ---------- IA ----------
 
