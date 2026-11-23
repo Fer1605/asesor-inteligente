@@ -167,6 +167,8 @@ return array(
 	'reference_alone'   => array( 'that one', 'this one', 'that', 'tell me more', 'more details', 'details', 'i like that one', 'i am interested in that one' ),
 
 	'list_words'  => array( 'all', 'list', 'which', 'what areas', 'areas', 'every' ),
+	'warranty_words' => array( 'warranty', 'warranties', 'guarantee' ),
+	'link_labels' => array( 'location' => 'See locations', 'contact' => 'Contact an advisor', 'human' => 'Contact an advisor', 'hours' => 'See opening hours' ),
 	'place_words' => array( 'store', 'stores', 'branch', 'branches', 'location', 'locations', 'office', 'offices', 'shop', 'shops', 'point', 'pickup', 'address', 'area', 'areas', 'hours', 'open', 'near', 'map', 'located' ),
 
 	'reset_words' => array( 'start over', 'start again', 'from scratch', 'forget that', 'new search', 'clear everything' ),
@@ -186,6 +188,9 @@ return array(
 		'financing' => array( 'financing', 'credit', 'installment', 'term', 'rate', 'leasing', 'bank' ),
 		'jobs'      => array( 'job', 'jobs', 'vacancy', 'cv', 'resume', 'position', 'career', 'talent' ),
 		'human'     => array( 'advisor', 'phone', 'whatsapp', 'email', 'call' ),
+		'requirements' => array( 'requirement', 'requirements', 'document', 'documents', 'id', 'proof', 'receipt', 'need' ),
+		'warranty'  => array( 'warranty', 'guarantee', 'months', 'years', 'days', 'km', 'miles', 'engine', 'coverage' ),
+		'benefits'  => array( 'benefit', 'benefits', 'advantage', 'warranty', 'service', 'maintenance', 'includes', 'offer' ),
 	),
 
 	'fact_words' => array(
@@ -302,6 +307,21 @@ return array(
 			'keywords' => array( 'financing', 'finance', 'credit', 'leasing' ),
 			'training' => array( 'do you offer financing', 'can i pay in installments', 'credit options', 'leasing' ),
 		),
+		'requirements' => array(
+			'anchors'  => array( 'requirement', 'requirements', 'documents', 'paperwork', 'what do i need to buy', 'what do you need to', 'what is needed to', 'what should i bring' ),
+			'keywords' => array( 'requirements', 'documents', 'faq', 'frequently asked questions', 'financing' ),
+			'training' => array( 'what documents do i need to buy', 'what are the requirements', 'what do i need to buy a car', 'what paperwork is needed' ),
+		),
+		'warranty' => array(
+			'anchors'  => array( 'do you offer warranty', 'do you give warranty', 'what warranty do you', 'how long is the warranty', 'warranty policy', 'how does the warranty work' ),
+			'keywords' => array( 'warranty', 'guarantee', 'faq' ),
+			'training' => array( 'do you offer a warranty', 'how long is the warranty', 'what warranty do you give' ),
+		),
+		'benefits' => array(
+			'anchors'  => array( 'benefit', 'benefits', 'advantage', 'advantages', 'why buy from you', 'why choose you', 'what do i get' ),
+			'keywords' => array( 'benefits', 'advantages', 'why choose us', 'why us', 'services', 'about us', 'faq' ),
+			'training' => array( 'what benefits do i get buying with you', 'why buy from you', 'what advantages do you offer' ),
+		),
 		'jobs' => array(
 			'anchors'  => array( 'job', 'jobs', 'career', 'careers', 'vacancy', 'vacancies', 'hiring', 'work with you', 'resume', 'cv' ),
 			'keywords' => array( 'careers', 'jobs', 'work with us', 'vacancies' ),
@@ -392,6 +412,16 @@ return array(
 		),
 		'ask_profile' => array(
 			'Happy to help you choose! Tell me a bit: how many people will usually ride and what will you use it for (city, highway, work, farm)?',
+		),
+		'sparse_extra' => array( 'And these, which come in several colors:' ),
+		'sparse_note' => array(
+			'Above are the ones we have in {term}. The ones below come in several colors, so their photo may not be {term}: ask us and we will confirm.',
+		),
+		'warranty_general' => array(
+			'Yes, we offer a warranty, but it depends on the model and type. Tell me which one you are interested in and I will give you the exact details.',
+		),
+		'advice_without' => array(
+			'None of what I recommend comes in {terms}, so here are the ones that suit you best.',
 		),
 		'advice_none' => array(
 			'For {summary} I do not have anything that fits everything right now.',
@@ -606,7 +636,7 @@ return array(
 			'No results for “{query}”{en_pais} yet.',
 		),
 		'none_followup' => array(
-			'Want to try other words? You can also browse:',
+			'Can you tell me a bit more about what you need? You can also browse:',
 			'Try describing it differently, or check one of these lines:',
 		),
 		'none_contact' => array(
@@ -689,6 +719,9 @@ return array(
 			'about'     => array( 'Let me tell you a bit about us:', 'This is {site}:' ),
 			'quote'     => array( 'To request a quote:' ),
 			'financing' => array( 'About financing:' ),
+			'requirements' => array( 'To buy, this is what you need:' ),
+			'warranty'  => array( 'About our warranty:' ),
+			'benefits'  => array( 'This is what we offer:' ),
 			'jobs'      => array( 'If you want to work with us:' ),
 			'human'     => array( 'An advisor can help you directly:' ),
 			'page'      => array( 'Here is what our site says about that:', 'I found this:' ),
@@ -722,11 +755,15 @@ return array(
 			'location_specific' => array( 'Here is the location you are looking for:', 'Yes, we have this location:' ),
 			'location_list'     => array( 'These are all our locations{en_pais}:' ),
 			'location_none'     => array( 'I could not find a location in “{query}”, but these are all of ours:' ),
-			'location_page'     => array( 'You can also see the map and all the details here:' ),
+			'location_summary'  => array( 'We are in {places}{en_pais}.' ),
+			'location_page'     => array( 'For each address and the map, go here:' ),
 			'hours'     => array( 'You can find our business hours here:' ),
 			'about'     => array( 'Here is a bit about us:', 'Learn more about {site} here:' ),
 			'quote'     => array( 'Of course. You can request your quote here:' ),
 			'financing' => array( 'Here is the information about financing:' ),
+			'requirements' => array( 'About the requirements to buy, here is the information:' ),
+			'warranty'  => array( 'About our warranty, here is the information:' ),
+			'benefits'  => array( 'This is what we offer when you buy with us:' ),
 			'jobs'      => array( 'If you would like to work with us, here are the opportunities:' ),
 			'human'     => array( 'Of course, an advisor can help you directly. Here is how to reach us:' ),
 			'page'      => array( 'I found this information that may help:', 'This might help:' ),

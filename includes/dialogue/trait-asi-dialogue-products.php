@@ -22,6 +22,12 @@ trait ASI_Dialogue_Products {
 	/** Datos propios de la tarjeta (no vienen de un campo con nombre). */
 	private static $card_facts = array( 'price', 'brand', 'category', 'code' );
 
+	/** @var array<string,bool> Claves de los textos con nombre (se citan tal cual). */
+	private $note_keys = array();
+
+	/** @var array Frases de los sinónimos del sitio que dijo el último mensaje (ver site_fact_aliases). */
+	private $fact_aliases = array();
+
 	/**
 	 * Pregunta por un dato de un producto. null si el mensaje no es eso.
 	 *
@@ -46,9 +52,20 @@ trait ASI_Dialogue_Products {
 			}
 		}
 
-		$asked = array();
+		// Nombre propio del negocio para un dato ("el sello de la casa" en los sinónimos del sitio):
+		// cuenta como el dato que pregunta y sus palabras no son el nombre de un producto.
+		$this->fact_aliases = $this->site_fact_aliases( $normalized );
+		$alias_words        = array();
+		foreach ( array_keys( $this->fact_aliases ) as $said ) {
+			$alias_words += array_flip( explode( ' ', $said ) );
+		}
+
+		$asked = array_keys( $this->fact_aliases );
 		$rest  = array();
 		foreach ( explode( ' ', $normalized ) as $token ) {
+			if ( isset( $alias_words[ $token ] ) ) {
+				continue;
+			}
 			$single = ASI_Normalizer::singular( $token );
 			if ( isset( $fact_map[ $token ] ) || isset( $fact_map[ $single ] ) || isset( $label_words[ $single ] ) ) {
 				$asked[] = isset( $fact_map[ $token ] ) ? $token : $single;
@@ -169,7 +186,7 @@ trait ASI_Dialogue_Products {
 			}
 			$row   = $by_id[ $id ];
 			$bits  = array();
-			foreach ( $this->match_facts( $asked, $this->facts_of( $row, true ), $fact_map ) as $fact ) {
+			foreach ( $this->match_asked( $asked, $this->answerable_facts( $row ), $fact_map ) as $fact ) {
 				$bits[] = $this->format_fact( $fact[1], $fact[2] );
 			}
 			$found   = $found || (bool) $bits;
@@ -206,8 +223,8 @@ trait ASI_Dialogue_Products {
 	private function answer_fact( array $row, array $asked, array $fact_map, array $state = array() ) {
 		$card    = $row['card'];
 		$id      = (int) $row['post_id'];
-		$facts   = $this->facts_of( $row, true );
-		$matched = $this->match_facts( $asked, $facts, $fact_map );
+		$facts   = $this->answerable_facts( $row );
+		$matched = $this->match_asked( $asked, $facts, $fact_map );
 		$title   = $card['title'];
 
 		$parts    = array();
@@ -229,7 +246,10 @@ trait ASI_Dialogue_Products {
 		$generic  = array();
 		foreach ( $matched as $fact ) {
 			list( $key, $label, $value ) = $fact;
-			if ( in_array( $key, self::$card_facts, true ) ) {
+			if ( isset( $this->note_keys[ $key ] ) ) {
+				// Un texto ("10 años ó 200,000 kms", "Servicio de mantenimiento, polarizado…") se cita tal cual.
+				$quote[] = $this->upper_first( $label ) . ': ' . $this->clean_value( $value );
+			} elseif ( in_array( $key, self::$card_facts, true ) ) {
 				if ( 'price' === $key ) {
 					$shown = $this->money_card( $card ); // Como en la tarjeta: "Q 269,900".
 					$value = '' !== (string) $shown['price'] ? $shown['price'] : $value;
@@ -239,11 +259,14 @@ trait ASI_Dialogue_Products {
 				$generic[] = $this->format_fact( $label, $value );
 			}
 		}
+		if ( $quote && ! $parts && ! $generic ) {
+			$parts[] = $this->responder->say( 'fact_list', array( 'title' => $title ) );
+		}
 		if ( count( $generic ) >= 3 ) {
 			// Varios datos ("¿qué motor tiene?"): uno por línea, se leen mejor que en una sola frase.
 			$parts[] = $this->responder->say( 'fact_list', array( 'title' => $title ) );
 			foreach ( $matched as $fact ) {
-				if ( ! in_array( $fact[0], self::$card_facts, true ) ) {
+				if ( ! in_array( $fact[0], self::$card_facts, true ) && ! isset( $this->note_keys[ $fact[0] ] ) ) {
 					$quote[] = $this->upper_first( $this->lower_label( $fact[1] ) ) . ': ' . $this->clean_value( $fact[2] );
 				}
 			}
@@ -915,6 +938,101 @@ trait ASI_Dialogue_Products {
 	}
 
 	/**
+	 * Datos con los que se responde una pregunta: los de la ficha más sus textos con nombre
+	 * ("Garantía: 10 años ó 200,000 kms"). Recuerda cuáles son textos, para citarlos tal cual.
+	 */
+	private function answerable_facts( array $row ) {
+		$facts = $this->facts_of( $row, true );
+		$seen  = array();
+		foreach ( $facts as $fact ) {
+			$seen[ $fact[2] ] = true;
+		}
+		$details = $this->details_of( (int) $row['post_id'] );
+		foreach ( isset( $details['notes'] ) ? (array) $details['notes'] : array() as $note ) {
+			if ( ! is_array( $note ) || count( $note ) < 2 ) {
+				continue;
+			}
+			$key = ASI_Lexicon::normal_form( $note[0] );
+			if ( '' === $key || isset( $seen[ $key ] ) || self::internal_fact( $key, (string) $note[1] ) ) {
+				continue;
+			}
+			$seen[ $key ]            = true;
+			$this->note_keys[ $key ] = true;
+			$facts[]                 = array( (string) $note[0], (string) $note[1], $key );
+		}
+		return $facts;
+	}
+
+	/**
+	 * Datos que responden la pregunta. Si no hay ninguno, prueba los sinónimos del sitio en su orden
+	 * ("garantía" de un usado sin garantía: su "sello de la casa"). Un dato con nombre de campo
+	 * ("Información extra") se nombra como el negocio, con el primer nombre del grupo; uno que ya
+	 * se llama como lo pregunta la gente ("Garantía") conserva su nombre.
+	 */
+	private function match_asked( array $asked, array $facts, array $fact_map ) {
+		$matched = $this->match_facts( $asked, $facts, $fact_map );
+		if ( $matched ) {
+			return $matched;
+		}
+		foreach ( $asked as $word ) {
+			foreach ( $this->alias_group( $word ) as $group ) {
+				$name = $group[0];
+				foreach ( array_slice( $group, 1 ) as $other ) {
+					$found = $this->match_facts( array( $other ), $facts, $fact_map );
+					if ( $found ) {
+						if ( ! isset( $fact_map[ ASI_Normalizer::normalize( $found[0][1] ) ] ) ) {
+							$found[0][1] = $name;
+						}
+						return array( $found[0] );
+					}
+				}
+			}
+		}
+		return array();
+	}
+
+	/**
+	 * Grupos de sinónimos del sitio que nombran esta palabra o frase: [nombre del negocio, …otros en orden].
+	 */
+	private function alias_group( $word ) {
+		if ( isset( $this->fact_aliases[ $word ] ) ) {
+			return $this->fact_aliases[ $word ];
+		}
+		$groups = array();
+		foreach ( isset( $this->context['synonyms'] ) ? (array) $this->context['synonyms'] : array() as $group ) {
+			$normal = array_map( array( 'ASI_Lexicon', 'normal_form' ), (array) $group );
+			$at     = array_search( ASI_Lexicon::normal_form( $word ), $normal, true );
+			if ( false !== $at && count( $normal ) >= 2 ) {
+				$others   = array_values( array_diff( $normal, array( $normal[ $at ] ) ) );
+				$groups[] = array_merge( array( trim( (string) $group[0] ) ), $others );
+			}
+		}
+		return $groups;
+	}
+
+	/**
+	 * Frases de varias palabras de los sinónimos del sitio que dice el mensaje ("sello de la casa").
+	 *
+	 * @return array forma normal de lo que dijo => grupos (como alias_group)
+	 */
+	private function site_fact_aliases( $normalized ) {
+		$this->fact_aliases = array(); // alias_group busca en los grupos, no en lo del mensaje anterior.
+		$out                = array();
+		foreach ( isset( $this->context['synonyms'] ) ? (array) $this->context['synonyms'] : array() as $group ) {
+			foreach ( (array) $group as $member ) {
+				$normal = ASI_Normalizer::normalize( (string) $member );
+				if ( false !== strpos( $normal, ' ' ) && ASI_Lexicon::contains_phrase( $normalized, $normal ) ) {
+					$out[ ASI_Lexicon::normal_form( $member ) ] = array();
+				}
+			}
+		}
+		foreach ( array_keys( $out ) as $said ) {
+			$out[ $said ] = $this->alias_group( $said );
+		}
+		return $out;
+	}
+
+	/**
 	 * Datos indexados por su clave: price/brand/category/code o el nombre en forma normal.
 	 */
 	private function facts_by_key( array $facts, $with_code = true ) {
@@ -989,6 +1107,11 @@ trait ASI_Dialogue_Products {
 		if ( in_array( str_replace( ' ', '', $label ), $targets, true ) ) {
 			return true; // "C.C." es "cc".
 		}
+		foreach ( $targets as $target ) {
+			if ( false !== strpos( $target, ' ' ) && false !== strpos( ' ' . $label . ' ', ' ' . $target . ' ' ) ) {
+				return true; // Frase: "información extra".
+			}
+		}
 		foreach ( explode( ' ', $label ) as $word ) {
 			foreach ( $targets as $target ) {
 				// Misma raíz de 6 letras ("cilindrada" y "cilindros"); con 5, "retroceso" sería "retrovisores".
@@ -1055,7 +1178,7 @@ trait ASI_Dialogue_Products {
 	private function details_of( $id ) {
 		if ( ! isset( $this->details_cache[ $id ] ) ) {
 			$details                    = $this->repository->details( $this->context['lang'], array( $id ) );
-			$this->details_cache[ $id ] = isset( $details[ $id ] ) ? $details[ $id ] : array( 'facts' => array(), 'text' => '' );
+			$this->details_cache[ $id ] = isset( $details[ $id ] ) ? $details[ $id ] : array( 'facts' => array(), 'notes' => array(), 'text' => '' );
 		}
 		return $this->details_cache[ $id ];
 	}

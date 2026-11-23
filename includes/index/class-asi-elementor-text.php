@@ -58,6 +58,16 @@ class ASI_Elementor_Text {
 			if ( ! is_array( $element ) ) {
 				continue;
 			}
+			// Acordeón o pestañas anidados: cada título va con su contenido ("¿Qué documentos necesito? — Identificación,
+			// recibo de luz…"); por separado, la respuesta queda lejos de su pregunta.
+			if ( self::pair_items( $element, $parts ) ) {
+				continue;
+			}
+			// Un formulario no es contenido: sus campos ("Nombre*", "Teléfono*") y el correo que envía
+			// ("Nueva solicitud de contacto…") no describen la página.
+			if ( isset( $element['widgetType'] ) && preg_match( '/^(form|login|search-form|wp-widget-search)$/', (string) $element['widgetType'] ) ) {
+				continue;
+			}
 			if ( ! empty( $element['settings'] ) && is_array( $element['settings'] ) ) {
 				self::walk_settings( $element['settings'], $parts );
 			}
@@ -65,6 +75,42 @@ class ASI_Elementor_Text {
 				self::walk_elements( $element['elements'], $parts );
 			}
 		}
+	}
+
+	/**
+	 * Títulos de un acordeón o pestañas anidados con el texto de su contenido. false si no es uno.
+	 *
+	 * @param array $element Elemento.
+	 * @param array $parts   Acumulado.
+	 * @return bool
+	 */
+	private static function pair_items( array $element, array &$parts ) {
+		$widget   = isset( $element['widgetType'] ) ? (string) $element['widgetType'] : '';
+		$items    = isset( $element['settings']['items'] ) && is_array( $element['settings']['items'] ) ? array_values( $element['settings']['items'] ) : array();
+		$children = isset( $element['elements'] ) && is_array( $element['elements'] ) ? array_values( $element['elements'] ) : array();
+		if ( ! preg_match( '/^nested-(accordion|tabs)$/', $widget ) || ! $items || count( $items ) !== count( $children ) ) {
+			return false;
+		}
+		foreach ( $items as $i => $item ) {
+			$title = '';
+			foreach ( is_array( $item ) ? $item : array() as $key => $value ) {
+				if ( is_string( $value ) && preg_match( '/_title$/', (string) $key ) ) {
+					$title = trim( html_entity_decode( strip_tags( $value ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );
+					break;
+				}
+			}
+			$inner = array();
+			self::walk_elements( array( $children[ $i ] ), $inner );
+			$inner = array_values( array_filter( array_map( function ( $piece ) { return trim( (string) $piece, " \t." ); }, $inner ), 'strlen' ) );
+			// Una lista ("Identificación", "Recibo de luz") se dice con comas; párrafos, uno tras otro.
+			$short  = ! array_filter( $inner, function ( $piece ) { return count( preg_split( '/\s+/u', $piece ) ) > 6; } );
+			$answer = implode( $short ? ', ' : '. ', $inner );
+			$line   = trim( $title . ( '' !== $title && '' !== $answer ? ' — ' : '' ) . $answer );
+			if ( '' !== $line ) {
+				$parts[] = $line;
+			}
+		}
+		return true;
 	}
 
 	/**
@@ -89,7 +135,9 @@ class ASI_Elementor_Text {
 				}
 				continue;
 			}
-			if ( ! is_string( $value ) || '' === trim( $value ) || ! is_string( $key ) ) {
+			// "_title" y demás ajustes con guion bajo son del editor (el nombre en el navegador: "Título",
+			// "item #1"), no texto que vea el visitante.
+			if ( ! is_string( $value ) || '' === trim( $value ) || ! is_string( $key ) || '_' === substr( $key, 0, 1 ) ) {
 				continue;
 			}
 			if ( ! preg_match( self::TEXT_KEY, $key ) || preg_match( self::SKIP_KEY, $key ) ) {

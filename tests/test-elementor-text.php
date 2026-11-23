@@ -25,3 +25,27 @@ $noise = json_encode( array( array( 'elType' => 'container', 'settings' => array
 	array( 'elType' => 'widget', 'settings' => array( 'title' => 'Quiénes somos', 'text' => 'separador', 'align' => 'center' ) ),
 ) ) ) );
 check( 'Elementor: sin ajustes de diseño', 'Quiénes somos', ASI_Elementor_Text::extract( $noise ) );
+
+// Acordeón anidado: cada pregunta con su respuesta; los nombres del navegador (_title) no son texto.
+$faq = array(
+	array(
+		'elType'   => 'container',
+		'settings' => array( '_title' => 'Formulario e imagen' ),
+		'elements' => array(
+			array(
+				'elType'     => 'widget',
+				'widgetType' => 'nested-accordion',
+				'settings'   => array( 'items' => array( array( 'item_title' => '¿Puedo cancelar?', '_id' => 'a' ), array( 'item_title' => '¿Qué documentos necesito?', '_id' => 'b' ) ) ),
+				'elements'   => array(
+					array( 'elType' => 'container', 'settings' => array( '_title' => 'item #1' ), 'elements' => array( array( 'elType' => 'widget', 'widgetType' => 'text-editor', 'settings' => array( 'editor' => '<p>Sí, con algunos gastos según el proceso en que esté la compra.</p>' ) ) ) ),
+					array( 'elType' => 'container', 'settings' => array( '_title' => 'item #1' ), 'elements' => array( array( 'elType' => 'widget', 'widgetType' => 'icon-list', 'settings' => array( 'icon_list' => array( array( 'text' => 'Identificación.' ), array( 'text' => 'Recibo de luz.' ) ) ) ) ) ),
+				),
+			),
+		),
+	),
+);
+$faq_text = ASI_Elementor_Text::extract( $faq );
+check( 'elementor: la respuesta va con su pregunta', true, false !== strpos( $faq_text, '¿Qué documentos necesito? — Identificación, Recibo de luz' ) );
+check( 'elementor: sin los nombres del navegador', false, (bool) preg_match( '/Formulario e imagen|item #1/', $faq_text ) );
+$form_text = ASI_Elementor_Text::extract( array( array( 'elType' => 'widget', 'widgetType' => 'heading', 'settings' => array( 'title' => 'Contáctanos' ) ), array( 'elType' => 'widget', 'widgetType' => 'form', 'settings' => array( 'form_fields' => array( array( 'field_label' => 'Nombre y apellido' ) ), 'email_content' => 'Nueva solicitud de contacto' ) ) ) );
+check( 'elementor: un formulario no es contenido', 'Contáctanos', $form_text );

@@ -124,9 +124,10 @@ class ASI_Test_Repository implements ASI_Repository {
 	/**
 	 * Datos de la ficha de un post de prueba.
 	 */
-	public function set_details( $id, array $facts, $text = null ) {
+	public function set_details( $id, array $facts, $text = null, array $notes = array() ) {
 		$this->details[ $id ] = array(
 			'facts' => $facts,
+			'notes' => $notes,
 			'text'  => null === $text ? ( isset( $this->rows[ $id ] ) ? $this->rows[ $id ]['card']['summary'] : '' ) : $text,
 		);
 		$lines = array();

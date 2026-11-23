@@ -414,43 +414,79 @@
 	opacity: 0.75;
 }
 
-/* Enlaces informativos */
+/* Enlaces informativos: botones (píldora con la flecha en un círculo a la derecha). */
 .asi-chat .asi-links {
 	display: flex;
-	flex-direction: column;
-	gap: 6px;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
 	margin: 0 0 14px;
 	max-width: min(78%, 620px);
 }
 
 .asi-chat .asi-link {
-	display: flex;
-	flex-direction: column;
-	padding: 10px 14px;
-	border: 1px solid var(--asi-border);
-	border-left: 3px solid var(--asi-accent);
-	border-radius: var(--asi-radius-sm);
-	color: inherit;
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	padding: 6px 6px 6px 16px;
+	border-radius: 999px;
+	background: var(--asi-primary);
+	color: var(--asi-on-primary);
+	font-weight: 600;
+	font-size: 14px;
+	line-height: 1.2;
 	text-decoration: none;
+	transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .asi-chat .asi-link:hover,
 .asi-chat .asi-link:focus-visible {
-	background: var(--asi-surface);
+	background: var(--asi-accent);
+	color: var(--asi-on-accent);
+	box-shadow: 0 6px 16px color-mix(in srgb, var(--asi-text) 14%, transparent);
 }
 
-.asi-chat .asi-link__title {
-	font-weight: 600;
+.asi-chat .asi-link__arrow {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	background: var(--asi-background);
+	color: var(--asi-primary);
+	transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.asi-chat .asi-link:hover .asi-link__arrow,
+.asi-chat .asi-link:focus-visible .asi-link__arrow {
+	transform: rotate(-45deg);
 	color: var(--asi-accent);
 }
 
-.asi-chat .asi-link__summary {
-	font-size: 0.85em;
-	color: var(--asi-muted);
-	display: -webkit-box;
-	-webkit-line-clamp: 2;
-	-webkit-box-orient: vertical;
-	overflow: hidden;
+/* Aclaración aparte de la respuesta (sin franja de color). */
+.asi-chat .asi-note {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	margin: 0 0 14px;
+	max-width: min(78%, 620px);
+	padding: 10px 14px;
+	border-radius: var(--asi-radius-sm);
+	background: color-mix(in srgb, var(--asi-accent) 12%, var(--asi-background));
+	color: var(--asi-text);
+}
+
+.asi-chat .asi-note__icon {
+	flex: none;
+	margin-top: 2px;
+	color: var(--asi-accent);
+}
+
+.asi-chat .asi-note__text {
+	margin: 0;
+	font-size: 13.5px;
+	line-height: 1.45;
 }
 
 /* Ubicaciones: tarjetas cuadradas en cuadrícula */
@@ -651,6 +687,7 @@
 
 	.asi-chat .asi-msg__bubble,
 	.asi-chat .asi-links,
+	.asi-chat .asi-note,
 	.asi-chat .asi-quote {
 		max-width: 88%;
 	}

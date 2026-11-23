@@ -13,12 +13,16 @@ defined( 'ABSPATH' ) || exit;
 class ASI_Document_Builder {
 
 	/** Subir cuando cambie la forma de construir documentos: fuerza el reindexado. */
-	const DOC_VERSION = 8;
+	const DOC_VERSION = 11;
 
 	const MAX_BODY  = 20000;
 	const MAX_SPECS = 4;
 	/** Datos de la ficha para responder preguntas ("¿cuánto pesa?"): más que las especificaciones de la tarjeta. */
 	const MAX_FACTS = 40;
+
+	/** Textos con nombre por ficha. */
+	const MAX_NOTES = 10;
+
 	/** Texto original (con acentos y signos) para citar la frase que responde. */
 	const MAX_TEXT = 12000;
 
@@ -103,6 +107,7 @@ class ASI_Document_Builder {
 			'codes'    => array(),
 			'body'     => array(),
 			'facts'    => array(), // [etiqueta, valor]: todos los datos de la ficha.
+			'notes'    => array(), // [etiqueta, valor]: textos con nombre ("Garantía: 5 años") que responden preguntas.
 			'card'     => array(
 				'title'    => html_entity_decode( get_the_title( $post ), ENT_QUOTES, 'UTF-8' ),
 				'url'      => get_permalink( $post ),
@@ -187,6 +192,7 @@ class ASI_Document_Builder {
 			'details'    => wp_json_encode(
 				array(
 					'facts' => $this->unique_facts( $doc['facts'] ),
+					'notes' => $this->unique_facts( $doc['notes'] ),
 					'text'  => $this->original_text( $doc['body'] ),
 				)
 			),
@@ -387,6 +393,11 @@ class ASI_Document_Builder {
 				if ( '' === $doc['card']['summary'] && ! preg_match( '/^\s*[\[{]/', $text ) ) {
 					$doc['card']['summary'] = $this->trim_words( $text, 28 );
 				}
+				// Un texto corto con nombre ("Garantía texto: 10 años ó 200,000 kms") también responde
+				// "¿qué garantía tiene?". Va aparte de los datos: no entra en descripciones ni comparaciones.
+				if ( ! preg_match( '/^\s*[\[{]/', $text ) ) {
+					$this->add_note( $doc, $field['label'], $text );
+				}
 				return;
 
 			case 'link':
@@ -542,6 +553,22 @@ class ASI_Document_Builder {
 			return;
 		}
 		$doc['facts'][] = array( $label, $value );
+	}
+
+	/**
+	 * Agrega un texto con nombre. "Garantía Texto" se dice "Garantía": "texto" solo dice que es un campo de texto.
+	 *
+	 * @param array  $doc   Documento.
+	 * @param string $label Etiqueta.
+	 * @param string $value Valor.
+	 */
+	private function add_note( array &$doc, $label, $value ) {
+		$label = trim( preg_replace( '/\s+(texto|text|txt)$/iu', '', trim( wp_strip_all_tags( (string) $label ) ) ) );
+		$value = trim( preg_replace( '/\s+/u', ' ', wp_strip_all_tags( (string) $value ) ) );
+		if ( '' === $label || '' === $value || strlen( $label ) > 60 || strlen( $value ) > 600 || count( $doc['notes'] ) >= self::MAX_NOTES ) {
+			return;
+		}
+		$doc['notes'][] = array( $label, $value );
 	}
 
 	/**

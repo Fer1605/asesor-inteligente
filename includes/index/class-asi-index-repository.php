@@ -168,6 +168,7 @@ class ASI_Index_Repository implements ASI_Repository {
 			$details = json_decode( (string) $row['details'], true );
 			$out[ (int) $row['post_id'] ] = array(
 				'facts' => isset( $details['facts'] ) && is_array( $details['facts'] ) ? $details['facts'] : array(),
+				'notes' => isset( $details['notes'] ) && is_array( $details['notes'] ) ? $details['notes'] : array(),
 				'text'  => isset( $details['text'] ) && is_string( $details['text'] ) ? $details['text'] : '',
 			);
 		}

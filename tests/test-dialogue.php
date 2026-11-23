@@ -74,8 +74,7 @@ check( 'cotizar tractor: enlace de contacto', true, in_array( 'https://example.t
 
 // Pregunta que responde una página, no un producto.
 $r = $bot->handle( '¿tienen garantía?' );
-check( 'garantía: página', 'info', $r['kind'] );
-check( 'garantía: enlace', array( 'https://example.test/es-sv/13' ), asi_link_urls( $r ) );
+check( 'garantía: sin nada a la vista, que varía según cuál', array( 'info', array(), true ), array( $r['kind'], asi_card_ids( $r ), false !== strpos( $r['text'], 'varía según' ) || false !== strpos( $r['text'], 'depende del modelo' ) ) );
 
 // Saludo + búsqueda en el mismo mensaje.
 $r = $bot->handle( 'hola buenas, necesito una excavadora' );

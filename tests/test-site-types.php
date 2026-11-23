@@ -105,7 +105,7 @@ sort( $similar_ids );
 check( 'similares por categoría: misma categoría', array( 2, 3 ), $similar_ids );
 check( 'similares: siempre cierra invitando', true, '' !== $r['followup'] );
 
-// Ubicaciones: general → página; zona concreta → esa tarjeta; listado → todas en tarjetas.
+// Ubicaciones: general → todas con su dirección y la página como enlace; zona concreta → esa tarjeta.
 $places = new ASI_Test_Repository();
 $places->add( 1, 'es', 'info', 'Tiendas', array(), 'Encuentra nuestras tiendas y horarios.' );
 $places->add( 2, 'es', 'info', 'Tienda Zona 10', array( 'category' => array( 'Tienda' ) ), 'Dirección 12 avenida 4-56 zona 10 Guatemala. Horario lunes a sábado.' );
@@ -116,8 +116,9 @@ foreach ( array( 2, 3, 4 ) as $id ) {
 }
 $places_bot = new ASI_Dialogue( $places, array( 'lang' => 'es', 'language' => 'es', 'location_types' => array( 'sucursal_mapa' ) ) );
 $r = $places_bot->handle( '¿dónde están ubicados?' );
-check( 'ubicación general: solo la página', array( 'https://example.test/es/1' ), asi_link_urls( $r ) );
-check( 'ubicación general: sin tarjetas de lugar', true, empty( $r['places'] ) );
+check( 'ubicación general: la página como botón', array( 'https://example.test/es/1' ), asi_link_urls( $r ) );
+check( 'ubicación general: las ubicaciones en una frase', true, false !== strpos( $r['text'], 'Tienda Mixco' ) && empty( $r['places'] ) );
+check( 'ubicación general: el botón dice qué hace, sin el texto de la página', array( 'Ver ubicaciones', '' ), array( $r['links'][0]['title'], $r['links'][0]['summary'] ) );
 $r = $places_bot->handle( 'tienen tienda en zona 10?' );
 check( 'zona concreta: esa ubicación', array( 'Tienda Zona 10' ), array_column( $r['places'], 'title' ) );
 $r = $places_bot->handle( 'sucursal en mixco' );

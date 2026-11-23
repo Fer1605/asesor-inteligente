@@ -275,6 +275,7 @@ class ASI_REST_Controller {
 			'languages'     => ASI_Lexicon::available(),
 			'synonyms'      => isset( $settings['synonyms'][ $context->language ] ) ? (array) $settings['synonyms'][ $context->language ] : array(),
 			'location_types' => self::location_types(),
+			'sparse'         => self::sparse_taxonomies(),
 			'learned'        => ASI_Learning::learned_for( $context->lang ),
 			'tone'           => 'usted' === $settings['tone'] ? 'usted' : 'tu',
 			'emojis'         => ! empty( $settings['emojis'] ),
@@ -307,6 +308,49 @@ class ASI_REST_Controller {
 			}
 		}
 		return $types;
+	}
+
+	/**
+	 * Taxonomías del catálogo que pocos productos indican y con varios valores (el color en 40 de
+	 * 400 vehículos): pedir "blanco" deja fuera a los que no dicen su color, y el chat lo avisa.
+	 * Se guarda junto al vocabulario (se borra con él al reindexar).
+	 *
+	 * @return array { terms: forma normal => taxonomía, tax: taxonomía => { label, ids } }
+	 */
+	public static function sparse_taxonomies() {
+		$key    = ASI_Index_Repository::VOCAB_PREFIX . 'sparse';
+		$cached = get_transient( $key );
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+		$out    = array( 'terms' => array(), 'tax' => array() );
+		$schema = ASI_Schema_Discovery::get_schema();
+		foreach ( isset( $schema['post_types'] ) ? $schema['post_types'] : array() as $post_type => $type ) {
+			if ( empty( $type['enabled'] ) || 'catalog' !== ( isset( $type['role'] ) ? $type['role'] : '' ) || empty( $type['taxonomies'] ) ) {
+				continue;
+			}
+			$total = (int) wp_count_posts( $post_type )->publish;
+			if ( $total < 20 ) {
+				continue;
+			}
+			foreach ( $type['taxonomies'] as $taxonomy => $info ) {
+				if ( 'brand' === $info['role'] ) {
+					continue;
+				}
+				$ids = get_posts( array( 'post_type' => $post_type, 'post_status' => 'publish', 'numberposts' => -1, 'fields' => 'ids', 'tax_query' => array( array( 'taxonomy' => $taxonomy, 'operator' => 'EXISTS' ) ) ) ); // phpcs:ignore WordPress.DB.SlowDBQuery
+				$terms = get_terms( array( 'taxonomy' => $taxonomy, 'hide_empty' => true, 'fields' => 'names' ) );
+				if ( ! $ids || is_wp_error( $terms ) || count( $terms ) < 5 || count( $ids ) >= $total * 0.25 ) {
+					continue;
+				}
+				$label = ASI_Normalizer::singular( strtolower( remove_accents( (string) $info['label'] ) ) );
+				$out['tax'][ $taxonomy ] = array( 'label' => $label, 'ids' => array_map( 'intval', $ids ) );
+				foreach ( $terms as $name ) {
+					$out['terms'][ ASI_Lexicon::normal_form( $name ) ] = $taxonomy;
+				}
+			}
+		}
+		set_transient( $key, $out, ASI_Index_Repository::VOCAB_TTL );
+		return $out;
 	}
 
 	/**

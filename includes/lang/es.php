@@ -27,7 +27,7 @@ return array(
 
 	'code' => 'es',
 
-	'stopwords' => array(
+	'stopwords' => array( 'peor',
 		'a', 'al', 'ante', 'con', 'contra', 'de', 'del', 'desde', 'en', 'entre', 'hacia', 'hasta', 'para', 'por', 'segun', 'sin', 'sobre', 'tras',
 		'el', 'la', 'los', 'las', 'lo', 'un', 'una', 'unos', 'unas', 'y', 'e', 'o', 'u', 'ni', 'que', 'se', 'su', 'sus', 'mi', 'mis', 'tu', 'tus',
 		'me', 'te', 'le', 'les', 'nos', 'yo', 'usted', 'ustedes', 'este', 'esta', 'estos', 'estas', 'ese', 'esa', 'esos', 'esas', 'aqui', 'alli',
@@ -255,6 +255,9 @@ return array(
 		'about'     => array( 'somos', 'empresa', 'mision', 'vision', 'valores', 'historia', 'fundada', 'fundado', 'anos', 'experiencia', 'lider', 'lideres', 'compromiso', 'nacimos', 'trayectoria', 'dedicamos', 'ofrecemos' ),
 		'quote'     => array( 'cotizacion', 'cotizar', 'formulario', 'asesor', 'solicitud', 'precio' ),
 		'financing' => array( 'financiamiento', 'credito', 'cuotas', 'plazo', 'plazos', 'enganche', 'tasa', 'leasing', 'banco' ),
+		'requirements' => array( 'requisito', 'requisitos', 'documento', 'documentos', 'documentacion', 'identificacion', 'recibo', 'comprobante', 'constancia', 'papeles', 'necesito', 'necesitas' ),
+		'warranty'  => array( 'garantia', 'garantias', 'meses', 'anos', 'dias', 'km', 'kms', 'kilometros', 'motor', 'caja', 'cobertura' ),
+		'benefits'  => array( 'beneficio', 'beneficios', 'ventaja', 'ventajas', 'garantia', 'servicio', 'mantenimiento', 'incluye', 'ofrecemos', 'respaldo', 'acompanamos' ),
 		'jobs'      => array( 'vacante', 'vacantes', 'cv', 'curriculum', 'plaza', 'plazas', 'empleo', 'talento', 'trabaja' ),
 		'human'     => array( 'asesor', 'asesores', 'telefono', 'whatsapp', 'correo', 'llamanos', 'escribenos' ),
 	),
@@ -383,6 +386,25 @@ return array(
 			'keywords' => array( 'financiamiento', 'financiera', 'credito', 'leasing' ),
 			'training' => array( 'tienen financiamiento', 'puedo pagar en cuotas', 'dan credito', 'opciones de financiamiento', 'leasing' ),
 		),
+		// "¿Qué necesito para comprar?", "¿qué requisitos piden?": documentos y requisitos de compra.
+		'requirements' => array(
+			'anchors'  => array( 'requisito', 'requisitos', 'documentos', 'documentacion', 'papeles', 'papeleria', 'que necesito para comprar', 'que necesito para adquirir', 'que necesitan para', 'que se necesita para', 'que se necesita', 'que piden para', 'que debo presentar', 'que debo llevar', 'que tengo que llevar' ),
+			'keywords' => array( 'requisitos', 'documentos', 'preguntas frecuentes', 'faq', 'financiamiento' ),
+			'training' => array( 'que requisitos piden', 'que documentos necesito para comprar', 'que necesitan para que pueda adquirir un carro', 'que papeles debo llevar', 'requisitos para comprar' ),
+		),
+		// "¿Tienen garantía?", "¿qué garantía ofrecen?": la del negocio. "¿Qué garantía tiene?" sobre un producto
+		// que se está viendo es un dato de su ficha.
+		'warranty' => array(
+			'anchors'  => array( 'tienen garantia', 'dan garantia', 'ofrecen garantia', 'que garantia ofrecen', 'que garantia dan', 'que garantia tienen', 'cuanto tiempo de garantia', 'cuanta garantia', 'como funciona la garantia', 'politica de garantia', 'garantia de sus', 'garantia en sus' ),
+			'keywords' => array( 'garantia', 'garantias', 'preguntas frecuentes', 'faq' ),
+			'training' => array( 'tienen garantia y por cuanto tiempo', 'que garantia ofrecen', 'dan garantia en los autos', 'como funciona la garantia' ),
+		),
+		// "¿Qué beneficios obtengo al comprar con ustedes?": lo que ofrece el negocio, no un producto.
+		'benefits' => array(
+			'anchors'  => array( 'beneficio', 'beneficios', 'ventaja', 'ventajas', 'por que comprar con ustedes', 'por que comprarles', 'por que elegirlos', 'que me ofrecen', 'que obtengo', 'que gano' ),
+			'keywords' => array( 'beneficios', 'ventajas', 'por que elegirnos', 'por que nosotros', 'servicios', 'quienes somos', 'preguntas frecuentes' ),
+			'training' => array( 'que beneficios obtengo al comprar con ustedes', 'que ventajas tiene comprar aqui', 'por que comprar con ustedes', 'que me ofrecen si compro' ),
+		),
 		'jobs' => array(
 			'anchors'  => array( 'empleo', 'empleos', 'trabajo', 'trabajar con ustedes', 'vacante', 'vacantes', 'plaza', 'plazas', 'bolsa de trabajo', 'carreras', 'curriculum', 'cv' ),
 			'keywords' => array( 'empleos', 'trabaja con nosotros', 'bolsa de trabajo', 'carreras', 'vacantes' ),
@@ -405,6 +427,12 @@ return array(
 	// "¿Venden / tienen / hay …?": pregunta si el negocio tiene algo.
 	// "Las demás", "las que faltan": pide el resto de lo que quedó pendiente.
 	'rest_words' => array( 'la que falta', 'el que falta', 'la otra', 'el otro', 'las demas', 'los demas', 'las otras', 'los otros', 'el resto', 'las que faltan', 'los que faltan', 'las restantes', 'ver las otras', 'faltan' ),
+	// "¿Tienen garantía?": la de lo que está viendo, la de cada uno o que varía según cuál.
+	'warranty_words' => array( 'garantia', 'garantias' ),
+	// Nombre de los botones a las páginas que responden (si no, el nombre de la página).
+	'link_labels' => array( 'location' => 'Ver ubicaciones', 'contact' => 'Contactar a un asesor', 'human' => 'Contactar a un asesor', 'hours' => 'Ver horarios' ),
+	// Palabras comunes de una pregunta: nunca se "corrigen" a algo del catálogo ("poder" no es un modelo).
+	'plain_words' => array( 'peor', 'poder', 'pueda', 'puedo', 'puede', 'pueden', 'podria', 'podemos', 'adquirir', 'adquiero', 'adquiera', 'obtener', 'obtengo', 'necesitan', 'necesito', 'necesita', 'necesitaria', 'requieren', 'requiero', 'saber', 'quisiera', 'comprar', 'comprarlo', 'comprarla', 'tener', 'hacer', 'llevar', 'presentar', 'ustedes', 'nosotros', 'proceso', 'tramite', 'tramites', 'pagar', 'ofrecen' ),
 	// Números en letras: nunca se "corrigen".
 	'number_words' => array( 'cero', 'uno', 'una', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa', 'cien', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos', 'mil', 'millon', 'millones' ),
 	'existence_words' => array( 'venden', 'vende', 'tienen', 'tiene', 'hay', 'manejan', 'ofrecen', 'cuentan con', 'trabajan', 'venta de', 'distribuyen', 'consigo', 'puedo comprar' ),
@@ -504,6 +532,17 @@ return array(
 		'ask_profile' => array(
 			'¡Con gusto te ayudo a elegir! Cuéntame un poco: ¿cuántos van a viajar normalmente y para qué lo vas a usar (ciudad, carretera, trabajo, finca)?',
 			'Claro. Para recomendarte bien, ¿cuántas personas van a usarlo y para qué: ciudad, viajes, trabajo o caminos de tierra?',
+		),
+		'sparse_extra' => array( 'Y estos, que vienen en varios colores:', 'También estos, que no indican un solo {label}:' ),
+		'sparse_note' => array(
+			'Arriba están los que tenemos en {term}. Los de abajo vienen en varios colores, así que su foto puede no ser {term}: pregúntanos y te confirmamos si lo hay.',
+		),
+		'warranty_general' => array(
+			'Sí, contamos con garantía, pero varía según el modelo y el tipo. Dime cuál te interesa o qué tipo buscas y te doy la información exacta.',
+			'Claro, tenemos garantía; depende del modelo y del tipo. ¿Cuál te interesa? Así te doy el dato exacto.',
+		),
+		'advice_without' => array(
+			'Entre lo que te recomiendo no tengo opciones en {terms}, así que te muestro las que mejor te sirven.',
 		),
 		'advice_none' => array(
 			'Para {summary} no tengo en este momento algo que cumpla todo.',
@@ -735,7 +774,7 @@ return array(
 		),
 		'no_more' => array(
 			'Ya te mostré todas las opciones que tengo para esa búsqueda. ¿Probamos con algo diferente?',
-			'Eso es todo lo que encontré para esa búsqueda. Si quieres, afinamos con otras palabras.',
+			'Eso es todo lo que encontré para esa búsqueda. Si quieres, me das otro detalle y lo buscamos.',
 		),
 		'none' => array(
 			'Mmm, no encontré nada para “{query}”{en_pais}.',
@@ -743,8 +782,8 @@ return array(
 			'Busqué “{query}” y no encontré coincidencias.',
 		),
 		'none_followup' => array(
-			'¿Quieres intentar con otra palabra? También puedes ver:',
-			'Prueba con otras palabras o revisa alguna de estas líneas:',
+			'¿Me cuentas un poco más de lo que buscas? También puedes ver:',
+			'Si me describes qué necesitas o para qué lo vas a usar, lo intento de nuevo. También tengo:',
 			'Si me lo describes de otra forma, lo intento de nuevo. Mientras, tengo:',
 		),
 		'none_contact' => array(
@@ -846,6 +885,9 @@ return array(
 			'about'     => array( 'Te cuento un poco de nosotros:', 'Esto es {site}:' ),
 			'quote'     => array( 'Para cotizar:', 'Así funciona la cotización:' ),
 			'financing' => array( 'Sobre financiamiento:', 'Esto es lo que ofrecemos en financiamiento:' ),
+			'requirements' => array( 'Para comprar, esto es lo que se necesita:', 'Estos son los requisitos:' ),
+			'warranty'  => array( 'Sobre la garantía:', 'Esto es lo que ofrecemos de garantía:' ),
+			'benefits'  => array( 'Esto es lo que te ofrecemos:', 'Al comprar con nosotros:' ),
 			'jobs'      => array( 'Si quieres trabajar con nosotros:', 'Sobre oportunidades de empleo:' ),
 			'human'     => array( 'Con gusto te comunicamos con un asesor:', 'Un asesor puede ayudarte directamente:' ),
 			'page'      => array( 'Esto dice nuestra página sobre eso:', 'Encontré esto:', 'Te comparto lo que dice el sitio:' ),
@@ -884,11 +926,15 @@ return array(
 			'location_specific' => array( 'Esta es la ubicación que buscas:', 'Aquí tienes la información de esa sucursal:', 'Sí, tenemos esta ubicación:' ),
 			'location_list'     => array( 'Estas son todas nuestras ubicaciones{en_pais}:', 'Aquí tienes nuestras tiendas y puntos{en_pais}:' ),
 			'location_none'     => array( 'No encontré una ubicación en “{query}”, pero estas son todas las que tenemos:', 'No tengo una sucursal en “{query}”; te muestro todas nuestras ubicaciones:' ),
-			'location_page'     => array( 'También puedes ver el mapa y todos los detalles aquí:', 'Todas las ubicaciones con su mapa están aquí:' ),
+			'location_summary'  => array( 'Estamos en {places}{en_pais}.', 'Nuestras ubicaciones son {places}{en_pais}.' ),
+			'location_page'     => array( 'Para ver la dirección de cada una y el mapa, ingresa aquí:', 'La dirección de cada una y el mapa están aquí:' ),
 			'hours'     => array( 'Los horarios de atención los encuentras aquí:', 'Aquí está la información de horarios{en_pais}:' ),
 			'about'     => array( 'Te cuento un poco de nosotros aquí:', 'Aquí puedes conocer más sobre {site}:' ),
 			'quote'     => array( 'Con gusto. Puedes pedir tu cotización aquí:', '¡Claro! Solicita tu cotización desde aquí:' ),
 			'financing' => array( 'Sobre financiamiento, aquí tienes la información:', 'Estas son las opciones de financiamiento:' ),
+			'requirements' => array( 'Sobre los requisitos para comprar, aquí tienes la información:', 'Esto es lo que necesitas para tu compra:' ),
+			'warranty'  => array( 'Sobre la garantía, aquí tienes la información:', 'Esto es lo que ofrecemos de garantía:' ),
+			'benefits'  => array( 'Esto es lo que te ofrecemos al comprar con nosotros:', 'Aquí puedes ver lo que incluye comprar con nosotros:' ),
 			'jobs'      => array( 'Si quieres trabajar con nosotros, aquí están las oportunidades:', 'Aquí puedes ver las vacantes y enviar tu información:' ),
 			'human'     => array( 'Con gusto te comunico con un asesor. Escríbenos o llámanos desde aquí:', 'Un asesor puede ayudarte directamente; aquí están los datos:' ),
 			'page'      => array( 'Encontré esta información que te puede servir:', 'Esto te puede ayudar:', 'Mira, aquí hablamos de eso:' ),

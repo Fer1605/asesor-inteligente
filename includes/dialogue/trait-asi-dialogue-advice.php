@@ -117,7 +117,16 @@ trait ASI_Dialogue_Advice {
 		$constraints[ $group_by ] = array( 'in' => array_keys( $weights ) );
 
 		$search             = $query;
-		$search['groups']   = array();
+		// Lo que nombró del sitio ("blanco", una marca) se respeta; las palabras sueltas no.
+		$named              = array_values(
+			array_filter(
+				(array) $query['groups'],
+				static function ( $group ) {
+					return empty( $group['soft'] ) && '' !== ( isset( $group['term_kind'] ) ? (string) $group['term_kind'] : '' );
+				}
+			)
+		);
+		$search['groups']   = $named;
 		$search['attrs']    = $constraints;
 		$search['exclude']  = isset( $query['exclude'] ) ? $query['exclude'] : array();
 		$has_budget         = isset( $profile['budget_max'] ) && null !== $profile['budget_max'] || isset( $profile['budget_min'] ) && null !== $profile['budget_min'];
@@ -127,6 +136,13 @@ trait ASI_Dialogue_Advice {
 
 		$exclude = $more ? $state['shown'] : array();
 		$found   = $this->search->search( $this->context['lang'], $search, array( 'roles' => array( 'catalog' ), 'limit' => 80, 'exclude' => $exclude ) )['items'];
+		$dropped = '';
+		if ( ! $found && $named ) {
+			// Nada de lo que conviene tiene eso ("blanco"): se recomienda igual y se dice.
+			$dropped          = implode( ' ', array_column( $named, 'text' ) );
+			$search['groups'] = array();
+			$found            = $this->search->search( $this->context['lang'], $search, array( 'roles' => array( 'catalog' ), 'limit' => 80, 'exclude' => $exclude ) )['items'];
+		}
 		$over  = false;
 		if ( ! $found && $has_budget ) {
 			// Nada de lo que conviene entra en el presupuesto: se muestra lo más accesible y se dice.
@@ -165,6 +181,9 @@ trait ASI_Dialogue_Advice {
 		$vars    = array( 'summary' => $rec['summary'], 'options' => $this->responder->join_list( $options, 'or' ) );
 
 		$text   = array( $this->responder->say( $more ? 'advice_more' : ( '' !== $rec['summary'] ? 'advice_open' : 'advice_open_generic' ), $vars ) );
+		if ( '' !== $dropped ) {
+			$text[] = $this->responder->say( 'advice_without', array( 'terms' => $dropped ) );
+		}
 		$text   = array_merge( $text, array_slice( $rec['reasons'], 0, 2 ) );
 		$follow = array();
 		if ( '' !== $rec['avoid'] ) {
@@ -195,6 +214,9 @@ trait ASI_Dialogue_Advice {
 			$follow[] = $this->responder->say( 'advice_closing' );
 		}
 
+		// Pidió un color que pocos indican: también los que no lo indican, aparte y con la aclaración.
+		$unlisted = '' === $dropped && $named ? $this->sparse_unlisted( $search, array_column( $picked, 'post_id' ) ) : null;
+
 		$ids = array_map( 'intval', array_column( $picked, 'post_id' ) );
 		// Si nombró qué busca ("un pickup de trabajo"), eso queda como su búsqueda: "pero quiero
 		// Nissan" la afina (pickups Nissan) en vez de empezar de cero.
@@ -224,6 +246,10 @@ trait ASI_Dialogue_Advice {
 				'pending' => array(),
 			),
 		);
+		if ( $unlisted ) {
+			$reply['extra'] = array( 'text' => $unlisted['text'], 'cards' => $this->cards( $unlisted['rows'] ) );
+			$reply['note']  = $unlisted['note'];
+		}
 		// Lo que recomienda se pasa de su presupuesto: que se note en las tarjetas, no solo en el texto.
 		return $over ? $this->as_suggestion( $reply, $search, '', false, $this->responder->say( 'suggest_title_advice', array( 'budget' => $this->budget_text( $search ) ) ) ) : $reply;
 	}

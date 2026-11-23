@@ -92,6 +92,9 @@ class ASI_Dialogue {
 				'languages'     => array( 'es', 'en' ),
 				'synonyms'      => array(),
 				'location_types' => array(),
+				// Taxonomías que pocos productos indican (color en 40 de 400): término => taxonomía, y por
+				// taxonomía su nombre y los IDs que sí la indican. Las arma el sitio (REST).
+				'sparse'        => array( 'terms' => array(), 'tax' => array() ),
 				'learned'       => array(), // clave de búsqueda => IDs enseñados desde el panel.
 				'tone'          => 'tu',
 				'emojis'        => false,
@@ -290,6 +293,12 @@ class ASI_Dialogue {
 			// "¿Cuánto cuesta el segundo?" es un dato; "el segundo" solo, el detalle.
 			$fact = $this->fact_flow( $normalized, $state );
 			return $fact ? $fact : $this->detail( $reference, $state );
+		}
+
+		// "¿Tienen garantía?": la del que está viendo, la de cada uno a la vista, o que varía según cuál.
+		$warranty = $this->warranty_flow( $message, $normalized, $state );
+		if ( $warranty ) {
+			return $warranty;
 		}
 
 		// Comparar dos productos, o el más barato / el más caro.
@@ -511,7 +520,7 @@ class ASI_Dialogue {
 			$query['corrections'] = array_merge( $shown, (array) $query['corrections'] );
 		}
 		$boosts  = $this->repository->boosts( $this->context['lang'], self::content_key( $this->analyzer, $this->lexicon, $text ) );
-		$catalog = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'catalog' ), 'boosts' => $boosts ) );
+		$catalog = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'catalog' ), 'boosts' => $boosts, 'exclude' => isset( $options['exclude_ids'] ) ? $options['exclude_ids'] : array() ) );
 		$pages   = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'info', 'article' ), 'limit' => 3 ) );
 
 		$intro = array();
@@ -707,6 +716,18 @@ class ASI_Dialogue {
 			$links      = array_merge( $links, $this->links( array_slice( $strong_pages, 0, 2 ) ) );
 		}
 
+		// Pidió algo que pocos productos indican ("blanco"): también los que no lo indican, aparte y con
+		// una aclaración (su foto puede no ser de ese color).
+		$note = '';
+		if ( 'exact' === $catalog['quality'] && empty( $options['exclude_ids'] ) ) {
+			$unlisted = $this->sparse_unlisted( $query, array_column( $catalog['items'], 'post_id' ) );
+			if ( $unlisted ) {
+				$extra   = array( 'text' => $unlisted['text'], 'cards' => $this->cards( $unlisted['rows'], $query ) );
+				$similar = $unlisted['rows'];
+				$note    = $unlisted['note'];
+			}
+		}
+
 		$shown   = array_map( 'intval', array_column( $catalog['items'], 'post_id' ) );
 		$similar_ids = array_map( 'intval', array_column( $similar, 'post_id' ) );
 
@@ -715,6 +736,7 @@ class ASI_Dialogue {
 			'text'        => $this->sentences( $intro ),
 			'cards'       => $this->cards( $catalog['items'], $query ),
 			'extra'       => $extra,
+			'note'        => $note,
 			'followup'    => $this->sentences( $followup ),
 			'links'       => $links,
 			'suggestions' => $suggestions,
@@ -1302,9 +1324,22 @@ class ASI_Dialogue {
 			if ( $all && ( ! $page || '' !== ASI_Lexicon::find_phrase( $normalized, $this->lexicon->get_list( 'list_words' ) ) ) ) {
 				return $this->places_response( 'info.location_list', $all, $page );
 			}
+			// "¿Dónde están?": cuáles son, en una frase, y el botón a la página del mapa.
+			if ( $all && $page && 'location' === $intent ) {
+				return array(
+					'kind'        => 'info',
+					'text'        => $this->responder->say( 'info.location_summary', array( 'places' => $this->responder->join_list( array_slice( array_column( array_column( $all, 'card' ), 'title' ), 0, 8 ) ) ) ),
+					'followup'    => $this->responder->say( 'info.location_page' ),
+					'cards'       => array(),
+					'links'       => array( $this->as_button( $page, 'location' ) ),
+					'suggestions' => array(),
+					'more'        => false,
+					'state'       => array(),
+				);
+			}
 		}
 
-		$links = $page ? array( $page ) : array();
+		$links = $page ? array( $this->as_button( $page, $intent ) ) : array();
 		// Contacto, asesor y cotización: el WhatsApp de ventas primero, si el sitio lo configuró.
 		$whatsapp = in_array( $intent, array( 'contact', 'human', 'quote' ), true ) ? $this->whatsapp_link() : null;
 		if ( $whatsapp ) {
@@ -1323,9 +1358,20 @@ class ASI_Dialogue {
 			}
 		}
 
+		// Requisitos o beneficios: solo si la página lo dice; si no, mejor un asesor que una página cualquiera.
+		// Una página que se llama así ("Garantía") sirve aunque no se pueda citar; una general (preguntas
+		// frecuentes) solo si dice algo de eso.
+		$quote = $links && $page ? $this->page_quote( $page, $intent, $query ) : array();
+		if ( ! $quote && $page && in_array( $intent, array( 'requirements', 'benefits', 'warranty' ), true ) ) {
+			$intents = $this->lexicon->intents();
+			$topic   = isset( $intents[ $intent ]['keywords'][0] ) ? ASI_Lexicon::normal_form( (string) $intents[ $intent ]['keywords'][0] ) : '';
+			if ( '' === $topic || false === strpos( ' ' . ASI_Lexicon::normal_form( (string) $page['title'] ) . ' ', ' ' . $topic . ' ' ) ) {
+				$links = array();
+			}
+		}
+
 		if ( $links ) {
 			// La frase de la página que responde ("Atendemos de lunes a sábado…"), además del enlace.
-			$quote = $this->page_quote( $page, $intent, $query );
 			return array(
 				'kind'        => 'info',
 				'text'        => $this->responder->say( ( $quote ? 'info_quote.' : 'info.' ) . $intent ),
@@ -1346,7 +1392,7 @@ class ASI_Dialogue {
 			'text'        => $this->responder->say( 'info_missing' ),
 			'followup'    => '',
 			'cards'       => array(),
-			'links'       => array( $contact ? $contact : array( 'title' => $this->context['site_name'], 'url' => $this->context['home_url'], 'summary' => '' ) ),
+			'links'       => array( $contact ? $this->as_button( $contact, 'contact' ) : array( 'title' => $this->context['site_name'], 'url' => $this->context['home_url'], 'summary' => '' ) ),
 			'suggestions' => array(),
 			'more'        => false,
 			'state'       => array(),
@@ -1574,7 +1620,129 @@ class ASI_Dialogue {
 			'followup'    => $page ? $this->responder->say( 'info.location_page' ) : '',
 			'cards'       => array(),
 			'places'      => $places,
-			'links'       => $page ? array( $page ) : array(),
+			'links'       => $page ? array( $this->as_button( $page, 'location' ) ) : array(),
+			'suggestions' => array(),
+			'more'        => false,
+			'state'       => array(),
+		);
+	}
+
+	/**
+	 * Enlace a una página como botón: sin su texto, y con el nombre de lo que hace si el idioma lo trae
+	 * ("Ver ubicaciones", "Contactar a un asesor"); si no, el nombre de la página.
+	 */
+	private function as_button( array $page, $intent ) {
+		$labels = (array) $this->lexicon->get_list( 'link_labels' );
+		if ( isset( $labels[ $intent ] ) && '' !== (string) $labels[ $intent ] ) {
+			$page['title'] = (string) $labels[ $intent ];
+		}
+		$page['summary'] = '';
+		return $page;
+	}
+
+	/**
+	 * Término de la búsqueda que pocos productos indican ("blanco"), o null.
+	 *
+	 * @return array|null { tax, term (como se ve), label (nombre del dato: "color"), ids (los que sí lo indican) }
+	 */
+	private function sparse_in( array $query ) {
+		$sparse = isset( $this->context['sparse'] ) ? (array) $this->context['sparse'] : array();
+		if ( empty( $sparse['terms'] ) ) {
+			return null;
+		}
+		foreach ( (array) $query['groups'] as $group ) {
+			$key = ASI_Lexicon::normal_form( (string) $group['text'] );
+			if ( ! empty( $group['soft'] ) || ! isset( $sparse['terms'][ $key ] ) ) {
+				continue;
+			}
+			$tax = $sparse['terms'][ $key ];
+			if ( isset( $sparse['tax'][ $tax ] ) ) {
+				return array(
+					'tax'   => $tax,
+					'term'  => $key,
+					'label' => (string) $sparse['tax'][ $tax ]['label'],
+					'ids'   => array_map( 'intval', (array) $sparse['tax'][ $tax ]['ids'] ),
+				);
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Lo mismo que pidió, sin el término que pocos indican ("blanco") y solo de los que no lo indican:
+	 * pueden venir así aunque su ficha no lo diga. null si no aplica.
+	 *
+	 * @param array $query Consulta.
+	 * @param int[] $shown Ya mostrados.
+	 * @return array|null { rows, text, note }
+	 */
+	private function sparse_unlisted( array $query, array $shown ) {
+		$sparse = $this->sparse_in( $query );
+		if ( ! $sparse ) {
+			return null;
+		}
+		$rest           = $query;
+		$rest['groups'] = array_values(
+			array_filter(
+				(array) $query['groups'],
+				function ( $group ) use ( $sparse ) {
+					return ASI_Lexicon::normal_form( (string) $group['text'] ) !== $sparse['term'];
+				}
+			)
+		);
+		$found = $this->search->search( $this->context['lang'], $rest, array( 'roles' => array( 'catalog' ), 'limit' => 4, 'exclude' => array_merge( $sparse['ids'], array_map( 'intval', $shown ) ) ) );
+		if ( empty( $found['items'] ) ) {
+			return null;
+		}
+		$vars = array( 'label' => $sparse['label'], 'term' => $sparse['term'] );
+		return array(
+			'rows' => $found['items'],
+			'text' => $this->responder->say( 'sparse_extra', $vars ),
+			'note' => $this->responder->say( 'sparse_note', $vars ),
+		);
+	}
+
+	/**
+	 * "¿Tienen garantía?", "¿qué garantía tiene?". Con uno a la vista, la de su ficha; con varios, la de
+	 * cada uno; sin ninguno, que sí hay y que varía según cuál le interesa. null si pide otra cosa
+	 * ("una pickup con garantía" es una búsqueda).
+	 */
+	private function warranty_flow( $message, $normalized, array $state ) {
+		$words = array_map( array( 'ASI_Normalizer', 'normalize' ), (array) $this->lexicon->get_list( 'warranty_words' ) );
+		if ( ! $words || '' === ASI_Lexicon::find_phrase( $normalized, $words ) ) {
+			return null;
+		}
+		$query = $this->analyzer->analyze( $message );
+		foreach ( (array) $query['groups'] as $group ) {
+			$text = ASI_Normalizer::normalize( (string) $group['text'] );
+			if ( ! in_array( $text, $words, true ) && empty( $group['soft'] ) && '' !== ( isset( $group['term_kind'] ) ? (string) $group['term_kind'] : '' ) ) {
+				return null; // Nombra algo del catálogo: busca con garantía, o pregunta por ese producto.
+			}
+		}
+		if ( ! empty( $query['attrs'] ) || ASI_Search::has_price_filter( $query ) ) {
+			return null;
+		}
+		$fact_map = $this->fact_word_map();
+		$asked    = array_values( array_intersect( $words, array_keys( $fact_map ) ) );
+		$focus    = $this->focus_row( $state );
+		if ( $focus ) {
+			// "¿Tienen garantía? ¿por cuánto tiempo?" con uno a la vista: la de ese.
+			$fact = $this->fact_flow( $normalized, $state );
+			return $fact ? $fact : ( $asked ? $this->answer_fact( $focus, array( $asked[0] ), $fact_map, $state ) : null );
+		}
+		$visible  = array_slice( array_map( 'intval', (array) $state['results'] ), 0, 8 );
+		if ( count( $visible ) >= 2 && $asked ) {
+			$many = $this->answer_fact_many( $visible, array( $asked[0] ), $fact_map );
+			if ( $many && 'weak' !== $many['learn'] ) {
+				return $many;
+			}
+		}
+		return array(
+			'kind'        => 'info',
+			'text'        => $this->responder->say( 'warranty_general' ),
+			'followup'    => '',
+			'cards'       => array(),
+			'links'       => array(),
 			'suggestions' => array(),
 			'more'        => false,
 			'state'       => array(),

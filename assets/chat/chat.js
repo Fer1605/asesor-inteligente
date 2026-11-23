@@ -209,6 +209,20 @@
 		log.appendChild( grid );
 	}
 
+	// Aclaración aparte de la respuesta ("las fotos de los nuevos pueden no ser del color que pides").
+	function note( text ) {
+		if ( ! text ) {
+			return;
+		}
+		const box = el( 'div', 'asi-note' );
+		const icon = el( 'span', 'asi-note__icon' );
+		icon.setAttribute( 'aria-hidden', 'true' );
+		icon.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+		box.appendChild( icon );
+		box.appendChild( el( 'p', 'asi-note__text', text ) );
+		log.appendChild( box );
+	}
+
 	// La frase exacta del sitio que responde (horario, teléfono, dato de la ficha).
 	function quote( lines ) {
 		if ( ! lines || ! lines.length ) {
@@ -407,6 +421,7 @@
 			tagQuery( grid, data );
 			log.appendChild( grid );
 		}
+		note( data.note );
 		if ( data.extra && data.extra.cards && data.extra.cards.length ) {
 			if ( data.extra.text ) {
 				bubble( 'bot', data.extra.text );
@@ -435,10 +450,12 @@
 				if ( item.id ) {
 					a.dataset.asiId = item.id;
 				}
+				// Botón con su flecha: el texto de la página ya no se repite aquí (la respuesta lo dice).
 				a.appendChild( el( 'span', 'asi-link__title', item.title ) );
-				if ( item.summary ) {
-					a.appendChild( el( 'span', 'asi-link__summary', item.summary ) );
-				}
+				const arrow = el( 'span', 'asi-link__arrow' );
+				arrow.setAttribute( 'aria-hidden', 'true' );
+				arrow.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg>';
+				a.appendChild( arrow );
 				list.appendChild( a );
 			} );
 			tagQuery( list, data );

@@ -436,8 +436,8 @@ class ASI_AI_Interpreter {
 			return array( 'response' => null, 'phrase' => '', 'intent' => null, 'model' => isset( $answer['model'] ) ? $answer['model'] : '' );
 		}
 		$phrase = self::phrase( $intent, $phrases );
-		// La IA no puede empezar una comparación o una cotización que el mensaje no pidió.
-		if ( self::unasked_action( $clean, $phrase, $phrases ) ) {
+		// La IA no puede empezar una comparación, una cotización o unas cuotas que el mensaje no pidió.
+		if ( self::unasked_action( $clean, $phrase, $phrases ) || ( ! $need_fin && self::unasked_finance( $clean, $phrase ) ) ) {
 			return array( 'response' => null, 'phrase' => '', 'intent' => null, 'model' => isset( $answer['model'] ) ? $answer['model'] : '' );
 		}
 		$result = self::try_phrase( $dialogue, $message, $phrase, $state );
@@ -471,6 +471,52 @@ class ASI_AI_Interpreter {
 		}
 		$text = ' ' . ASI_Normalizer::normalize( (string) $message ) . ' ';
 		return ! preg_match( '/([ck]ompa?r|diferen|\svs\s|versus|cual.{0,25}(mejor|conviene)|[ck]oti[sz]|proforma|quot|differen|which.{0,25}better)/', $text );
+	}
+
+	/**
+	 * ¿La frase de la IA calcula cuotas que el mensaje no pide? ("¿qué necesito para adquirir un
+	 * carro?" o "¿qué beneficios obtengo?" no son "¿cómo es el financiamiento?").
+	 */
+	public static function unasked_finance( $message, $phrase ) {
+		$money = '/(cuot|financ|enganch|credit|plaz|mensual|prima|al mes|pagar|pago|meses|install|monthly|loan|down payment|lease|leasing)/';
+		$text  = ASI_Normalizer::normalize( (string) $message );
+		if ( ! preg_match( $money, ASI_Normalizer::normalize( (string) $phrase ) ) || preg_match( $money, ' ' . $text . ' ' ) ) {
+			return false;
+		}
+		// Solo si el mensaje se lee bien (una pregunta normal): uno muy mal escrito sí lo interpreta la IA.
+		$known = 0;
+		foreach ( explode( ' ', $text ) as $word ) {
+			foreach ( ASI_Lexicon::available() as $code ) {
+				if ( ASI_Lexicon::get( $code )->is_stopword( $word ) || ASI_Lexicon::get( $code )->is_known_word( $word ) ) {
+					$known++;
+					break;
+				}
+			}
+		}
+		return $known >= 3;
+	}
+
+	/**
+	 * Términos del sitio que el cliente escribió ("blanco") y la frase de la IA dejó fuera ("suv").
+	 * Las marcas no: la IA ya decide si cambia de marca.
+	 *
+	 * @return string[]
+	 */
+	public static function dropped_terms( ASI_Query_Analyzer $analyzer, $message, $phrase ) {
+		$said    = $analyzer->analyze( (string) $message );
+		$current = ' ' . implode( ' ', explode( ' ', ASI_Lexicon::normal_form( (string) $phrase ) ) ) . ' ';
+		$out     = array();
+		foreach ( isset( $said['groups'] ) ? (array) $said['groups'] : array() as $group ) {
+			$kind = isset( $group['term_kind'] ) ? (string) $group['term_kind'] : '';
+			if ( '' === $kind || 'brand' === $kind || ! empty( $group['soft'] ) || ! empty( $group['brands'] ) ) {
+				continue;
+			}
+			$term = ASI_Lexicon::normal_form( (string) $group['text'] );
+			if ( '' !== $term && false === strpos( $current, ' ' . $term . ' ' ) ) {
+				$out[] = $term;
+			}
+		}
+		return array_values( array_unique( $out ) );
 	}
 
 	/**
@@ -1063,6 +1109,15 @@ class ASI_AI_Interpreter {
 			$phrase       = $spec ? self::search_phrase( $spec, $phrases ) : '';
 			$out['note']  = $spec ? $spec['assumed'] : '';
 			$out['spec']  = $spec;
+		}
+		// Lo que nombró del sitio ("suv blanca") no se pierde porque la IA lo resuma ("suv"), tampoco
+		// si la frase viene de la caché.
+		$named = '' !== $phrase ? self::dropped_terms( $analyzer, self::scrub( $message ), $phrase ) : array();
+		if ( $named ) {
+			$phrase = trim( $phrase . ' ' . implode( ' ', $named ) );
+			if ( is_array( $out['spec'] ) ) {
+				$out['spec']['words'] = trim( $out['spec']['words'] . ' ' . implode( ' ', $named ) );
+			}
 		}
 		$out['phrase'] = $phrase;
 		if ( '' === $phrase ) {
