@@ -7,7 +7,7 @@ $q_lot->add( 10, 'es', 'catalog', 'Delta Ranger', array( 'category' => array( 'S
 $q_lot->add( 11, 'es', 'catalog', 'Garza Rover', array( 'category' => array( 'SUV', 'Negro' ) ), 'SUV.', array(), array( 'price' => '230000', 'currency_raw' => '2' ) );
 $q_lot->add( 12, 'es', 'catalog', 'Delta Nova', array( 'category' => array( 'SUV' ) ), 'SUV.', array(), array( 'price' => '210000', 'currency_raw' => '2' ) );
 $q_lot->add( 13, 'es', 'catalog', 'Garza Poder', array( 'category' => array( 'Pick up' ) ), 'Pick up.', array(), array( 'price' => '200000', 'currency_raw' => '2' ) );
-$q_sparse = array( 'terms' => array( 'blanco' => 'color', 'negro' => 'color' ), 'tax' => array( 'color' => array( 'label' => 'color', 'ids' => array( 10, 11 ) ) ) );
+$q_sparse = array( 'terms' => array( 'blanco' => 'color', 'negro' => 'color' ), 'tax' => array( 'color' => array( 'label' => 'color', 'ids' => array( 10, 11 ), 'words' => array( 'blanco' => array( 10 ), 'negro' => array( 11 ) ) ) ) );
 $q_bot    = function () use ( $q_lot, $q_sparse ) {
 	return new ASI_Dialogue( $q_lot, array( 'lang' => 'es', 'language' => 'es', 'site_name' => 'Agencia', 'sparse' => $q_sparse, 'money' => array( 'base' => 'GTQ', 'map' => array( '2' => 'GTQ' ) ) ), function () {
 		return 0;
@@ -31,6 +31,30 @@ check( 'color: aparte, los que no indican color (no los de otro color)', array( 
 check( 'color: con su aclaración aparte', true, false !== strpos( $r['note'], 'varios colores' ) );
 $r = $q_bot()->handle( 'suv' );
 check( 'color: sin color pedido no hay aclaración', '', $r['note'] ?? '' );
+
+// Lo revisa el endpoint con el mensaje original, aunque la IA haya dejado fuera el color.
+$q_color = function ( $message, $as = null ) use ( $q_bot ) {
+	$bot = $q_bot();
+	return $bot->color_check( $bot->handle( null === $as ? $message : $as ), array(), $message );
+};
+$r = $q_color( 'suv blanca' );
+check( 'color pedido: primero el de ese color', 10, asi_card_ids( $r )[0] );
+check( 'color pedido: aclaración de que las fotos son referencia', true, false !== strpos( $r['note'], 'Primero' ) && false !== strpos( $r['note'], 'referencia' ) );
+$r = $q_color( 'quiero un carro grande negro', 'suv' );
+check( 'color que la IA dejó fuera: igual va primero', 11, asi_card_ids( $r )[0] );
+check( 'color que la IA dejó fuera: con aclaración', true, false !== strpos( $r['note'], 'negro' ) );
+$r = $q_color( 'una suv azul' );
+check( 'color que no hay: los que cumplen lo demás', true, (bool) asi_card_ids( $r ) && ! array_diff( asi_card_ids( $r ), array( 10, 11, 12 ) ) );
+check( 'color que no hay: lo dice y aclara', true, false !== strpos( $r['note'], 'no tengo uno en azul' ) && false !== strpos( $r['note'], 'asesor' ) );
+$r = $q_color( 'ando buscando una pick up color roja' );
+check( 'color en un pick up: solo pick ups, no un suv', array( 13 ), asi_card_ids( $r ) );
+check( 'color en un pick up: con aclaración', true, false !== strpos( (string) ( $r['note'] ?? '' ), 'rojo' ) );
+$r = $q_color( 'quiero un pick up negro' );
+check( 'color de otro tipo: no se mete un suv negro', false, in_array( 11, asi_card_ids( $r ), true ) );
+$r = $q_color( 'quiero un carro negro' );
+check( 'solo el color: lo encontrado es de ese color', true, false !== strpos( $r['note'], 'Primero' ) );
+$r = $q_color( 'suv' );
+check( 'sin color: sin aclaración', '', $r['note'] ?? '' );
 
 // La IA: unas cuotas que la pregunta no pide no se calculan; con un mensaje ilegible, sí se interpreta.
 check( 'ia: "¿qué necesito para adquirir?" no son cuotas', true, ASI_AI_Interpreter::unasked_finance( 'que necesitan para que yo pueda adquirir un carro', 'como es el financiamiento' ) );

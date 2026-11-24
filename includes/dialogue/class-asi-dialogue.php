@@ -428,6 +428,131 @@ class ASI_Dialogue {
 	}
 
 	/**
+	 * Pidió un color ("una pickup roja", "un carro grande azul"). Muchos productos no indican su color
+	 * (los nuevos vienen en varios): primero van los que sí son de ese color y cumplen lo demás, luego
+	 * el resto de lo que pidió, y siempre una aclaración de que las fotos son de referencia. Lo llama
+	 * el endpoint con el mensaje original (después de la IA), para que valga aunque la IA dejara fuera
+	 * el color.
+	 */
+	public function color_check( array $response, array $before, $message ) {
+		if ( ! $this->analyzer || empty( $response['kind'] ) || 'results' !== $response['kind'] || empty( $response['cards'] ) ) {
+			return $response;
+		}
+		$color = $this->color_asked( $message );
+		if ( ! $color ) {
+			return $response;
+		}
+		// El color dejó la búsqueda a medias ("no hay algo exacto", "con gris no tengo"): se busca lo
+		// demás que pidió, sin el color.
+		if ( ( isset( $response['quality'] ) && 'exact' !== $response['quality'] ) || ! empty( $response['dropped'] ) ) {
+			$plain = $this->without_color( $message );
+			if ( '' !== $plain ) {
+				$again = $this->handle( $plain, $before );
+				if ( isset( $again['kind'] ) && 'results' === $again['kind'] && ! empty( $again['cards'] ) && ( ! isset( $again['quality'] ) || 'exact' === $again['quality'] ) && empty( $again['dropped'] ) ) {
+					$response = $again;
+				}
+			}
+		}
+
+		// Los de ese color que cumplen todo lo demás, primero.
+		$colored = array();
+		$rest_q  = $this->without_color( isset( $response['state']['q'] ) ? (string) $response['state']['q'] : '' );
+		if ( $color['ids'] && '' !== $rest_q ) {
+			$query = $this->analyzer->analyze( $rest_q );
+			if ( $this->is_searchable( $query ) ) {
+				$found = $this->search->search( $this->context['lang'], $query, array( 'roles' => array( 'catalog' ), 'only' => $color['ids'], 'limit' => 4 ) );
+				if ( 'exact' === $found['quality'] ) {
+					$colored = $this->cards( $found['items'], $query );
+				}
+			}
+		}
+		if ( $colored ) {
+			$first = array_map( 'intval', array_column( $colored, 'id' ) );
+			$rest  = array_filter(
+				$response['cards'],
+				function ( $card ) use ( $first ) {
+					return ! in_array( (int) $card['id'], $first, true );
+				}
+			);
+			$response['cards'] = array_slice( array_merge( $colored, array_values( $rest ) ), 0, max( count( $response['cards'] ), count( $colored ) ) );
+			if ( ! empty( $response['extra']['cards'] ) ) {
+				$response['extra']['cards'] = array_values(
+					array_filter(
+						$response['extra']['cards'],
+						function ( $card ) use ( $first ) {
+							return ! in_array( (int) $card['id'], $first, true );
+						}
+					)
+				);
+			}
+			$shown = array_map( 'intval', array_column( $response['cards'], 'id' ) );
+			$more  = ! empty( $response['extra']['cards'] ) ? array_map( 'intval', array_column( $response['extra']['cards'], 'id' ) ) : array();
+			$response['state']['shown']   = $shown;
+			$response['state']['results'] = array_slice( array_merge( $shown, $more ), 0, 8 );
+			$response['state']['focus']   = 1 === count( $shown ) ? $shown[0] : 0;
+		}
+		// Ya venían de ese color ("un carro negro" se buscó por "negro").
+		$has = $colored || array_intersect( array_map( 'intval', array_column( $response['cards'], 'id' ) ), $color['ids'] );
+		$response['note'] = $this->responder->say( $has ? 'color_note_found' : 'color_note_none', array( 'color' => $color['name'] ) );
+		return $response;
+	}
+
+	/**
+	 * Color que pide el mensaje, si el sitio tiene un dato de color que pocos productos indican.
+	 *
+	 * @return array|null { name (como se dice: "rojo"), ids (los de ese color) }
+	 */
+	private function color_asked( $message ) {
+		$sparse = isset( $this->context['sparse']['tax'] ) ? (array) $this->context['sparse']['tax'] : array();
+		$label  = ASI_Lexicon::normal_form( $this->lexicon->word( 'color_label' ) );
+		$tax    = null;
+		foreach ( $sparse as $info ) {
+			if ( isset( $info['label'] ) && ASI_Lexicon::normal_form( (string) $info['label'] ) === $label ) {
+				$tax = $info;
+				break;
+			}
+		}
+		if ( ! $tax ) {
+			return null;
+		}
+		$said = array_flip( explode( ' ', ASI_Lexicon::normal_form( $message ) ) );
+		foreach ( (array) $this->lexicon->get_list( 'color_words' ) as $name ) {
+			$key = ASI_Lexicon::normal_form( $name );
+			if ( isset( $said[ $key ] ) || isset( $said[ $this->color_feminine( $key ) ] ) ) {
+				return array(
+					'name' => $name,
+					'ids'  => isset( $tax['words'][ $key ] ) ? array_map( 'intval', (array) $tax['words'][ $key ] ) : array(),
+				);
+			}
+		}
+		return null;
+	}
+
+	/** "rojo" → "roja" (en forma normal); igual si no termina en -o. */
+	private function color_feminine( $key ) {
+		return 'o' === substr( $key, -1 ) ? substr( $key, 0, -1 ) . 'a' : $key;
+	}
+
+	/** El texto sin los colores ni la palabra "color": "pick up color rojo" → "pick up". */
+	private function without_color( $text ) {
+		$drop = array( ASI_Lexicon::normal_form( $this->lexicon->word( 'color_label' ) ) => true );
+		foreach ( (array) $this->lexicon->get_list( 'color_words' ) as $name ) {
+			$key                                   = ASI_Lexicon::normal_form( $name );
+			$drop[ $key ]                          = true;
+			$drop[ $this->color_feminine( $key ) ] = true;
+		}
+		$keep = array();
+		foreach ( ASI_Normalizer::tokens( (string) $text ) as $token ) {
+			if ( ! isset( $drop[ ASI_Normalizer::singular( $token ) ] ) ) {
+				$keep[] = $token;
+			}
+		}
+		$keep = implode( ' ', $keep );
+		// Solo quedaron palabras sin contenido ("de", "en"): no hay nada más que buscar.
+		return '' === trim( (string) self::content_key( $this->analyzer, $this->lexicon, $keep ) ) ? '' : $keep;
+	}
+
+	/**
 	 * Respuesta a "¿sigues con tu presupuesto?": "sí, el mismo" lo confirma; "sin presupuesto" lo
 	 * quita; un monto nuevo lo cambia (lo hace el flujo normal). null si es otra cosa.
 	 */
@@ -742,6 +867,9 @@ class ASI_Dialogue {
 			'suggestions' => $suggestions,
 			'more'        => $total > count( $shown ),
 			'learn'       => 'exact' === $catalog['quality'] ? '' : 'weak',
+			// Para la revisión del color (color_check); no se envían al navegador.
+			'quality'     => $catalog['quality'],
+			'dropped'     => isset( $options['dropped'] ) ? (string) $options['dropped'] : '',
 			// Las reglas tuvieron que adivinar (corrigieron un error de dedo o quedaron palabras que no son
 			// del sitio): en modo "lee todo", la IA interpreta. No se envía al navegador.
 			'guessed'     => $this->had_to_guess( $query ),

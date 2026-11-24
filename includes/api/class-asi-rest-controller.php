@@ -213,11 +213,13 @@ class ASI_REST_Controller {
 
 		// Cambió de tipo de vehículo sin decir monto: se conservó el presupuesto y se pregunta si sigue.
 		$response = $dialogue->budget_check( $response, $state, $message );
+		// Pidió un color: primero los de ese color y una aclaración de que las fotos son de referencia.
+		$response = $dialogue->color_check( $response, $state, $message );
 
 		if ( ! empty( $response['learn'] ) ) {
 			ASI_Learning::log_question( $message, $context->lang, isset( $response['qkey'] ) ? $response['qkey'] : '', $response['learn'] );
 		}
-		unset( $response['learn'], $response['qkey'], $response['fin_unread'], $response['guessed'], $response['over_budget'] );
+		unset( $response['learn'], $response['qkey'], $response['fin_unread'], $response['guessed'], $response['over_budget'], $response['quality'], $response['dropped'] );
 
 		$response['state']        = isset( $response['state'] ) && is_array( $response['state'] ) ? $response['state'] : array();
 		$response['state']['cid'] = $cid;
@@ -318,7 +320,7 @@ class ASI_REST_Controller {
 	 * @return array { terms: forma normal => taxonomía, tax: taxonomía => { label, ids } }
 	 */
 	public static function sparse_taxonomies() {
-		$key    = ASI_Index_Repository::VOCAB_PREFIX . 'sparse';
+		$key    = ASI_Index_Repository::VOCAB_PREFIX . 'sparse2';
 		$cached = get_transient( $key );
 		if ( is_array( $cached ) ) {
 			return $cached;
@@ -343,9 +345,15 @@ class ASI_REST_Controller {
 					continue;
 				}
 				$label = ASI_Normalizer::singular( strtolower( remove_accents( (string) $info['label'] ) ) );
-				$out['tax'][ $taxonomy ] = array( 'label' => $label, 'ids' => array_map( 'intval', $ids ) );
+				$out['tax'][ $taxonomy ] = array( 'label' => $label, 'ids' => array_map( 'intval', $ids ), 'words' => array() );
 				foreach ( $terms as $name ) {
 					$out['terms'][ ASI_Lexicon::normal_form( $name ) ] = $taxonomy;
+					// Cada palabra del término, con sus productos: "azul" junta "Azul Atlántico" y "Azul D".
+					$with = get_posts( array( 'post_type' => $post_type, 'post_status' => 'publish', 'numberposts' => -1, 'fields' => 'ids', 'tax_query' => array( array( 'taxonomy' => $taxonomy, 'field' => 'name', 'terms' => $name ) ) ) ); // phpcs:ignore WordPress.DB.SlowDBQuery
+					foreach ( array_unique( explode( ' ', ASI_Lexicon::normal_form( $name ) ) ) as $word ) {
+						$have = isset( $out['tax'][ $taxonomy ]['words'][ $word ] ) ? $out['tax'][ $taxonomy ]['words'][ $word ] : array();
+						$out['tax'][ $taxonomy ]['words'][ $word ] = array_values( array_unique( array_merge( $have, array_map( 'intval', $with ) ) ) );
+					}
 				}
 			}
 		}

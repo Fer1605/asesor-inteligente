@@ -168,6 +168,7 @@ return array(
 
 	'list_words'  => array( 'all', 'list', 'which', 'what areas', 'areas', 'every' ),
 	'warranty_words' => array( 'warranty', 'warranties', 'guarantee' ),
+	'color_words' => array( 'white', 'black', 'gray', 'grey', 'silver', 'red', 'blue', 'green', 'yellow', 'orange', 'brown', 'beige', 'gold', 'purple', 'maroon', 'bronze', 'burgundy', 'pearl' ),
 	'link_labels' => array( 'location' => 'See locations', 'contact' => 'Contact an advisor', 'human' => 'Contact an advisor', 'hours' => 'See opening hours' ),
 	'place_words' => array( 'store', 'stores', 'branch', 'branches', 'location', 'locations', 'office', 'offices', 'shop', 'shops', 'point', 'pickup', 'address', 'area', 'areas', 'hours', 'open', 'near', 'map', 'located' ),
 
@@ -343,6 +344,7 @@ return array(
 		'evening'   => 'Good evening',
 		'in'        => 'in',
 		'budget_same_chip' => 'Yes, the same',
+		'color_label'      => 'color',
 		'budget_none_chip' => 'No budget',
 		'hint_type'     => 'what type you want',
 		'hint_brand'    => 'which brand you prefer',
@@ -414,6 +416,12 @@ return array(
 			'Happy to help you choose! Tell me a bit: how many people will usually ride and what will you use it for (city, highway, work, farm)?',
 		),
 		'sparse_extra' => array( 'And these, which come in several colors:' ),
+		'color_note_found' => array(
+			'The ones we have in {color} come first. Images are for reference only: for new vehicles, check the available colors with an advisor.',
+		),
+		'color_note_none' => array(
+			'Right now I don\'t have one in {color} with what you asked for. Images are for reference only: for new vehicles, check the available colors with an advisor.',
+		),
 		'sparse_note' => array(
 			'Above are the ones we have in {term}. The ones below come in several colors, so their photo may not be {term}: ask us and we will confirm.',
 		),

@@ -429,6 +429,8 @@ return array(
 	'rest_words' => array( 'la que falta', 'el que falta', 'la otra', 'el otro', 'las demas', 'los demas', 'las otras', 'los otros', 'el resto', 'las que faltan', 'los que faltan', 'las restantes', 'ver las otras', 'faltan' ),
 	// "¿Tienen garantía?": la de lo que está viendo, la de cada uno o que varía según cuál.
 	'warranty_words' => array( 'garantia', 'garantias' ),
+	// Colores que se piden ("una pickup roja"). En masculino; "roja", "rojas" también cuentan.
+	'color_words' => array( 'blanco', 'negro', 'gris', 'plateado', 'rojo', 'azul', 'verde', 'amarillo', 'naranja', 'anaranjado', 'cafe', 'marron', 'beige', 'dorado', 'morado', 'celeste', 'corinto', 'vino', 'bronce', 'champan', 'turquesa', 'rosado', 'grafito', 'cobre', 'perla' ),
 	// Nombre de los botones a las páginas que responden (si no, el nombre de la página).
 	'link_labels' => array( 'location' => 'Ver ubicaciones', 'contact' => 'Contactar a un asesor', 'human' => 'Contactar a un asesor', 'hours' => 'Ver horarios' ),
 	// Palabras comunes de una pregunta: nunca se "corrigen" a algo del catálogo ("poder" no es un modelo).
@@ -452,6 +454,7 @@ return array(
 		'evening'  => 'Buenas noches',
 		'in'       => 'en',
 		'budget_same_chip' => 'Sí, el mismo',
+		'color_label'      => 'color',
 		'budget_none_chip' => 'Sin presupuesto',
 		'hint_type'     => 'qué tipo buscas',
 		'hint_brand'    => 'qué marca prefieres',
@@ -534,6 +537,12 @@ return array(
 			'Claro. Para recomendarte bien, ¿cuántas personas van a usarlo y para qué: ciudad, viajes, trabajo o caminos de tierra?',
 		),
 		'sparse_extra' => array( 'Y estos, que vienen en varios colores:', 'También estos, que no indican un solo {label}:' ),
+		'color_note_found' => array(
+			'Primero están los que tenemos en {color}. Las imágenes son solo de referencia: en vehículos nuevos, confirma los colores disponibles con un asesor.',
+		),
+		'color_note_none' => array(
+			'Por ahora no tengo uno en {color} con lo que pides. Las imágenes son solo de referencia: en vehículos nuevos, confirma los colores disponibles con un asesor.',
+		),
 		'sparse_note' => array(
 			'Arriba están los que tenemos en {term}. Los de abajo vienen en varios colores, así que su foto puede no ser {term}: pregúntanos y te confirmamos si lo hay.',
 		),

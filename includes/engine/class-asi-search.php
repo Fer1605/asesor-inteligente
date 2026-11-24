@@ -140,6 +140,7 @@ class ASI_Search {
 			array(
 				'roles'   => array( 'catalog', 'info', 'article' ),
 				'exclude' => array(),
+				'only'    => null,
 				'limit'   => self::PAGE_SIZE,
 			),
 			$options
@@ -240,9 +241,11 @@ class ASI_Search {
 
 		$ids     = array_map( 'intval', array_column( $pool, 'post_id' ) );
 		$exclude = array_flip( array_map( 'intval', $options['exclude'] ) );
+		// Solo entre estos ("los que son azules"); null, entre todos.
+		$only    = is_array( $options['only'] ) ? array_flip( array_map( 'intval', $options['only'] ) ) : null;
 		$items   = array();
 		foreach ( $pool as $row ) {
-			if ( ! isset( $exclude[ (int) $row['post_id'] ] ) ) {
+			if ( ! isset( $exclude[ (int) $row['post_id'] ] ) && ( null === $only || isset( $only[ (int) $row['post_id'] ] ) ) ) {
 				$items[] = $row;
 			}
 			if ( count( $items ) >= $options['limit'] ) {
@@ -348,9 +351,11 @@ class ASI_Search {
 			$pool = $this->cheapest_first( $pool );
 		}
 		$exclude = array_flip( array_map( 'intval', $options['exclude'] ) );
+		// Solo entre estos ("los que son azules"); null, entre todos.
+		$only    = is_array( $options['only'] ) ? array_flip( array_map( 'intval', $options['only'] ) ) : null;
 		$items   = array();
 		foreach ( $pool as $row ) {
-			if ( ! isset( $exclude[ (int) $row['post_id'] ] ) ) {
+			if ( ! isset( $exclude[ (int) $row['post_id'] ] ) && ( null === $only || isset( $only[ (int) $row['post_id'] ] ) ) ) {
 				$items[] = $row;
 			}
 			if ( count( $items ) >= $options['limit'] ) {
